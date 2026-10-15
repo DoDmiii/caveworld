@@ -118,7 +118,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
       const speed=running?105:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
-      if(moving) { const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8; p.setTexture(`human${this.lastFacing}`);p.setOrigin(.5,.5+Math.sin(time/(running?65:95))*.022); }else p.setOrigin(.5,.5);
+      if(moving) {
+        const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
+        p.setOrigin(.5,.5);
+        const animKey=`walk-${this.lastFacing}`;
+        if(p.anims.currentAnim?.key!==animKey)p.play(animKey);
+        p.anims.setTimeScale(running?1.5:1);
+      } else {
+        p.anims.stop();
+        p.setTexture(`human${this.lastFacing}`);
+        p.setOrigin(.5,.5);
+      }
       p.setDepth(p.y);
       const actionKey=k?.['E'],spaceKey=k?.['SPACE'];
       const keyboardAction=(actionKey&&Phaser.Input.Keyboard.JustDown(actionKey))||(spaceKey&&Phaser.Input.Keyboard.JustDown(spaceKey));
