@@ -34,6 +34,7 @@ const WORLD = 2048;
 // Start camp sits in the forecourt of a cave carved into the northern massif.
 const CAMP = { x: 1000, y: 640 };
 const FIRE_DY = 40;
+const SIDE_CAVES = [360, 1760];
 
 export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void) {
   class Wilderness extends Phaser.Scene {
@@ -104,6 +105,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(let i=0;i<9000;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*560);const e=mEdge(x);if(y>e-50)continue;rect(c,['#6a6f66','#50554d','#757a6e','#4f6345','#626a58'][i%5] ?? '#6a6f66',x,y,2+(i%4),2);}
         for(let i=0;i<260;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*520);if(y>mEdge(x)-60)continue;rect(c,'#7f847a',x,y,14+Math.floor(rand()*26),2);rect(c,'#40443d',x+2,y+2,12+Math.floor(rand()*20),2);}
         for(let x=0;x<WORLD;x+=6+Math.floor(rand()*10)){const e=Math.floor(mEdge(x));rect(c,'#2f332d',x,e-44,2,30+Math.floor(rand()*10));rect(c,'#636860',x+2,e-44,2,18);}
+        // High ridges: jagged peaks with shadowed flanks and snow caps along the far north.
+        for(let px=40;px<WORLD;px+=110+Math.floor(rand()*70)){const top=20+rand()*90,h=140+rand()*120,w=70+rand()*60;
+          c.fillStyle='#454a43';c.beginPath();c.moveTo(px,top);c.lineTo(px+w,top+h);c.lineTo(px,top+h*0.9);c.closePath();c.fill();
+          c.fillStyle='#6c7168';c.beginPath();c.moveTo(px,top);c.lineTo(px-w,top+h);c.lineTo(px,top+h*0.9);c.closePath();c.fill();
+          c.fillStyle='#d9ddd6';c.beginPath();c.moveTo(px,top);c.lineTo(px-w*0.32,top+h*0.3);c.lineTo(px-w*0.1,top+h*0.24);c.lineTo(px+w*0.05,top+h*0.32);c.lineTo(px+w*0.3,top+h*0.28);c.closePath();c.fill();
+          c.fillStyle='#aeb5b0';c.beginPath();c.moveTo(px,top);c.lineTo(px+w*0.3,top+h*0.28);c.lineTo(px+w*0.05,top+h*0.32);c.closePath();c.fill();}
+        for(let i=0;i<2200;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*160);if(y>mEdge(x)-120)continue;rect(c,i%3?'#e4e7e1':'#c3c9c4',x,y,2+(i%3),2);}
+        // Scree fans spilling from gullies onto the foothills (kept clear of the camp).
+        for(let i=0;i<14;i++){const gx=80+rand()*(WORLD-160);if(Math.abs(gx-CAMP.x)<320)continue;const e=mEdge(gx);
+          for(let k=0;k<260;k++){const t=rand(),spread=8+t*60;const x=Math.floor(gx+(rand()-.5)*spread*2),y=Math.floor(e-30+t*90);rect(c,['#8a8d84','#6e7169','#a0a399','#575a53'][k%4] ?? '#8a8d84',x,y,2+Math.floor(rand()*3),2);}
+          rect(c,'#2a2e28',Math.floor(gx-2),Math.floor(e-120),4,90);}
+        // Secondary caves in the massif.
+        for(const hx of SIDE_CAVES){const ey=Math.floor(mEdge(hx));
+          c.fillStyle='#2e322c';c.beginPath();c.ellipse(hx,ey-6,26,26,0,Math.PI,0);c.fill();
+          c.fillStyle='#0d0f0c';c.beginPath();c.ellipse(hx,ey-4,17,18,0,Math.PI,0);c.fill();rect(c,'#0d0f0c',hx-17,ey-6,34,6);
+          for(const [dx,dy] of [[-30,-4],[24,-2],[-12,-30]] as const)rect(c,'#7c8076',hx+dx,ey+dy,8,3);}
         // Cave mouth carved into the cliff.
         const cy=Math.floor(mEdge(CAMP.x));
         c.fillStyle='#2e322c';c.beginPath();c.ellipse(CAMP.x,cy-6,46,44,0,Math.PI,0);c.fill();rect(c,'#2e322c',CAMP.x-46,cy-8,92,10);
@@ -177,6 +194,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
+        else if(SIDE_CAVES.some(hx=>Math.abs(p.x-hx)<45&&p.y<mEdge(hx)+50))this.message='Eine dunkle Höhle – kalter Wind weht heraus';
         else this.message='Hier gibt es nichts zu sammeln';
         this.messageUntil=time+2400;
       }
