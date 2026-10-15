@@ -81,20 +81,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           c.fillStyle='#6a785c';c.beginPath();c.ellipse(x-rx*.15,y-ry*.2,rx*.7,ry*.6,0,0,Math.PI*2);c.fill();
           c.fillStyle='#74816a';c.beginPath();c.ellipse(x-rx*.25,y-ry*.35,rx*.35,ry*.28,0,0,Math.PI*2);c.fill();
           for(let k=0;k<70;k++)rect(c,k%2?'#7c8572':'#4f5b47',Math.floor(x+(hr()-.5)*rx*1.6),Math.floor(y+(hr()-.5)*ry*1.6),2,2);}
-        // Worn trails from the cave camp down into the valley.
-        c.lineCap='round'; c.lineJoin='round';
-        const path=(color:string,width:number)=>{c.strokeStyle=color;c.lineWidth=width;c.beginPath();c.moveTo(1000,620);c.bezierCurveTo(1050,900,1150,1120,740,1360);c.bezierCurveTo(600,1500,900,1800,880,2048);c.stroke();c.beginPath();c.moveTo(1000,700);c.bezierCurveTo(760,860,500,950,0,1180);c.stroke();c.beginPath();c.moveTo(1060,760);c.bezierCurveTo(1250,820,1400,900,1530,980);c.stroke();};
-        path('#5f5f4e',54);path('#6e6b57',36);
-        for(let i=0;i<4500;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*WORLD);const p=c.getImageData(x,y,1,1).data;if((p[0] ?? 0)>104&&(p[1] ?? 0)<112)rect(c,i%2?'#858070':'#55554a',x,y,2,2);}
+        // Untouched wilderness: irregular moss beds, dark soil, scree and lichen — no trails.
+        for(let i=0;i<180;i++){const x=rand()*WORLD,y=rand()*WORLD,r=20+rand()*70;const col=['rgba(64,82,52,0.55)','rgba(70,72,62,0.45)','rgba(48,58,42,0.5)','rgba(98,106,86,0.35)'][i%4] ?? '';c.fillStyle=col;c.beginPath();for(let a=0;a<12;a++){const ang=a/12*Math.PI*2,rr=r*(0.6+rand()*0.5);const px=x+Math.cos(ang)*rr,py=y+Math.sin(ang)*rr*0.7;if(a===0)c.moveTo(px,py);else c.lineTo(px,py);}c.closePath();c.fill();}
+        for(let i=0;i<1400;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*WORLD);for(let k=0;k<5;k++)rect(c,k%2?'#7a7e72':'#555a50',x+Math.floor(rand()*14),y+Math.floor(rand()*8),2,2);}
+        for(let i=0;i<900;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*WORLD);rect(c,'#3a2f26',x,y,4+Math.floor(rand()*6),1);rect(c,'#4a3c30',x+1,y+1,3,1);}
+        for(let i=0;i<1600;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*WORLD);rect(c,['#8f9a6e','#a6a37e','#6f7d58'][i%3] ?? '#8f9a6e',x,y,1,1);}
         const river=(color:string,width:number)=>{c.strokeStyle=color;c.lineWidth=width;c.beginPath();c.moveTo(1570,-100);c.bezierCurveTo(1290,650,1750,1000,1580,2150);c.stroke();};
         river('#3b4438',163);river('#7a7c70',148);river('#3f5f63',132);river('#4b7378',110);river('#5c878a',78);
         for(let y=0;y<WORLD;y+=17) {const x=riverX(y);rect(c,'#a3c0bc',x-33+Math.floor(rand()*50),y,10+Math.floor(rand()*20),2);}
         for(let y=0;y<WORLD;y+=9){const x=riverX(y);for(const s of [-1,1])rect(c,rand()<.5?'#8e9087':'#6b6d64',Math.floor(x+s*(68+rand()*8)),y,3,2);}
         for(let i=0;i<2600;i++){const x=Math.floor(rand()*WORLD),y=Math.floor(rand()*WORLD);if(Math.abs(x-riverX(y))<95)continue; rect(c,'#435238',x,y,2,5);rect(c,'#4e5f40',x+3,y-2,2,5);if(i%9===0){rect(c,'#b9b28e',x+1,y-2,2,2);}}
         // Camp forecourt of trampled earth and gravel.
-        c.fillStyle='#5c5a4b';c.beginPath();c.ellipse(CAMP.x,CAMP.y-10,150,95,0,0,Math.PI*2);c.fill();
-        c.fillStyle='#676453';c.beginPath();c.ellipse(CAMP.x,CAMP.y-5,110,68,0,0,Math.PI*2);c.fill();
-        for(let i=0;i<260;i++)rect(c,i%2?'#7b7867':'#4b4a3f',CAMP.x-130+Math.floor(rand()*260),CAMP.y-90+Math.floor(rand()*160),2,2);
+        // Organic trampled patch that fades into the moss instead of a hard oval.
+        for(let i=0;i<70;i++){const a=rand()*Math.PI*2,d=Math.sqrt(rand())*110;const x=CAMP.x+Math.cos(a)*d*1.3,y=CAMP.y+10+Math.sin(a)*d*0.75;c.fillStyle=`rgba(98,94,76,${0.5-d/300})`;c.beginPath();c.ellipse(x,y,14+rand()*22,9+rand()*14,rand()*3,0,Math.PI*2);c.fill();}
+        for(let i=0;i<220;i++){const a=rand()*Math.PI*2,d=Math.sqrt(rand())*120;rect(c,i%2?'#7b7867':'#4b4a3f',Math.floor(CAMP.x+Math.cos(a)*d*1.3),Math.floor(CAMP.y+10+Math.sin(a)*d*0.75),2,2);}
         // Mountain massif: rock mass, strata, and a dark cliff face at its foot.
         for(let x=0;x<WORLD;x+=4){const e=Math.floor(mEdge(x));
           rect(c,'#2d3529',x,e-2,4,14);
