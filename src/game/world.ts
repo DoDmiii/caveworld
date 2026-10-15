@@ -115,7 +115,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player=this.physics.add.sprite(1030,970,'human2').setDepth(970).setCollideWorldBounds(true);
       this.player.setSize(10,7).setOffset(9,19);
       this.physics.add.collider(this.player,this.obstacles);
-      this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2).startFollow(this.player,true,0.07,0.07);
+      this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
     }
