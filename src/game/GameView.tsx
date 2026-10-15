@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronDown, Compass, Flame, Footprints, Heart, Map, Maximize, Pause, Play, Settings2, Trees, X, Zap, Hand, Volume2, VolumeX } from 'lucide-react';
+import { ArrowUpRight, ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, Settings2, Trees, X, Zap, Hand, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import south from '@/assets/south.png.asset.json';
 import type { GameInput, GameStatus } from './world';
@@ -10,7 +10,7 @@ export default function GameView(){
  const [status,setStatus]=useState<GameStatus>({x:1030,y:970,stamina:100,berries:0,area:'Das grüne Tal',message:''});
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|null>(null);
- const [knob,setKnob]=useState({x:0,y:0});const [muted,setMuted]=useState(true);const [sprinting,setSprinting]=useState(false);
+ const [knob,setKnob]=useState({x:0,y:0});const muted=true;const [sprinting,setSprinting]=useState(false);
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);});destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{input.current.paused=paused||panel!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel]);
  const move=(e:React.PointerEvent<HTMLDivElement>)=>{const r=e.currentTarget.getBoundingClientRect();const x=e.clientX-r.left-r.width/2,y=e.clientY-r.top-r.height/2;const len=Math.hypot(x,y),scale=len>40?40/len:1;setKnob({x:x*scale,y:y*scale});input.current.x=x*scale/40;input.current.y=y*scale/40;};
