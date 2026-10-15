@@ -7,10 +7,19 @@ import south from '@/assets/south.png.asset.json';
 import southWest from '@/assets/south-west.png.asset.json';
 import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
+import walkEast from '@/assets/walk-east.png.asset.json';
+import walkSouthEast from '@/assets/walk-south-east.png.asset.json';
+import walkSouth from '@/assets/walk-south.png.asset.json';
+import walkSouthWest from '@/assets/walk-south-west.png.asset.json';
+import walkWest from '@/assets/walk-west.png.asset.json';
+import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
+import walkNorth from '@/assets/walk-north.png.asset.json';
+import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; paused: boolean };
 export type GameStatus = { x: number; y: number; stamina: number; berries: number; area: string; message: string };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
+const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
 const WORLD = 2048;
 
 export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void) {
