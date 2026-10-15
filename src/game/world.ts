@@ -7,10 +7,19 @@ import south from '@/assets/south.png.asset.json';
 import southWest from '@/assets/south-west.png.asset.json';
 import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
+import walkEast from '@/assets/walk-east.png.asset.json';
+import walkSouthEast from '@/assets/walk-south-east.png.asset.json';
+import walkSouth from '@/assets/walk-south.png.asset.json';
+import walkSouthWest from '@/assets/walk-south-west.png.asset.json';
+import walkWest from '@/assets/walk-west.png.asset.json';
+import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
+import walkNorth from '@/assets/walk-north.png.asset.json';
+import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; paused: boolean };
 export type GameStatus = { x: number; y: number; stamina: number; berries: number; area: string; message: string };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
+const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
 const WORLD = 2048;
 
 export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void) {
@@ -26,8 +35,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     message = '';
     messageUntil = 0;
     lastFacing = 2;
-    preload() { sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url)); }
+    preload() {
+      sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
+      walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 32, frameHeight: 32 }));
+    }
     create() {
+      // One looping walk cycle per direction; timeScale adapts to sprint speed.
+      for (let i = 0; i < 8; i++) {
+        this.anims.create({ key: `walk-${i}`, frames: this.anims.generateFrameNumbers(`walk${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
+      }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
@@ -102,7 +118,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
       const speed=running?105:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
-      if(moving) { const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8; p.setTexture(`human${this.lastFacing}`);p.setOrigin(.5,.5+Math.sin(time/(running?65:95))*.022); }else p.setOrigin(.5,.5);
+      if(moving) {
+        const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
+        p.setOrigin(.5,.5);
+        const animKey=`walk-${this.lastFacing}`;
+        if(p.anims.currentAnim?.key!==animKey)p.play(animKey);
+        p.anims.timeScale=running?1.5:1;
+      } else {
+        p.anims.stop();
+        p.setTexture(`human${this.lastFacing}`);
+        p.setOrigin(.5,.5);
+      }
       p.setDepth(p.y);
       const actionKey=k?.['E'],spaceKey=k?.['SPACE'];
       const keyboardAction=(actionKey&&Phaser.Input.Keyboard.JustDown(actionKey))||(spaceKey&&Phaser.Input.Keyboard.JustDown(spaceKey));
@@ -118,6 +144,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),berries:this.count,area:Math.hypot(p.x-770,p.y-745)<180?'Alte Höhle':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Das grüne Tal',message:time<this.messageUntil?this.message:''});}
     }
   }
-  return new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#718252',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});
+  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#718252',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
 }
 function riverX(y:number){const t=Phaser.Math.Clamp(y/WORLD,0,1);return (1-t)**3*1570+3*(1-t)**2*t*1290+3*(1-t)*t*t*1750+t**3*1580;}
