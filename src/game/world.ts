@@ -123,7 +123,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         p.setOrigin(.5,.5);
         const animKey=`walk-${this.lastFacing}`;
         if(p.anims.currentAnim?.key!==animKey)p.play(animKey);
-        p.anims.setTimeScale(running?1.5:1);
+        p.anims.timeScale=running?1.5:1;
       } else {
         p.anims.stop();
         p.setTexture(`human${this.lastFacing}`);
