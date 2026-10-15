@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Zap, Hand, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import loader from '@/assets/loader.gif.asset.json';
 import south from '@/assets/south.png.asset.json';
 import type { GameInput, GameStatus } from './world';
 
@@ -19,7 +20,7 @@ export default function GameView(){
   <main className="game-shell">
    <section className="game-frame" aria-label="Steinzeit-Spielwelt">
     <div className="world-canvas" ref={host}/>
-    {!ready&&<div className="game-loading"><Flame/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
+    {!ready&&<div className="game-loading"><img src={loader.url} alt="" className="loader-icon"/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
     <div className="top-shade"/>
     <div className="hud"><div className="portrait"><img src={south.url} alt="Dein Höhlenmensch"/></div><div className="vitals"><div className="vitals-label"><span>HÖHLENMENSCH</span><span>LV. 1</span></div><div className="stat-row"><Heart className="health-icon"/><div className="stat-track health"><i/></div><span>100</span></div><div className="stat-row"><Zap className="energy-icon"/><div className="stat-track energy"><i style={{width:`${status.stamina}%`}}/></div><span>{status.stamina}</span></div></div><Button variant="ghost" size="icon" className="glass-icon pause-button" title={paused?'Fortsetzen':'Pause'} aria-label={paused?'Fortsetzen':'Pause'} onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}</Button></div>
     <div className="location-label"><span className="live-dot"/>{status.area}<ChevronDown size={12}/></div>
