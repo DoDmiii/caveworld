@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ArrowUpRight, ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, Settings2, Trees, X, Zap, Hand, VolumeX } from 'lucide-react';
+import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Zap, Hand, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import south from '@/assets/south.png.asset.json';
 import type { GameInput, GameStatus } from './world';
@@ -17,7 +17,6 @@ export default function GameView(){
  const release=()=>{input.current.x=0;input.current.y=0;setKnob({x:0,y:0});};
  return <div className="game-page">
   <main className="game-shell">
-   <div className="game-topline"><div><span className="eyebrow">DEINE REISE BEGINNT</span><h1>Die Wildnis wartet.</h1></div><span className="world-tag"><Trees size={14}/> Steinzeit · Freies Erkunden</span></div>
    <section className="game-frame" aria-label="Steinzeit-Spielwelt">
     <div className="world-canvas" ref={host}/>
     {!ready&&<div className="game-loading"><Flame/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
