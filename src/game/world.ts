@@ -35,8 +35,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     message = '';
     messageUntil = 0;
     lastFacing = 2;
-    preload() { sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url)); }
+    preload() {
+      sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
+      walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 32, frameHeight: 32 }));
+    }
     create() {
+      // One looping walk cycle per direction; timeScale adapts to sprint speed.
+      for (let i = 0; i < 8; i++) {
+        this.anims.create({ key: `walk-${i}`, frames: this.anims.generateFrameNumbers(`walk${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
+      }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
