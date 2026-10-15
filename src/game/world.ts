@@ -1,4 +1,4 @@
-import Phaser from 'phaser';
+import * as Phaser from 'phaser';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
