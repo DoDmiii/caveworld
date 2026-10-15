@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "asset_id": "d8e85e81-8f7b-4d72-b04b-9012a151ce43",
+  "asset_id": "0875b44f-b075-436b-b55b-6a0744ed5b06",
   "project_id": "2c75e953-778d-4705-a947-2e781a4f5a6a",
-  "url": "/__l5e/assets-v1/d8e85e81-8f7b-4d72-b04b-9012a151ce43/north.png",
-  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/d8e85e81-8f7b-4d72-b04b-9012a151ce43/north.png",
-  "original_filename": "north.png",
-  "size": 1239,
+  "url": "/__l5e/assets-v1/0875b44f-b075-436b-b55b-6a0744ed5b06/hero-north.png",
+  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/0875b44f-b075-436b-b55b-6a0744ed5b06/hero-north.png",
+  "original_filename": "hero-north.png",
+  "size": 504,
   "content_type": "image/png",
-  "created_at": "2026-10-15T09:00:43Z"
+  "created_at": "2026-10-15T11:21:39Z"
 }

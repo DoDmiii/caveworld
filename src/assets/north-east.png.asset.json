@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "asset_id": "10449796-8d14-4ec3-870d-ce98b1ef4a5e",
+  "asset_id": "d4808f3d-9527-4d46-bde9-469fb64dbcd5",
   "project_id": "2c75e953-778d-4705-a947-2e781a4f5a6a",
-  "url": "/__l5e/assets-v1/10449796-8d14-4ec3-870d-ce98b1ef4a5e/north-east.png",
-  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/10449796-8d14-4ec3-870d-ce98b1ef4a5e/north-east.png",
-  "original_filename": "north-east.png",
-  "size": 1120,
+  "url": "/__l5e/assets-v1/d4808f3d-9527-4d46-bde9-469fb64dbcd5/hero-north-east.png",
+  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/d4808f3d-9527-4d46-bde9-469fb64dbcd5/hero-north-east.png",
+  "original_filename": "hero-north-east.png",
+  "size": 491,
   "content_type": "image/png",
-  "created_at": "2026-10-15T09:00:50Z"
+  "created_at": "2026-10-15T11:21:55Z"
 }
