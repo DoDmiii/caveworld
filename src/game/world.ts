@@ -7,6 +7,14 @@ import south from '@/assets/south.png.asset.json';
 import southWest from '@/assets/south-west.png.asset.json';
 import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
+import tree0 from '@/assets/tree-east.png.asset.json';
+import tree1 from '@/assets/tree-south-east.png.asset.json';
+import tree2 from '@/assets/tree-south.png.asset.json';
+import tree3 from '@/assets/tree-south-west.png.asset.json';
+import tree4 from '@/assets/tree-west.png.asset.json';
+import tree5 from '@/assets/tree-north-west.png.asset.json';
+import tree6 from '@/assets/tree-north.png.asset.json';
+import tree7 from '@/assets/tree-north-east.png.asset.json';
 import walkEast from '@/assets/walk-east.png.asset.json';
 import walkSouthEast from '@/assets/walk-south-east.png.asset.json';
 import walkSouth from '@/assets/walk-south.png.asset.json';
@@ -19,6 +27,7 @@ import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; paused: boolean };
 export type GameStatus = { x: number; y: number; stamina: number; berries: number; area: string; message: string };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
+const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
 const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
 const WORLD = 2048;
 
@@ -37,7 +46,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastFacing = 2;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
-      walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 32, frameHeight: 32 }));
+      walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
+      treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
     }
     create() {
       // One looping walk cycle per direction; timeScale adapts to sprint speed.
@@ -92,9 +102,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(Math.abs(x-riverX(y))<125 || Math.hypot(x-1000,y-1040)<155 || Math.hypot(x-770,y-745)<100)continue;
         // Keep the initial clearing readable while the forest thickens at its edges.
         if(Math.hypot(x-1030,y-970)<290&&i%3!==0)continue;
-        obstacle(x,y,i%6===0?'rock':'tree',i%6===0?24:15,i%6===0?13:15);
+        obstacle(x,y,i%6===0?'rock':`tree${i%8}`,i%6===0?24:10,i%6===0?13:8);
       }
-      for(const [x,y] of [[938,884],[1120,885],[1148,1068],[920,1138]] as const) obstacle(x,y,'tree',15,15);
+      for(const [x,y] of [[938,884],[1120,885],[1148,1068],[920,1138]] as const) obstacle(x,y,`tree${(x+y)%8}`,10,8);
       // Invisible segmented river bank prevents crossing deep water.
       for(let y=0;y<WORLD;y+=24){ const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       obstacle(770,745,'cave',98,39);
@@ -103,7 +113,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const sprite=this.add.image(x,y,'bush').setDepth(y);this.berries.push({x,y,picked:false,sprite});
       }
       this.player=this.physics.add.sprite(1030,970,'human2').setDepth(970).setCollideWorldBounds(true);
-      this.player.setSize(12,10).setOffset(10,21);
+      this.player.setSize(10,7).setOffset(9,19);
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE') as Record<string,Phaser.Input.Keyboard.Key>;
