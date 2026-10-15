@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "asset_id": "ad4641ac-e46c-44fa-9afb-c6c7718c7dea",
+  "asset_id": "8b7e56cf-3089-445b-a582-00e374ce716c",
   "project_id": "2c75e953-778d-4705-a947-2e781a4f5a6a",
-  "url": "/__l5e/assets-v1/ad4641ac-e46c-44fa-9afb-c6c7718c7dea/walk-south-east.png",
-  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/ad4641ac-e46c-44fa-9afb-c6c7718c7dea/walk-south-east.png",
-  "original_filename": "walk-south-east.png",
-  "size": 4262,
+  "url": "/__l5e/assets-v1/8b7e56cf-3089-445b-a582-00e374ce716c/hero-walk-south-east.png",
+  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/8b7e56cf-3089-445b-a582-00e374ce716c/hero-walk-south-east.png",
+  "original_filename": "hero-walk-south-east.png",
+  "size": 1048,
   "content_type": "image/png",
-  "created_at": "2026-10-15T10:04:08Z"
+  "created_at": "2026-10-15T11:20:44Z"
 }

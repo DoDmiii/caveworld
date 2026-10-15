@@ -1,11 +1,11 @@
 {
   "version": 1,
-  "asset_id": "a481b9ea-b088-468e-8194-f01b25f0c4c5",
+  "asset_id": "640ea3d5-67ff-43fa-ad17-710964300af7",
   "project_id": "2c75e953-778d-4705-a947-2e781a4f5a6a",
-  "url": "/__l5e/assets-v1/a481b9ea-b088-468e-8194-f01b25f0c4c5/east.png",
-  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/a481b9ea-b088-468e-8194-f01b25f0c4c5/east.png",
-  "original_filename": "east.png",
-  "size": 924,
+  "url": "/__l5e/assets-v1/640ea3d5-67ff-43fa-ad17-710964300af7/hero-east.png",
+  "r2_key": "a/v1/2c75e953-778d-4705-a947-2e781a4f5a6a/640ea3d5-67ff-43fa-ad17-710964300af7/hero-east.png",
+  "original_filename": "hero-east.png",
+  "size": 425,
   "content_type": "image/png",
-  "created_at": "2026-10-15T09:00:56Z"
+  "created_at": "2026-10-15T11:20:26Z"
 }
