@@ -252,3 +252,8 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 }
 @media(max-width:360px){.edition {font-size:7px;}.world-tag {max-width:94px;}.vitals {width:126px;}.touch-controls {left:15px;right:15px;}.action-area {gap:10px;}.game-footer>span:last-child {display:none;}}
 @media(prefers-reduced-motion:reduce){* {scroll-behavior:auto!important;transition:none!important;}}
+/* Fullscreen game: frame fills the whole display */
+.game-page {height:100dvh;overflow:hidden;}
+.game-shell,.game-shell {width:100%!important;max-width:none!important;margin:0;height:100dvh;}
+.game-frame {height:100dvh!important;min-height:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;}
+.hud {top:max(14px,env(safe-area-inset-top))!important;}
