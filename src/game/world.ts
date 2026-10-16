@@ -75,6 +75,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hidden = false;
     covers: { x: number; y: number }[] = [];
     hitFlash = 0;
+    attackPending = false;
+    lastDamage = 0;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
