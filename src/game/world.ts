@@ -78,11 +78,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hitFlash = 0;
     attackPending = false;
     lastDamage = 0;
-    target?: Creature;
+    target: Creature | undefined = undefined;
     marker?: Phaser.GameObjects.Image;
     hasSpear = true;
-    spear?: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number };
-    spearOnGround?: { x: number; y: number; img: Phaser.GameObjects.Image };
+    spear: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number } | undefined = undefined;
+    spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
@@ -235,7 +235,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const key = `${kind}-idle-2`;
         const s = this.physics.add.sprite(x, y, key).setDepth(y).setCollideWorldBounds(true);
         s.setSize(14, 8).setOffset(13, 28);
-        this.physics.add.collider(s, this.obstacles);
+        if (this.obstacles) this.physics.add.collider(s, this.obstacles);
         // Solid bodies: player and animals can't overlap.
         if (this.player) this.physics.add.collider(this.player, s);
         (s.body as Phaser.Physics.Arcade.Body).pushable = false;
