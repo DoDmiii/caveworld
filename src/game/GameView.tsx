@@ -55,15 +55,15 @@ export default function GameView(){
       <h2>Ausrüstung</h2>
       <div className="gear-layout">
        <div className="gear-slots">
-        {(['head','chest','feet'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">{s==='head'?'⛑':s==='chest'?'🦺':'🥾'}</span>}<em>{SLOT_LABEL[s]}</em></button>;})}
+        {(['head','chest','feet'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">{s==='head'?'◯':s==='chest'?'▣':'▽'}</span>}<em>{SLOT_LABEL[s]}</em></button>;})}
        </div>
        <div className="gear-figure"><img src={IDLE[status.weapon][2]} alt="Charakter"/><div className="gear-health"><i style={{width:`${status.health}%`}}/></div></div>
        <div className="gear-slots">
-        {(['hand'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">✊</span>}<em>{it?.name??SLOT_LABEL[s]}</em></button>;})}
+        {(['hand'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">●</span>}<em>{it?.name??SLOT_LABEL[s]}</em></button>;})}
        </div>
       </div>
-      {openSlot?<div className="gear-items"><p className="gear-items-title">{SLOT_LABEL[openSlot]} wählen</p><div className="gear-grid">{ITEMS.filter(i=>i.slot===openSlot).map(i=><button key={i.id} className={`gear-item ${equipped[openSlot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'✊':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>
-       :<div className="gear-items"><p className="gear-items-title">Beutel</p><div className="gear-grid">{ITEMS.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'✊':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>}
+      {openSlot?<div className="gear-items"><p className="gear-items-title">{SLOT_LABEL[openSlot]} wählen</p><div className="gear-grid">{ITEMS.filter(i=>i.slot===openSlot).map(i=><button key={i.id} className={`gear-item ${equipped[openSlot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>
+       :<div className="gear-items"><p className="gear-items-title">Beutel</p><div className="gear-grid">{ITEMS.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>}
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><Play size={16}/> Weiter erkunden</Button>
      </>:panel==='map'?<>
       <h2>Die graue Wildnis</h2>
