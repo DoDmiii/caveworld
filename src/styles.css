@@ -283,3 +283,10 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .gear-item.is-equipped{border-color:oklch(0.7 0.14 75);background:oklch(0.32 0.06 60);}
 .gear-item img{width:30px;height:30px;image-rendering:pixelated;object-fit:contain;}
 .gear-item em{font-style:normal;font-size:9px;letter-spacing:0.04em;}
+.game-toast {top:calc(max(14px,env(safe-area-inset-top)) + 64px)!important;transform:translateX(-50%)!important;padding:7px 12px!important;font-size:11px!important;pointer-events:none;z-index:3;}
+.game-loading {background-size:cover;background-position:center;justify-content:flex-end!important;padding-bottom:12vh;text-shadow:0 2px 6px var(--background);}
+.death-screen {position:absolute;inset:0;z-index:5;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;background:radial-gradient(circle at center, oklch(0.25 0.08 25 / .55), oklch(0.12 0.03 30 / .92));animation:death-in 1.6s ease-out both;font-family:'Barlow Condensed',sans-serif;}
+.death-screen h2 {font-size:38px;letter-spacing:.08em;text-transform:uppercase;color:var(--destructive);margin:0;}
+.death-screen p {color:var(--muted-foreground);margin:0 0 10px;}
+.death-screen .resume-button {width:auto;}
+@keyframes death-in {0%,40% {opacity:0;} 100% {opacity:1;}}

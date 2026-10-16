@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Zap, Hand, VolumeX, Backpack, Moon, Sword } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import loader from '@/assets/loader.gif.asset.json';
-import south from '@/assets/south.png.asset.json';
+import cover from '@/assets/cover.jpg.asset.json';
 import { ICON_AXE, ICON_SPEAR, IDLE, type Weapon } from './gear';
 import type { GameInput, GameStatus } from './world';
 
@@ -18,8 +18,8 @@ const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', ches
 
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
- const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false});
- const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false});
+ const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0});
+ const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false});
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|null>(null);
  const [knob,setKnob]=useState({x:0,y:0});const [sprinting,setSprinting]=useState(false);
@@ -39,7 +39,7 @@ export default function GameView(){
   <main className="game-shell">
    <section className="game-frame" aria-label="Steinzeit-Spielwelt">
     <div className="world-canvas" ref={host}/>
-    {!ready&&<div className="game-loading"><img src={loader.url} alt="" className="loader-icon"/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
+    {!ready&&<div className="game-loading" style={{backgroundImage:`url(${cover.url})`}}><img src={loader.url} alt="" className="loader-icon"/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
     <div className="top-shade"/>
     <div className="hud"><div className="portrait"><img src={IDLE[status.weapon][2]} alt="Dein Höhlenmensch"/></div><div className="vitals"><div className="vitals-label"><span>HÖHLENMENSCH</span><span>LV. 1</span></div><div className="stat-row"><Heart className="health-icon"/><div className="stat-track health"><i style={{width:`${status.health}%`}}/></div><span>{status.health}</span></div><div className="stat-row"><Zap className="energy-icon"/><div className="stat-track energy"><i style={{width:`${status.stamina}%`}}/></div><span>{status.stamina}</span></div></div><Button variant="ghost" size="icon" className="glass-icon pause-button" title={paused?'Fortsetzen':'Pause'} aria-label={paused?'Fortsetzen':'Pause'} onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}</Button></div>
     <div className="location-label"><span className="live-dot"/>{status.area}<ChevronDown size={12}/></div>
@@ -48,7 +48,9 @@ export default function GameView(){
     <div className="camp-marker"><Flame size={12}/> LAGERFEUER <span>·</span> {Math.round(Math.hypot(status.x-1000,status.y-680))} m</div>
     {status.message&&<div className="game-toast" role="status"><Hand size={16}/>{status.message}</div>}
     {status.nearBed&&!status.sleeping&&<div className="sleep-hint"><Moon size={14}/> AKTION zum Schlafen</div>}
-    {status.hidden&&!status.sleeping&&<div className="stealth-hint">👁 Auf der Lauer</div>}
+    {status.hidden&&!status.sleeping&&!status.dead&&<div className="stealth-hint">👁 Auf der Lauer</div>}
+     {status.crouching&&!status.hidden&&!status.dead&&<div className="stealth-hint">Geduckt · leiser</div>}
+     {status.dead&&<div className="death-screen" role="alertdialog" aria-label="Du bist gestorben"><span className="eyebrow">DIE WILDNIS IST GNADENLOS</span><h2>Du bist gefallen</h2><p>{status.meat} Fleisch · {status.berries} Beeren gesammelt</p><Button className="resume-button" onClick={()=>input.current.respawn++}><Flame size={16}/> Am Lagerfeuer erwachen</Button></div>}
     <div className="touch-controls"><div className="joystick-area"><div className="joystick" role="group" aria-label="Bewegungsjoystick" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);move(e);}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))move(e);}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}><span className="joystick-arrow up">⌃</span><span className="joystick-arrow down">⌄</span><span className="joystick-arrow left">‹</span><span className="joystick-arrow right">›</span><span className="joystick-knob" style={{transform:`translate(${knob.x}px,${knob.y}px)`}}><span/></span></div><span className="control-caption">BEWEGEN</span></div><div className="action-area"><Button variant="ghost" className={`run-button ${sprinting?'is-active':''}`} aria-label="Sprinten" title="Sprinten" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);input.current.sprint=true;setSprinting(true);}} onPointerUp={()=>{input.current.sprint=false;setSprinting(false);}} onPointerCancel={()=>{input.current.sprint=false;setSprinting(false);}} onLostPointerCapture={()=>{input.current.sprint=false;setSprinting(false);}}><Footprints/></Button><Button variant="ghost" className="attack-button" aria-label="Angreifen" title="Angreifen" onClick={()=>input.current.attack++}><Sword/></Button><div className="gather-wrap"><Button variant="ghost" className="gather-button" aria-label="Sammeln" title="Sammeln, schlafen oder am Feuer ausruhen" onClick={()=>input.current.action++}><Hand/></Button><span className="control-caption">AKTION</span></div></div></div>
     <div className="game-bottom"><span><span className="berry-icon">✦</span> {status.berries} <span className="resource-label">BEEREN</span></span><span><span className="berry-icon">🥩</span> {status.meat} <span className="resource-label">FLEISCH</span></span><span><span className="sun-icon">☀</span> TAG 1 <span className="bottom-dot">·</span> 08:24</span><Button variant="ghost" size="icon" aria-label="Vollbild" title="Vollbild" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void document.querySelector('.game-frame')?.requestFullscreen?.();}}><Maximize/></Button></div>
     {(paused||panel)&&<div className="pause-overlay"><div className={`pause-panel ${panel==='gear'?'gear-panel':''}`}><div className="panel-heading"><span className="eyebrow">URZEIT</span><Button variant="ghost" size="icon" aria-label="Schließen" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><X/></Button></div>
