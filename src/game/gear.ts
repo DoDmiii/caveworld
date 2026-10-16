@@ -95,3 +95,9 @@ export const SLEEP=sleep_tex.url;
 export const BED=bed_tex.url;
 export const ICON_AXE=icon_axe.url;
 export const ICON_SPEAR=icon_spear.url;
+
+const deathMap = import.meta.glob('../assets/gear/death-*.png.asset.json', { eager: true, import: 'default' }) as Record<string, { url: string }>;
+const crouchMap = import.meta.glob('../assets/gear/crouch-*.png.asset.json', { eager: true, import: 'default' }) as Record<string, { url: string }>;
+const pick8 = (m: Record<string, { url: string }>, t: string) => Array.from({ length: 8 }, (_, i) => m[Object.keys(m).find(k => k.endsWith(`${t}-${i}.png.asset.json`))!]!.url);
+export const DEATH = pick8(deathMap, 'death');
+export const CROUCH = pick8(crouchMap, 'crouch');
