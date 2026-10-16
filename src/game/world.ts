@@ -24,7 +24,7 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { IDLE, WALK, ATTACK, SLEEP, BED, type Weapon } from './gear';
+import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean };
@@ -40,6 +40,7 @@ type Creature = {
   nextAttack: number;
   wanderX: number;
   wanderY: number;
+  turnAt?: number;
 };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
@@ -77,6 +78,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hitFlash = 0;
     attackPending = false;
     lastDamage = 0;
+    target?: Creature;
+    marker?: Phaser.GameObjects.Image;
+    hasSpear = true;
+    spear?: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number };
+    spearOnGround?: { x: number; y: number; img: Phaser.GameObjects.Image };
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
@@ -86,6 +92,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         ATTACK[w].forEach((u, i) => this.load.spritesheet(`${w}-attack-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
       });
       this.load.image('sleep', SLEEP);
+      this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       this.load.image('fire', campfire.url);
@@ -215,10 +222,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
-      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q') as Record<string,Phaser.Input.Keyboard.Key>;
+      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
       // Meat loot texture.
       make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
+      // Target lock marker: bone-white chevron.
+      make('lock', 11, 7, c => { rect(c,'#2b1510',0,0,11,2);rect(c,'#2b1510',2,2,7,2);rect(c,'#2b1510',4,4,3,3);rect(c,'#efe2b8',1,0,9,1);rect(c,'#efe2b8',3,2,5,1);rect(c,'#e0a040',5,4,1,2); });
+      this.marker=this.add.image(0,0,'lock').setVisible(false);
       // Spawn wildlife at safe, open locations away from camp, mountain and river.
       let wseed = 2131; const wr = () => { wseed = (wseed * 16807) % 2147483647; return wseed / 2147483647; };
       const spawn = (kind: 'tiger' | 'gazelle', x: number, y: number) => {
@@ -226,6 +236,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const s = this.physics.add.sprite(x, y, key).setDepth(y).setCollideWorldBounds(true);
         s.setSize(14, 8).setOffset(13, 28);
         this.physics.add.collider(s, this.obstacles);
+        // Solid bodies: player and animals can't overlap.
+        if (this.player) this.physics.add.collider(this.player, s);
+        (s.body as Phaser.Physics.Arcade.Body).pushable = false;
         this.creatures.push({ kind, sprite: s, state: 'wander', facing: 2, hp: kind === 'tiger' ? 60 : 30, stateUntil: 0, nextDecision: 0, nextAttack: 0, wanderX: x, wanderY: y });
       };
       const safeSpot = () => {
@@ -263,19 +276,44 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const speed=running?105:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
       const w=this.weapon;
+      // Lock-on (F): cycle to the nearest living animal within range.
+      const fKey=k?.['F'];
+      if(!input.paused&&fKey&&Phaser.Input.Keyboard.JustDown(fKey)){
+        const cands=this.creatures.filter(c=>c.state!=='dead'&&c!==this.target&&Math.hypot(c.sprite.x-p.x,c.sprite.y-p.y)<260).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y));
+        this.target=cands[0];
+        this.message=this.target?(this.target.kind==='gazelle'?'Gazelle anvisiert':'Säbelzahntiger anvisiert'):'Kein Tier in Sicht';this.messageUntil=time+1400;
+      }
+      // Throw (R): spear only, needs a locked target and the spear in hand.
+      const rKey=k?.['R'];
+      if(!input.paused&&!this.attacking&&rKey&&Phaser.Input.Keyboard.JustDown(rKey)){
+        if(w!=='spear'){this.message='Rüste den Steinspeer aus zum Werfen';}
+        else if(!this.hasSpear){this.message='Dein Speer liegt noch im Gras';}
+        else if(!this.target){this.message='Erst ein Ziel anvisieren [F]';}
+        else{
+          const t=this.target;this.lastFacing=(Math.round(Math.atan2(t.sprite.y-p.y,t.sprite.x-p.x)/(Math.PI/4))+8)%8;
+          this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;p.play(`anim-spear-attack-${this.lastFacing}`);
+          this.hasSpear=false;
+          const img=this.add.image(p.x,p.y-8,'spear-proj').setScale(0.5);
+          this.spear={img,target:t,tx:t.sprite.x,ty:t.sprite.y};
+          this.message='Speer geworfen!';
+        }
+        this.messageUntil=time+1400;
+      }
       const qKey=k?.['Q'];
       const keyAttack=qKey&&Phaser.Input.Keyboard.JustDown(qKey);
       if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
         this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
+        if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
-      if(this.attacking){/* attack animation plays out */}
+      if(this.attacking){/* attack animation plays out; facing stays locked */}
       else if(moving) {
         const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
         const animKey=`${w}-walk-${this.lastFacing}`;
         if(p.anims.currentAnim?.key!==animKey||!p.anims.isPlaying)p.play(animKey);
         p.anims.timeScale=running?1.5:1;
       } else {
+        if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.stop();
         p.setTexture(`${w}-idle-${this.lastFacing}`);
       }
@@ -286,7 +324,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.lastAction=input.action;
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
         const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
+        const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
         if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
+        else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
@@ -296,6 +336,23 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.tickWildlife(time, delta, p);
       this.report(time,p);
+    }
+    hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
+      c.hp -= dmg;
+      c.sprite.setTint(0xff6b4a);
+      this.time.delayedCall(140, () => { if (c.state !== 'dead') c.sprite.clearTint(); });
+      (c.sprite.body as Phaser.Physics.Arcade.Body).setVelocity(fx * 90, fy * 90);
+      if (c.hp <= 0) {
+        c.state = 'dead';
+        const mx = c.sprite.x, my = c.sprite.y;
+        c.sprite.destroy();
+        if (this.target === c) this.target = undefined;
+        const meat = this.add.image(mx, my, 'meat').setDepth(my);
+        this.meatPickups.push({ x: mx, y: my, sprite: meat });
+        this.message = c.kind === 'tiger' ? 'Säbelzahntiger erlegt · Fleisch zurückgelassen' : 'Gazelle erlegt · Fleisch zurückgelassen';
+        this.messageUntil = time + 2600;
+      } else if (c.kind === 'gazelle') { c.state = 'flee'; c.stateUntil = time + 4000; }
+      else { c.state = 'chase'; c.stateUntil = time + 8000; c.nextAttack = Math.max(c.nextAttack, time + 500); }
     }
     tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
       // Stealth: hidden when crouched behind any cover within 36 px.
