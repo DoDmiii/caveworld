@@ -24,9 +24,10 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
+import { IDLE, WALK, ATTACK, SLEEP, BED, type Weapon } from './gear';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; paused: boolean };
-export type GameStatus = { x: number; y: number; stamina: number; berries: number; area: string; message: string };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
 const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
@@ -42,15 +43,29 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     obstacles?: Phaser.Physics.Arcade.StaticGroup;
     berries: { x: number; y: number; picked: boolean; sprite: Phaser.GameObjects.Image }[] = [];
     stamina = 100;
+    health = 100;
     count = 0;
     lastAction = 0;
+    lastAttack = 0;
+    attacking = false;
+    sleeping = false;
+    weapon: Weapon = 'none';
     lastReport = 0;
     message = '';
     messageUntil = 0;
     lastFacing = 2;
+    nearBed = false;
+    bed?: Phaser.GameObjects.Image;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
+      (['none','axe','spear'] as Weapon[]).forEach(w => {
+        IDLE[w].forEach((u, i) => this.load.image(`${w}-idle-${i}`, u));
+        WALK[w].forEach((u, i) => this.load.spritesheet(`${w}-walk-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
+        ATTACK[w].forEach((u, i) => this.load.spritesheet(`${w}-attack-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
+      });
+      this.load.image('sleep', SLEEP);
+      this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       this.load.image('fire', campfire.url);
     }
@@ -59,6 +74,16 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (let i = 0; i < 8; i++) {
         this.anims.create({ key: `walk-${i}`, frames: this.anims.generateFrameNumbers(`walk${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
       }
+      (['none','axe','spear'] as Weapon[]).forEach(w => {
+        for (let i = 0; i < 8; i++) {
+          const walkKey = `${w}-walk-${i}`;
+          this.anims.create({ key: walkKey, frames: this.anims.generateFrameNumbers(walkKey, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
+          const atkKey = `${w}-attack-${i}`;
+          const tex = this.textures.get(atkKey);
+          const frames = this.anims.generateFrameNumbers(atkKey, { start: 0, end: tex.frameTotal - 2 });
+          this.anims.create({ key: `anim-${atkKey}`, frames, frameRate: 12, repeat: 0 });
+        }
+      });
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
@@ -138,14 +163,18 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const glow=this.add.image(CAMP.x,CAMP.y+FIRE_DY+6,'glow').setDepth(CAMP.y).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({targets:glow,alpha:{from:.4,to:.6},scale:{from:.95,to:1.06},duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
       obstacle(CAMP.x,CAMP.y+FIRE_DY,'fire',20,8);
+      // Sleeping place next to the campfire.
+      this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
       for(const [x,y] of [[1128,700],[895,760],[1160,1170],[700,850],[1240,900],[760,1240],[480,1080],[1340,760],[980,1460]] as const) {
         const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});
       }
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
-      this.player.setSize(10,7).setOffset(9,19);
+      this.player.setTexture('none-idle-2');
+      this.player.setSize(10,7).setOffset(11,23);
+      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
-      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE') as Record<string,Phaser.Input.Keyboard.Key>;
+      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
     }
     override update(time:number, delta:number) {
@@ -153,20 +182,38 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
-      if(input.paused){dx=0;dy=0;}
+      if(input.weapon!==this.weapon){this.weapon=input.weapon;this.attacking=false;}
+      const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
+      this.nearBed=Math.hypot(p.x-bedX,p.y-bedY)<34;
+      // Sleeping: lie on the bed, fade, restore vitals, wake up.
+      if(input.sleep&&!this.sleeping&&this.nearBed){
+        this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
+        const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
+        this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
+        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);this.message='Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
+      }
+      if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
+      if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
+      if(input.paused||this.attacking){dx=0;dy=0;}
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
       const speed=running?105:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
-      if(moving) {
+      const w=this.weapon;
+      const qKey=k?.['Q'];
+      const keyAttack=qKey&&Phaser.Input.Keyboard.JustDown(qKey);
+      if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
+        this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);
+        p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
+      } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
+      if(this.attacking){/* attack animation plays out */}
+      else if(moving) {
         const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
-        p.setOrigin(.5,.5);
-        const animKey=`walk-${this.lastFacing}`;
-        if(p.anims.currentAnim?.key!==animKey)p.play(animKey);
+        const animKey=`${w}-walk-${this.lastFacing}`;
+        if(p.anims.currentAnim?.key!==animKey||!p.anims.isPlaying)p.play(animKey);
         p.anims.timeScale=running?1.5:1;
       } else {
         p.anims.stop();
-        p.setTexture(`human${this.lastFacing}`);
-        p.setOrigin(.5,.5);
+        p.setTexture(`${w}-idle-${this.lastFacing}`);
       }
       p.setDepth(p.y);
       const actionKey=k?.['E'],spaceKey=k?.['SPACE'];
@@ -174,13 +221,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!input.paused&&(input.action!==this.lastAction||keyboardAction)){
         this.lastAction=input.action;
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
-        if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
+        if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
+        else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
         else this.message='Hier gibt es nichts zu sammeln';
         this.messageUntil=time+2400;
       }
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),berries:this.count,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      this.report(time,p);
+    }
+    report(time:number,p:Phaser.Physics.Arcade.Sprite){
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
