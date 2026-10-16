@@ -266,7 +266,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const qKey=k?.['Q'];
       const keyAttack=qKey&&Phaser.Input.Keyboard.JustDown(qKey);
       if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
-        this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);
+        this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
       if(this.attacking){/* attack animation plays out */}
