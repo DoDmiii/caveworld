@@ -200,8 +200,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Sleeping place next to the campfire.
       this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
       for(const [x,y] of [[1128,700],[895,760],[1160,1170],[700,850],[1240,900],[760,1240],[480,1080],[1340,760],[980,1460]] as const) {
-        const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});
+        const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});this.covers.push({x,y});
       }
+      // Cover zones: all rock obstacles plus bushes already pushed above.
+      this.obstacles.getChildren().forEach(obj => {
+        const s = obj as Phaser.Physics.Arcade.Sprite;
+        if (s.texture?.key === 'rock') this.covers.push({ x: s.x, y: s.y });
+      });
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
       this.player.setSize(10,7).setOffset(11,23);
@@ -210,6 +215,29 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
+      // Meat loot texture.
+      make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
+      // Spawn wildlife at safe, open locations away from camp, mountain and river.
+      let wseed = 2131; const wr = () => { wseed = (wseed * 16807) % 2147483647; return wseed / 2147483647; };
+      const spawn = (kind: 'tiger' | 'gazelle', x: number, y: number) => {
+        const key = `${kind}-idle-2`;
+        const s = this.physics.add.sprite(x, y, key).setDepth(y).setCollideWorldBounds(true);
+        s.setSize(14, 8).setOffset(13, 28);
+        this.physics.add.collider(s, this.obstacles);
+        this.creatures.push({ kind, sprite: s, state: 'wander', facing: 2, hp: kind === 'tiger' ? 60 : 30, stateUntil: 0, nextDecision: 0, nextAttack: 0, wanderX: x, wanderY: y });
+      };
+      const safeSpot = () => {
+        for (let t = 0; t < 40; t++) {
+          const x = 180 + wr() * (WORLD - 360), y = 180 + wr() * (WORLD - 360);
+          if (y < mEdge(x) + 80) continue;
+          if (Math.abs(x - riverX(y)) < 180) continue;
+          if (Math.hypot(x - CAMP.x, y - CAMP.y) < 420) continue;
+          return { x, y };
+        }
+        return null;
+      };
+      for (let i = 0; i < 5; i++) { const s = safeSpot(); if (s) spawn('gazelle', s.x, s.y); }
+      for (let i = 0; i < 2; i++) { const s = safeSpot(); if (s) spawn('tiger', s.x, s.y); }
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
