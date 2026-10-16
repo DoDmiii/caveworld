@@ -312,25 +312,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          c.hp -= this.weapon === 'spear' ? 22 : this.weapon === 'axe' ? 18 : 10;
-          c.sprite.setTint(0xff6b4a);
-          this.time.delayedCall(140, () => c.sprite.clearTint());
-          const kb = 60;
-          const b = c.sprite.body as Phaser.Physics.Arcade.Body;
-          b.setVelocity(fx * kb, fy * kb);
-          if (c.hp <= 0) {
-            c.state = 'dead';
-            const mx = c.sprite.x, my = c.sprite.y;
-            c.sprite.destroy();
-            const meat = this.add.image(mx, my, 'meat').setDepth(my);
-            this.meatPickups.push({ x: mx, y: my, sprite: meat });
-            this.message = c.kind === 'tiger' ? 'Säbelzahntiger erlegt · Fleisch zurückgelassen' : 'Gazelle erlegt · Fleisch zurückgelassen';
-            this.messageUntil = time + 2600;
-          } else if (c.kind === 'gazelle') {
-            c.state = 'flee'; c.stateUntil = time + 4000;
-          } else {
-            c.state = 'chase'; c.stateUntil = time + 8000;
-          }
+          this.hurt(c, this.weapon === 'spear' ? 22 : this.weapon === 'axe' ? 18 : 10, fx, fy, time);
         }
       }
       // Creature AI.
@@ -367,7 +349,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           body.setVelocity(nx / nl * 95, ny / nl * 95);
         } else if (c.state === 'chase') {
           const nl = Math.max(1, dist);
-          body.setVelocity(dx / nl * 70, dy / nl * 70);
+          if (dist < 26) body.setVelocity(0, 0); else body.setVelocity(dx / nl * 70, dy / nl * 70);
         } else {
           // Wander: pick a nearby target now and then.
           if (time > c.nextDecision) {
@@ -382,17 +364,40 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // Animate based on velocity.
         if (c.state !== 'attack') {
           const vx = body.velocity.x, vy = body.velocity.y, vlen = Math.hypot(vx, vy);
-          if (vlen > 4) {
+          if (vlen > 12) {
+            // Only turn after a short hold so close-range contact doesn't flicker directions.
             const facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8;
-            c.facing = facing;
-            const key = c.kind === 'gazelle' && c.state === 'flee' ? `gazelle-run-${facing}` : `${c.kind}-walk-${facing}`;
-            if (s.anims.currentAnim?.key !== key) s.play(key);
-          } else {
+            if (facing !== c.facing && time > (c.turnAt ?? 0)) { c.facing = facing; c.turnAt = time + 220; }
+            const key = c.kind === 'gazelle' && c.state === 'flee' ? `gazelle-run-${c.facing}` : `${c.kind}-walk-${c.facing}`;
+            if (s.anims.currentAnim?.key !== key || !s.anims.isPlaying) s.play(key);
+          } else if (vlen < 4) {
             s.anims.stop();
             s.setTexture(`${c.kind}-idle-${c.facing}`);
           }
         }
         s.setDepth(s.y);
+      }
+      // Target lock marker.
+      if (this.target && this.target.state === 'dead') this.target = undefined;
+      if (this.target && Math.hypot(this.target.sprite.x - p.x, this.target.sprite.y - p.y) > 320) { this.target = undefined; this.message = 'Ziel verloren'; this.messageUntil = time + 1200; }
+      if (this.marker) {
+        if (this.target) { this.marker.setVisible(true).setPosition(this.target.sprite.x, this.target.sprite.y - 26).setDepth(99999); this.marker.setScale(1 + 0.12 * Math.sin(time / 120)); }
+        else this.marker.setVisible(false);
+      }
+      // Thrown spear: homes toward its locked target, then drops to the ground.
+      const sp = this.spear;
+      if (sp) {
+        const tgt = sp.target && sp.target.state !== 'dead' ? sp.target : undefined;
+        const tx = tgt ? tgt.sprite.x : sp.tx, ty = tgt ? tgt.sprite.y : sp.ty;
+        const ddx = tx - sp.img.x, ddy = ty - sp.img.y, d = Math.hypot(ddx, ddy);
+        const step = 420 * Math.min(delta, 50) / 1000;
+        sp.img.setRotation(Math.atan2(ddy, ddx) + Math.PI / 4).setDepth(sp.img.y + 20);
+        if (d <= step + 6) {
+          if (tgt) this.hurt(tgt, tgt.kind === 'gazelle' ? 999 : 45, ddx / Math.max(1, d), ddy / Math.max(1, d), time);
+          sp.img.setPosition(tx, ty + 6).setRotation(Math.PI / 4 + 0.6).setDepth(ty);
+          this.spearOnGround = { x: tx, y: ty + 6, img: sp.img };
+          this.spear = undefined;
+        } else sp.img.setPosition(sp.img.x + ddx / d * step, sp.img.y + ddy / d * step);
       }
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
