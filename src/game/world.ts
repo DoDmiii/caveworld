@@ -285,17 +285,119 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!input.paused&&(input.action!==this.lastAction||keyboardAction)){
         this.lastAction=input.action;
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
+        const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
         if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
+        else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
         else this.message='Hier gibt es nichts zu sammeln';
         this.messageUntil=time+2400;
       }
+      this.tickWildlife(time, delta, p);
       this.report(time,p);
     }
+    tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
+      // Stealth: hidden when crouched behind any cover within 36 px.
+      this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
+      p.setAlpha(this.hidden ? 0.6 : 1);
+      // Player attack hit: resolve on the first tick after attack starts.
+      const reach = this.weapon === 'spear' ? 46 : this.weapon === 'axe' ? 38 : 30;
+      const fa = this.lastFacing * (Math.PI / 4);
+      const fx = Math.cos(fa), fy = Math.sin(fa);
+      if (this.attackPending) {
+        this.attackPending = false;
+        for (const c of this.creatures) {
+          if (c.state === 'dead') continue;
+          const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
+          if (d > reach) continue;
+          if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
+          c.hp -= this.weapon === 'spear' ? 22 : this.weapon === 'axe' ? 18 : 10;
+          c.sprite.setTint(0xff6b4a);
+          this.time.delayedCall(140, () => c.sprite.clearTint());
+          const kb = 60;
+          const b = c.sprite.body as Phaser.Physics.Arcade.Body;
+          b.setVelocity(fx * kb, fy * kb);
+          if (c.hp <= 0) {
+            c.state = 'dead';
+            const mx = c.sprite.x, my = c.sprite.y;
+            c.sprite.destroy();
+            const meat = this.add.image(mx, my, 'meat').setDepth(my);
+            this.meatPickups.push({ x: mx, y: my, sprite: meat });
+            this.message = c.kind === 'tiger' ? 'Säbelzahntiger erlegt · Fleisch zurückgelassen' : 'Gazelle erlegt · Fleisch zurückgelassen';
+            this.messageUntil = time + 2600;
+          } else if (c.kind === 'gazelle') {
+            c.state = 'flee'; c.stateUntil = time + 4000;
+          } else {
+            c.state = 'chase'; c.stateUntil = time + 8000;
+          }
+        }
+      }
+      // Creature AI.
+      for (const c of this.creatures) {
+        if (c.state === 'dead') continue;
+        const s = c.sprite; const body = s.body as Phaser.Physics.Arcade.Body;
+        const dx = p.x - s.x, dy = p.y - s.y, dist = Math.hypot(dx, dy);
+        const sees = !this.hidden && dist < (c.kind === 'tiger' ? 260 : 200);
+        if (c.kind === 'gazelle') {
+          if (sees && c.state !== 'flee') { c.state = 'flee'; c.stateUntil = time + 2500; }
+          if (c.state === 'flee' && time > c.stateUntil && dist > 260) { c.state = 'wander'; c.nextDecision = time + 800; }
+        } else {
+          if (sees && c.state === 'wander') { c.state = 'chase'; c.stateUntil = time + 6000; }
+          if (c.state === 'chase' && !sees && dist > 360 && time > c.stateUntil) { c.state = 'wander'; c.nextDecision = time + 800; }
+          if (c.state === 'chase' && dist < 32 && time > c.nextAttack) {
+            c.state = 'attack'; c.nextAttack = time + 1500; c.stateUntil = time + 650;
+            body.setVelocity(0, 0);
+            const facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+            c.facing = facing;
+            s.play(`anim-tiger-attack-${facing}`, true);
+            if (time > this.lastDamage + 1100) {
+              this.health = Math.max(0, this.health - 10);
+              this.hitFlash = time + 200;
+              this.lastDamage = time;
+              this.message = 'Der Säbelzahntiger reißt dich!';
+              this.messageUntil = time + 1600;
+            }
+          }
+        }
+        if (c.state === 'attack') {
+          if (time > c.stateUntil) c.state = 'chase';
+        } else if (c.state === 'flee') {
+          const nx = -dx, ny = -dy, nl = Math.max(1, Math.hypot(nx, ny));
+          body.setVelocity(nx / nl * 95, ny / nl * 95);
+        } else if (c.state === 'chase') {
+          const nl = Math.max(1, dist);
+          body.setVelocity(dx / nl * 70, dy / nl * 70);
+        } else {
+          // Wander: pick a nearby target now and then.
+          if (time > c.nextDecision) {
+            c.nextDecision = time + 1800 + Math.random() * 2200;
+            c.wanderX = s.x + (Math.random() - 0.5) * 160;
+            c.wanderY = s.y + (Math.random() - 0.5) * 160;
+          }
+          const wx = c.wanderX - s.x, wy = c.wanderY - s.y, wl = Math.hypot(wx, wy);
+          if (wl > 8) body.setVelocity(wx / wl * 22, wy / wl * 22);
+          else body.setVelocity(0, 0);
+        }
+        // Animate based on velocity.
+        if (c.state !== 'attack') {
+          const vx = body.velocity.x, vy = body.velocity.y, vlen = Math.hypot(vx, vy);
+          if (vlen > 4) {
+            const facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8;
+            c.facing = facing;
+            const key = c.kind === 'gazelle' && c.state === 'flee' ? `gazelle-run-${facing}` : `${c.kind}-walk-${facing}`;
+            if (s.anims.currentAnim?.key !== key) s.play(key);
+          } else {
+            s.anims.stop();
+            s.setTexture(`${c.kind}-idle-${c.facing}`);
+          }
+        }
+        s.setDepth(s.y);
+      }
+      if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
+    }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
