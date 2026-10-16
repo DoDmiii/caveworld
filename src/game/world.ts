@@ -69,6 +69,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastFacing = 2;
     nearBed = false;
     bed?: Phaser.GameObjects.Image;
+    creatures: Creature[] = [];
+    meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    meat = 0;
+    hidden = false;
+    covers: { x: number; y: number }[] = [];
+    hitFlash = 0;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
