@@ -19,7 +19,7 @@ const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', ches
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
  const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false});
- const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false});
+ const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false});
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|null>(null);
  const [knob,setKnob]=useState({x:0,y:0});const [sprinting,setSprinting]=useState(false);
