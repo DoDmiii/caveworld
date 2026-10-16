@@ -25,9 +25,22 @@ import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, type Weapon } from './gear';
+import { TIGER, GAZELLE } from './wildlife';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean };
+type Creature = {
+  kind: 'tiger' | 'gazelle';
+  sprite: Phaser.Physics.Arcade.Sprite;
+  state: 'idle' | 'wander' | 'flee' | 'chase' | 'attack' | 'dead';
+  facing: number;
+  hp: number;
+  stateUntil: number;
+  nextDecision: number;
+  nextAttack: number;
+  wanderX: number;
+  wanderY: number;
+};
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
 const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
@@ -56,6 +69,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastFacing = 2;
     nearBed = false;
     bed?: Phaser.GameObjects.Image;
+    creatures: Creature[] = [];
+    meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    meat = 0;
+    hidden = false;
+    covers: { x: number; y: number }[] = [];
+    hitFlash = 0;
+    attackPending = false;
+    lastDamage = 0;
     preload() {
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
@@ -68,6 +89,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       this.load.image('fire', campfire.url);
+      for (let i = 0; i < 8; i++) {
+        this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
+        this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.spritesheet(`tiger-attack-${i}`, TIGER.attack[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.image(`gazelle-idle-${i}`, GAZELLE.idle[i]!);
+        this.load.spritesheet(`gazelle-walk-${i}`, GAZELLE.walk[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.spritesheet(`gazelle-run-${i}`, GAZELLE.run[i]!, { frameWidth: 40, frameHeight: 40 });
+      }
     }
     create() {
       // One looping walk cycle per direction; timeScale adapts to sprint speed.
@@ -84,6 +113,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.anims.create({ key: `anim-${atkKey}`, frames, frameRate: 12, repeat: 0 });
         }
       });
+      for (let i = 0; i < 8; i++) {
+        this.anims.create({ key: `tiger-walk-${i}`, frames: this.anims.generateFrameNumbers(`tiger-walk-${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
+        const tAtk = this.textures.get(`tiger-attack-${i}`);
+        this.anims.create({ key: `anim-tiger-attack-${i}`, frames: this.anims.generateFrameNumbers(`tiger-attack-${i}`, { start: 0, end: tAtk.frameTotal - 2 }), frameRate: 14, repeat: 0 });
+        this.anims.create({ key: `gazelle-walk-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-walk-${i}`, { start: 0, end: 7 }), frameRate: 9, repeat: -1 });
+        this.anims.create({ key: `gazelle-run-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-run-${i}`, { start: 0, end: 5 }), frameRate: 14, repeat: -1 });
+      }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
@@ -166,8 +202,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Sleeping place next to the campfire.
       this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
       for(const [x,y] of [[1128,700],[895,760],[1160,1170],[700,850],[1240,900],[760,1240],[480,1080],[1340,760],[980,1460]] as const) {
-        const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});
+        const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});this.covers.push({x,y});
       }
+      // Cover zones: all rock obstacles plus bushes already pushed above.
+      this.obstacles.getChildren().forEach(obj => {
+        const s = obj as Phaser.Physics.Arcade.Sprite;
+        if (s.texture?.key === 'rock') this.covers.push({ x: s.x, y: s.y });
+      });
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
       this.player.setSize(10,7).setOffset(11,23);
@@ -176,6 +217,29 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
+      // Meat loot texture.
+      make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
+      // Spawn wildlife at safe, open locations away from camp, mountain and river.
+      let wseed = 2131; const wr = () => { wseed = (wseed * 16807) % 2147483647; return wseed / 2147483647; };
+      const spawn = (kind: 'tiger' | 'gazelle', x: number, y: number) => {
+        const key = `${kind}-idle-2`;
+        const s = this.physics.add.sprite(x, y, key).setDepth(y).setCollideWorldBounds(true);
+        s.setSize(14, 8).setOffset(13, 28);
+        this.physics.add.collider(s, this.obstacles);
+        this.creatures.push({ kind, sprite: s, state: 'wander', facing: 2, hp: kind === 'tiger' ? 60 : 30, stateUntil: 0, nextDecision: 0, nextAttack: 0, wanderX: x, wanderY: y });
+      };
+      const safeSpot = () => {
+        for (let t = 0; t < 40; t++) {
+          const x = 180 + wr() * (WORLD - 360), y = 180 + wr() * (WORLD - 360);
+          if (y < mEdge(x) + 80) continue;
+          if (Math.abs(x - riverX(y)) < 180) continue;
+          if (Math.hypot(x - CAMP.x, y - CAMP.y) < 420) continue;
+          return { x, y };
+        }
+        return null;
+      };
+      for (let i = 0; i < 5; i++) { const s = safeSpot(); if (s) spawn('gazelle', s.x, s.y); }
+      for (let i = 0; i < 2; i++) { const s = safeSpot(); if (s) spawn('tiger', s.x, s.y); }
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
@@ -202,7 +266,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const qKey=k?.['Q'];
       const keyAttack=qKey&&Phaser.Input.Keyboard.JustDown(qKey);
       if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
-        this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);
+        this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
       if(this.attacking){/* attack animation plays out */}
@@ -221,17 +285,119 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!input.paused&&(input.action!==this.lastAction||keyboardAction)){
         this.lastAction=input.action;
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
+        const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
         if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
+        else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
         else this.message='Hier gibt es nichts zu sammeln';
         this.messageUntil=time+2400;
       }
+      this.tickWildlife(time, delta, p);
       this.report(time,p);
     }
+    tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
+      // Stealth: hidden when crouched behind any cover within 36 px.
+      this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
+      p.setAlpha(this.hidden ? 0.6 : 1);
+      // Player attack hit: resolve on the first tick after attack starts.
+      const reach = this.weapon === 'spear' ? 46 : this.weapon === 'axe' ? 38 : 30;
+      const fa = this.lastFacing * (Math.PI / 4);
+      const fx = Math.cos(fa), fy = Math.sin(fa);
+      if (this.attackPending) {
+        this.attackPending = false;
+        for (const c of this.creatures) {
+          if (c.state === 'dead') continue;
+          const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
+          if (d > reach) continue;
+          if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
+          c.hp -= this.weapon === 'spear' ? 22 : this.weapon === 'axe' ? 18 : 10;
+          c.sprite.setTint(0xff6b4a);
+          this.time.delayedCall(140, () => c.sprite.clearTint());
+          const kb = 60;
+          const b = c.sprite.body as Phaser.Physics.Arcade.Body;
+          b.setVelocity(fx * kb, fy * kb);
+          if (c.hp <= 0) {
+            c.state = 'dead';
+            const mx = c.sprite.x, my = c.sprite.y;
+            c.sprite.destroy();
+            const meat = this.add.image(mx, my, 'meat').setDepth(my);
+            this.meatPickups.push({ x: mx, y: my, sprite: meat });
+            this.message = c.kind === 'tiger' ? 'Säbelzahntiger erlegt · Fleisch zurückgelassen' : 'Gazelle erlegt · Fleisch zurückgelassen';
+            this.messageUntil = time + 2600;
+          } else if (c.kind === 'gazelle') {
+            c.state = 'flee'; c.stateUntil = time + 4000;
+          } else {
+            c.state = 'chase'; c.stateUntil = time + 8000;
+          }
+        }
+      }
+      // Creature AI.
+      for (const c of this.creatures) {
+        if (c.state === 'dead') continue;
+        const s = c.sprite; const body = s.body as Phaser.Physics.Arcade.Body;
+        const dx = p.x - s.x, dy = p.y - s.y, dist = Math.hypot(dx, dy);
+        const sees = !this.hidden && dist < (c.kind === 'tiger' ? 260 : 200);
+        if (c.kind === 'gazelle') {
+          if (sees && c.state !== 'flee') { c.state = 'flee'; c.stateUntil = time + 2500; }
+          if (c.state === 'flee' && time > c.stateUntil && dist > 260) { c.state = 'wander'; c.nextDecision = time + 800; }
+        } else {
+          if (sees && c.state === 'wander') { c.state = 'chase'; c.stateUntil = time + 6000; }
+          if (c.state === 'chase' && !sees && dist > 360 && time > c.stateUntil) { c.state = 'wander'; c.nextDecision = time + 800; }
+          if (c.state === 'chase' && dist < 32 && time > c.nextAttack) {
+            c.state = 'attack'; c.nextAttack = time + 1500; c.stateUntil = time + 650;
+            body.setVelocity(0, 0);
+            const facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+            c.facing = facing;
+            s.play(`anim-tiger-attack-${facing}`, true);
+            if (time > this.lastDamage + 1100) {
+              this.health = Math.max(0, this.health - 10);
+              this.hitFlash = time + 200;
+              this.lastDamage = time;
+              this.message = 'Der Säbelzahntiger reißt dich!';
+              this.messageUntil = time + 1600;
+            }
+          }
+        }
+        if (c.state === 'attack') {
+          if (time > c.stateUntil) c.state = 'chase';
+        } else if (c.state === 'flee') {
+          const nx = -dx, ny = -dy, nl = Math.max(1, Math.hypot(nx, ny));
+          body.setVelocity(nx / nl * 95, ny / nl * 95);
+        } else if (c.state === 'chase') {
+          const nl = Math.max(1, dist);
+          body.setVelocity(dx / nl * 70, dy / nl * 70);
+        } else {
+          // Wander: pick a nearby target now and then.
+          if (time > c.nextDecision) {
+            c.nextDecision = time + 1800 + Math.random() * 2200;
+            c.wanderX = s.x + (Math.random() - 0.5) * 160;
+            c.wanderY = s.y + (Math.random() - 0.5) * 160;
+          }
+          const wx = c.wanderX - s.x, wy = c.wanderY - s.y, wl = Math.hypot(wx, wy);
+          if (wl > 8) body.setVelocity(wx / wl * 22, wy / wl * 22);
+          else body.setVelocity(0, 0);
+        }
+        // Animate based on velocity.
+        if (c.state !== 'attack') {
+          const vx = body.velocity.x, vy = body.velocity.y, vlen = Math.hypot(vx, vy);
+          if (vlen > 4) {
+            const facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8;
+            c.facing = facing;
+            const key = c.kind === 'gazelle' && c.state === 'flee' ? `gazelle-run-${facing}` : `${c.kind}-walk-${facing}`;
+            if (s.anims.currentAnim?.key !== key) s.play(key);
+          } else {
+            s.anims.stop();
+            s.setTexture(`${c.kind}-idle-${c.facing}`);
+          }
+        }
+        s.setDepth(s.y);
+      }
+      if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
+    }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
