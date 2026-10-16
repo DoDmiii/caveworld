@@ -76,21 +76,21 @@ import bed_tex from './bed.png.asset.json';
 import icon_axe from './icon-axe.png.asset.json';
 import icon_spear from './icon-spear.png.asset.json';
 export type Weapon='none'|'axe'|'spear';
-export const IDLE:Record<Weapon,string[]>=[
-  [none_idle_0.url,none_idle_1.url,none_idle_2.url,none_idle_3.url,none_idle_4.url,none_idle_5.url,none_idle_6.url,none_idle_7.url],
-  [axe_idle_0.url,axe_idle_1.url,axe_idle_2.url,axe_idle_3.url,axe_idle_4.url,axe_idle_5.url,axe_idle_6.url,axe_idle_7.url],
+export const IDLE:Record<Weapon,string[]>={
+  none:[none_idle_0.url,none_idle_1.url,none_idle_2.url,none_idle_3.url,none_idle_4.url,none_idle_5.url,none_idle_6.url,none_idle_7.url],
+  axe:[axe_idle_0.url,axe_idle_1.url,axe_idle_2.url,axe_idle_3.url,axe_idle_4.url,axe_idle_5.url,axe_idle_6.url,axe_idle_7.url],
   [spear_idle_0.url,spear_idle_1.url,spear_idle_2.url,spear_idle_3.url,spear_idle_4.url,spear_idle_5.url,spear_idle_6.url,spear_idle_7.url],
 ];
-export const WALK:Record<Weapon,string[]>=[
-  [none_walk_0.url,none_walk_1.url,none_walk_2.url,none_walk_3.url,none_walk_4.url,none_walk_5.url,none_walk_6.url,none_walk_7.url],
-  [axe_walk_0.url,axe_walk_1.url,axe_walk_2.url,axe_walk_3.url,axe_walk_4.url,axe_walk_5.url,axe_walk_6.url,axe_walk_7.url],
-  [spear_walk_0.url,spear_walk_1.url,spear_walk_2.url,spear_walk_3.url,spear_walk_4.url,spear_walk_5.url,spear_walk_6.url,spear_walk_7.url],
-];
-export const ATTACK:Record<Weapon,string[]>=[
-  [none_attack_0.url,none_attack_1.url,none_attack_2.url,none_attack_3.url,none_attack_4.url,none_attack_5.url,none_attack_6.url,none_attack_7.url],
-  [axe_attack_0.url,axe_attack_1.url,axe_attack_2.url,axe_attack_3.url,axe_attack_4.url,axe_attack_5.url,axe_attack_6.url,axe_attack_7.url],
-  [spear_attack_0.url,spear_attack_1.url,spear_attack_2.url,spear_attack_3.url,spear_attack_4.url,spear_attack_5.url,spear_attack_6.url,spear_attack_7.url],
-];
+export const WALK:Record<Weapon,string[]>={
+  none:[none_walk_0.url,none_walk_1.url,none_walk_2.url,none_walk_3.url,none_walk_4.url,none_walk_5.url,none_walk_6.url,none_walk_7.url],
+  axe:[axe_walk_0.url,axe_walk_1.url,axe_walk_2.url,axe_walk_3.url,axe_walk_4.url,axe_walk_5.url,axe_walk_6.url,axe_walk_7.url],
+  spear:[spear_walk_0.url,spear_walk_1.url,spear_walk_2.url,spear_walk_3.url,spear_walk_4.url,spear_walk_5.url,spear_walk_6.url,spear_walk_7.url],
+};
+export const ATTACK:Record<Weapon,string[]>={
+  none:[none_attack_0.url,none_attack_1.url,none_attack_2.url,none_attack_3.url,none_attack_4.url,none_attack_5.url,none_attack_6.url,none_attack_7.url],
+  axe:[axe_attack_0.url,axe_attack_1.url,axe_attack_2.url,axe_attack_3.url,axe_attack_4.url,axe_attack_5.url,axe_attack_6.url,axe_attack_7.url],
+  spear:[spear_attack_0.url,spear_attack_1.url,spear_attack_2.url,spear_attack_3.url,spear_attack_4.url,spear_attack_5.url,spear_attack_6.url,spear_attack_7.url],
+};
 export const SLEEP=sleep_tex.url;
 export const BED=bed_tex.url;
 export const ICON_AXE=icon_axe.url;

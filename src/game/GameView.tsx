@@ -7,12 +7,12 @@ import { ICON_AXE, ICON_SPEAR, IDLE, type Weapon } from './gear';
 import type { GameInput, GameStatus } from './world';
 
 type Slot = 'hand' | 'head' | 'chest' | 'feet';
-type Item = { id: string; name: string; slot: Slot; icon?: string; weapon?: Weapon };
+type Item = { id: string; name: string; slot: Slot; icon: string | undefined; weapon: Weapon | undefined };
 const ITEMS: Item[] = [
-  { id: 'fists', name: 'Fäuste', slot: 'hand', weapon: 'none' },
+  { id: 'fists', name: 'Fäuste', slot: 'hand', icon: undefined, weapon: 'none' },
   { id: 'axe', name: 'Steinaxt', slot: 'hand', icon: ICON_AXE, weapon: 'axe' },
   { id: 'spear', name: 'Steinspeer', slot: 'hand', icon: ICON_SPEAR, weapon: 'spear' },
-  { id: 'berries', name: 'Beeren', slot: 'head', icon: undefined },
+  { id: 'berries', name: 'Beeren', slot: 'head', icon: undefined, weapon: undefined },
 ];
 const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', chest: 'Brust', feet: 'Füße' };
 
