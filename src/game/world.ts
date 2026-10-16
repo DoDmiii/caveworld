@@ -25,9 +25,22 @@ import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, type Weapon } from './gear';
+import { TIGER, GAZELLE } from './wildlife';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean };
+type Creature = {
+  kind: 'tiger' | 'gazelle';
+  sprite: Phaser.Physics.Arcade.Sprite;
+  state: 'idle' | 'wander' | 'flee' | 'chase' | 'attack' | 'dead';
+  facing: number;
+  hp: number;
+  stateUntil: number;
+  nextDecision: number;
+  nextAttack: number;
+  wanderX: number;
+  wanderY: number;
+};
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
 const walkSheets = [walkEast, walkSouthEast, walkSouth, walkSouthWest, walkWest, walkNorthWest, walkNorth, walkNorthEast];
