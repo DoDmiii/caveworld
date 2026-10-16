@@ -24,11 +24,11 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, type Weapon } from './gear';
+import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
 type Creature = {
   kind: 'tiger' | 'gazelle';
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -41,6 +41,7 @@ type Creature = {
   wanderX: number;
   wanderY: number;
   turnAt?: number;
+  alert?: number;
 };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
@@ -81,6 +82,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     target: Creature | undefined = undefined;
     marker?: Phaser.GameObjects.Image;
     hasSpear = true;
+    crouching = false;
+    dead = false;
+    lastRespawn = 0;
     spear: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number } | undefined = undefined;
     spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
     preload() {
@@ -91,6 +95,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         WALK[w].forEach((u, i) => this.load.spritesheet(`${w}-walk-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
         ATTACK[w].forEach((u, i) => this.load.spritesheet(`${w}-attack-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
       });
+      DEATH.forEach((u,i)=>this.load.spritesheet(`death-${i}`,u,{frameWidth:32,frameHeight:32}));
+      CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
       this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
@@ -121,6 +127,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
       });
       for (let i = 0; i < 8; i++) {
+        this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
+        this.anims.create({ key: `anim-crouch-${i}`, frames: this.anims.generateFrameNumbers(`crouch-${i}`), frameRate: 7, repeat: -1 });
         this.anims.create({ key: `tiger-walk-${i}`, frames: this.anims.generateFrameNumbers(`tiger-walk-${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
         const tAtk = this.textures.get(`tiger-attack-${i}`);
         this.anims.create({ key: `anim-tiger-attack-${i}`, frames: this.anims.generateFrameNumbers(`tiger-attack-${i}`, { start: 0, end: tAtk.frameTotal - 2 }), frameRate: 14, repeat: 0 });
@@ -222,7 +230,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
-      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R') as Record<string,Phaser.Input.Keyboard.Key>;
+      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
       // Meat loot texture.
       make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
@@ -252,13 +260,27 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return null;
       };
       for (let i = 0; i < 5; i++) { const s = safeSpot(); if (s) spawn('gazelle', s.x, s.y); }
-      for (let i = 0; i < 2; i++) { const s = safeSpot(); if (s) spawn('tiger', s.x, s.y); }
+      for (let i = 0; i < 1; i++) { const s = safeSpot(); if (s) spawn('tiger', s.x, s.y); }
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
+      if(this.dead){
+        p.setVelocity(0,0);
+        if(input.respawn!==this.lastRespawn){
+          this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.stamina=100;p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();p.setTexture(`${this.weapon}-idle-2`);this.lastFacing=2;
+          for(const c of this.creatures)if(c.state==='chase'||c.state==='attack'){c.state='wander';c.alert=0;}
+          this.message='Du erwachst am Lagerfeuer';this.messageUntil=time+2400;
+        }
+        this.report(time,p);return;
+      }
+      this.lastRespawn=input.respawn;
+      if(this.health<=0){
+        this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
+        this.report(time,p);return;
+      }
       if(input.weapon!==this.weapon){this.weapon=input.weapon;this.attacking=false;}
       const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
       this.nearBed=Math.hypot(p.x-bedX,p.y-bedY)<34;
@@ -273,7 +295,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
       if(input.paused||this.attacking){dx=0;dy=0;}
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
-      const speed=running?105:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
+      this.crouching=!running&&!this.attacking&&(input.crouch||!!k?.['CTRL']?.isDown||!!k?.['C']?.isDown);
+      const speed=running?105:this.crouching?34:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
       const w=this.weapon;
       // Lock-on (F): cycle to the nearest living animal within range.
@@ -307,6 +330,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
       if(this.attacking){/* attack animation plays out; facing stays locked */}
+      else if(this.crouching) {
+        if(moving)this.lastFacing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;
+        else if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
+        const ck=`anim-crouch-${this.lastFacing}`;
+        if(moving){if(p.anims.currentAnim?.key!==ck||!p.anims.isPlaying)p.play(ck);}
+        else{p.anims.stop();p.setTexture(`crouch-${this.lastFacing}`,4);}
+      }
       else if(moving) {
         const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
         const animKey=`${w}-walk-${this.lastFacing}`;
@@ -357,7 +387,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
       // Stealth: hidden when crouched behind any cover within 36 px.
       this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
-      p.setAlpha(this.hidden ? 0.6 : 1);
+      p.setAlpha(this.hidden ? 0.6 : this.crouching ? 0.85 : 1);
       // Player attack hit: resolve on the first tick after attack starts.
       const reach = this.weapon === 'spear' ? 46 : this.weapon === 'axe' ? 38 : 30;
       const fa = this.lastFacing * (Math.PI / 4);
@@ -377,14 +407,18 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (c.state === 'dead') continue;
         const s = c.sprite; const body = s.body as Phaser.Physics.Arcade.Body;
         const dx = p.x - s.x, dy = p.y - s.y, dist = Math.hypot(dx, dy);
-        const sees = !this.hidden && dist < (c.kind === 'tiger' ? 260 : 200);
+        // Sight range: hidden behind cover = invisible, crouching = much shorter range.
+        const range = c.kind === 'tiger' ? (this.crouching ? 70 : 150) : (this.crouching ? 95 : 200);
+        const sees = !this.hidden && dist < range;
         if (c.kind === 'gazelle') {
           if (sees && c.state !== 'flee') { c.state = 'flee'; c.stateUntil = time + 2500; }
           if (c.state === 'flee' && time > c.stateUntil && dist > 260) { c.state = 'wander'; c.nextDecision = time + 800; }
         } else {
-          if (sees && c.state === 'wander') { c.state = 'chase'; c.stateUntil = time + 6000; }
-          if (c.state === 'chase' && !sees && dist > 360 && time > c.stateUntil) { c.state = 'wander'; c.nextDecision = time + 800; }
-          if (c.state === 'chase' && dist < 32 && time > c.nextAttack) {
+          // Tiger needs a moment of clear sight before it notices you.
+          c.alert = Phaser.Math.Clamp((c.alert ?? 0) + (sees ? delta : -delta * 0.6), 0, 1600);
+          if (c.state === 'wander' && c.alert >= 1400) { c.state = 'chase'; c.stateUntil = time + 5000; this.message = 'Der Säbelzahntiger hat dich entdeckt!'; this.messageUntil = time + 1800; }
+          if (c.state === 'chase' && (this.hidden ? time > c.stateUntil - 3500 : (!sees && dist > 260 && time > c.stateUntil))) { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 800; if (this.hidden) { this.message = 'Der Tiger verliert deine Spur'; this.messageUntil = time + 1800; } }
+          if (c.state === 'chase' && !this.dead && dist < 32 && time > c.nextAttack) {
             c.state = 'attack'; c.nextAttack = time + 1500; c.stateUntil = time + 650;
             body.setVelocity(0, 0);
             const facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
@@ -459,7 +493,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
