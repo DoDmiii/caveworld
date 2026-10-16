@@ -87,6 +87,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       this.load.image('fire', campfire.url);
+      for (let i = 0; i < 8; i++) {
+        this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
+        this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.spritesheet(`tiger-attack-${i}`, TIGER.attack[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.image(`gazelle-idle-${i}`, GAZELLE.idle[i]!);
+        this.load.spritesheet(`gazelle-walk-${i}`, GAZELLE.walk[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.spritesheet(`gazelle-run-${i}`, GAZELLE.run[i]!, { frameWidth: 40, frameHeight: 40 });
+      }
     }
     create() {
       // One looping walk cycle per direction; timeScale adapts to sprint speed.
