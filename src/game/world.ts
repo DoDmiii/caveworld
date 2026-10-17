@@ -87,6 +87,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     target: Creature | undefined = undefined;
     marker?: Phaser.GameObjects.Image;
     hasSpear = true;
+    lockReq = false;
+    clickAttack = false;
+    get held(): Weapon { return this.weapon==='spear'&&!this.hasSpear?'none':this.weapon; }
     crouching = false;
     dead = false;
     lastRespawn = 0;
@@ -239,6 +242,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE') as Record<string,Phaser.Input.Keyboard.Key>;
+      this.input.mouse?.disableContextMenu();
+      this.input.on('pointerdown',(ptr:Phaser.Input.Pointer)=>{if(ptr.wasTouch)return;if(ptr.rightButtonDown())this.lockReq=true;else if(ptr.leftButtonDown())this.clickAttack=true;});
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
       // Meat loot texture.
       make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
@@ -283,7 +288,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.dead){
         p.setVelocity(0,0);
         if(input.respawn!==this.lastRespawn){
-          this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.stamina=100;p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();p.setTexture(`${this.weapon}-idle-2`);this.lastFacing=2;
+          this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.stamina=100;p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();p.setTexture(`${this.held}-idle-2`);this.lastFacing=2;
           for(const c of this.creatures)if(c.state==='chase'||c.state==='attack'){c.state='wander';c.alert=0;}
           this.message='Du erwachst am Lagerfeuer';this.messageUntil=time+2400;
         }
@@ -311,10 +316,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.crouching=!running&&!this.attacking&&(input.crouch||!!k?.['CTRL']?.isDown||!!k?.['C']?.isDown);
       const speed=running?105:this.crouching?34:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
-      const w=this.weapon;
+      const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
       const fKey=k?.['F'];
-      if(!input.paused&&fKey&&Phaser.Input.Keyboard.JustDown(fKey)){
+      const lockNow=this.lockReq||(fKey&&Phaser.Input.Keyboard.JustDown(fKey));this.lockReq=false;
+      if(!input.paused&&lockNow){
         const cands=this.creatures.filter(c=>c.state!=='dead'&&c!==this.target&&Math.hypot(c.sprite.x-p.x,c.sprite.y-p.y)<260).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y));
         this.target=cands[0];
         this.message=this.target?(this.target.kind==='gazelle'?'Gazelle anvisiert':'Säbelzahntiger anvisiert'):'Kein Tier in Sicht';this.messageUntil=time+1400;
@@ -324,7 +330,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!input.paused&&!this.attacking&&rKey&&Phaser.Input.Keyboard.JustDown(rKey)){
         if(w!=='spear'){this.message='Rüste den Steinspeer aus zum Werfen';}
         else if(!this.hasSpear){this.message='Dein Speer liegt noch im Gras';}
-        else if(!this.target){this.message='Erst ein Ziel anvisieren [F]';}
+        else if(!this.target){this.message='Erst ein Ziel anvisieren [Rechtsklick]';}
         else{
           const t=this.target;this.lastFacing=(Math.round(Math.atan2(t.sprite.y-p.y,t.sprite.x-p.x)/(Math.PI/4))+8)%8;
           this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;p.play(`anim-spear-attack-${this.lastFacing}`);
@@ -336,7 +342,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.messageUntil=time+1400;
       }
       const qKey=k?.['Q'];
-      const keyAttack=qKey&&Phaser.Input.Keyboard.JustDown(qKey);
+      const keyAttack=(qKey&&Phaser.Input.Keyboard.JustDown(qKey))||this.clickAttack;this.clickAttack=false;
       if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
         this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
@@ -408,7 +414,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
       p.setAlpha(this.hidden ? 0.6 : this.crouching ? 0.85 : 1);
       // Player attack hit: resolve on the first tick after attack starts.
-      const reach = this.weapon === 'spear' ? 46 : this.weapon === 'axe' ? 38 : 30;
+      const hw = this.held;
+      const reach = hw === 'spear' ? 46 : hw === 'axe' ? 38 : 30;
       const fa = this.lastFacing * (Math.PI / 4);
       const fx = Math.cos(fa), fy = Math.sin(fa);
       if (this.attackPending) {
@@ -418,7 +425,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          this.hurt(c, this.weapon === 'spear' ? 22 : this.weapon === 'axe' ? 18 : 10, fx, fy, time);
+          this.hurt(c, hw === 'spear' ? 22 : hw === 'axe' ? 18 : 10, fx, fy, time);
         }
       }
       // Creature AI.
@@ -512,7 +519,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

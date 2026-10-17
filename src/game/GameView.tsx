@@ -26,6 +26,7 @@ export default function GameView(){
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);});destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{input.current.paused=paused||panel!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel]);
+ useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
    setEquipped(e=>({...e,[item.slot]:item.id}));
    if(item.weapon)input.current.weapon=item.weapon;
