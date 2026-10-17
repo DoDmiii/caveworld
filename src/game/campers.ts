@@ -31,7 +31,7 @@ export function createCampers(scene: Phaser.Scene, player: Phaser.Physics.Arcade
       });
     }
     const sprite = scene.physics.add.sprite(template.x, template.y, template.id, 2)
-      .setSize(10, 7).setOffset(11, 23).setDepth(template.y).setCollideWorldBounds(true);
+      .setSize(10, 7).setOffset(11, 23).setDepth(template.y).setCollideWorldBounds(true).setPushable(false);
     scene.physics.add.collider(sprite, obstacles);
     scene.physics.add.collider(sprite, player);
     return { sprite, template, facing: 2, turnAt: 0, nextDecision: scene.time.now + 900 + index * 450,
