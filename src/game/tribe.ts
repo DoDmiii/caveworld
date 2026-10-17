@@ -12,7 +12,7 @@ export const CAMP_ALLIES = [
   { id: 'ally-2', url: ally2.url, walkingFrames: 6, x: 925, y: 710 },
   { id: 'ally-3', url: ally3.url, walkingFrames: 6, x: 1075, y: 730 },
   { id: 'ally-4', url: ally4.url, walkingFrames: 6, x: 975, y: 750 },
-  { id: 'ally-5', url: ally5.url, walkingFrames: 0, x: 1100, y: 685 },
+  { id: 'ally-5', url: ally5.url, walkingFrames: 6, x: 1100, y: 685 },
 ] as const;
 
 export function isCampDestination(x: number, y: number) {

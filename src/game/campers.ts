@@ -22,7 +22,7 @@ export function preloadCampers(scene: Phaser.Scene) {
 export function createCampers(scene: Phaser.Scene, player: Phaser.Physics.Arcade.Sprite, obstacles: Phaser.Physics.Arcade.StaticGroup): Camper[] {
   const campers = CAMP_ALLIES.map((template, index): Camper => {
     for (let direction = 0; direction < 8; direction++) {
-      if (template.walkingFrames === 0) continue;
+      if ((template.walkingFrames as number) === 0) continue;
       const start = 8 + direction * template.walkingFrames;
       scene.anims.create({
         key: `${template.id}-walk-${direction}`,
@@ -54,7 +54,7 @@ export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.
     const { sprite, template } = camper;
     const body = sprite.body as Phaser.Physics.Arcade.Body;
     const random = () => { camper.seed = camper.seed * 16807 % 2147483647; return camper.seed / 2147483647; };
-    if (stopped || template.walkingFrames === 0) {
+    if (stopped || (template.walkingFrames as number) === 0) {
       sprite.setVelocity(0, 0); sprite.anims.stop(); sprite.setFrame(camper.facing);
       // Re-plan after a pause rather than jumping directly into a stale destination.
       if (stopped) camper.nextDecision = time + 600;

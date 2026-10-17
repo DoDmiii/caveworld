@@ -1,3 +1,4 @@
+import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
@@ -28,8 +29,8 @@ import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon 
 import { TIGER, GAZELLE } from './wildlife';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
 type Creature = {
   kind: 'tiger' | 'gazelle';
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -59,6 +60,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     obstacles?: Phaser.Physics.Arcade.StaticGroup;
     berries: { x: number; y: number; picked: boolean; sprite: Phaser.GameObjects.Image }[] = [];
     stamina = 100;
+    cooked = 0;
+    healPulse = 0;
     health = 100;
     count = 0;
     lastAction = 0;
@@ -89,6 +92,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastRespawn = 0;
     spear: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number } | undefined = undefined;
     spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
+    pantry(){return{health:this.health,stamina:this.stamina,berries:this.count,meat:this.meat,cooked:this.cooked};}
+    setPantry(r:Pantry){this.health=r.health;this.stamina=r.stamina;this.count=r.berries;this.meat=r.meat;this.cooked=r.cooked;}
     preload() {
       preloadCampers(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
@@ -233,7 +238,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
-      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C') as Record<string,Phaser.Input.Keyboard.Key>;
+      this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE') as Record<string,Phaser.Input.Keyboard.Key>;
       this.game.events.on('blur',()=>{input.x=0;input.y=0;input.sprint=false;});
       // Meat loot texture.
       make('meat', 14, 10, c => { rect(c,'#5a2a26',1,2,12,7);rect(c,'#8a3a30',2,3,10,5);rect(c,'#c25545',4,4,6,3);rect(c,'#efe6c8',6,5,2,1);rect(c,'#2b1510',3,8,8,1); });
@@ -356,6 +361,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         p.setTexture(`${w}-idle-${this.lastFacing}`);
       }
       p.setDepth(p.y);
+      const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':null;
+      const food=input.eat??eatKey;input.eat=null;
+      if(food&&!this.dead&&!this.sleeping){const r=eat(this.pantry(),food);
+        if(r){this.setPantry(r);this.healPulse++;this.message=`${FOOD[food].name} gegessen · +${FOOD[food].heal} Leben`;}
+        else this.message=this.pantry()[food]<=0?`Keine ${FOOD[food].name} im Beutel`:'Du bist schon satt';
+        this.messageUntil=time+2000;}
       const actionKey=k?.['E'],spaceKey=k?.['SPACE'];
       const keyboardAction=(actionKey&&Phaser.Input.Keyboard.JustDown(actionKey))||(spaceKey&&Phaser.Input.Keyboard.JustDown(spaceKey));
       if(!input.paused&&(input.action!==this.lastAction||keyboardAction)){
@@ -367,7 +378,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
-        else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){this.stamina=100;this.message='Am Feuer ausgeruht';}
+        else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){const r=roast(this.pantry());if(r){this.setPantry(r);this.message='Fleisch gebraten · [3] essen';}else{this.stamina=100;this.message='Am Feuer ausgeruht';}}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
         else this.message='Hier gibt es nichts zu sammeln';
         this.messageUntil=time+2400;
@@ -501,7 +512,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.weapon,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

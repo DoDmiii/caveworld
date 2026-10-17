@@ -290,3 +290,9 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .death-screen p {color:var(--muted-foreground);margin:0 0 10px;}
 .death-screen .resume-button {width:auto;}
 @keyframes death-in {0%,40% {opacity:0;} 100% {opacity:1;}}
+
+.food-quick { display: inline-flex; align-items: center; gap: 4px; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; padding: 2px 4px; border-radius: 6px; }
+.food-quick:hover { background: color-mix(in oklab, currentColor 12%, transparent); }
+.stat-track.health.is-healing i { animation: heal-flash 0.9s ease-out; }
+@keyframes heal-flash { 0% { filter: brightness(1.8) hue-rotate(80deg); } 100% { filter: none; } }
+.gear-item:disabled { opacity: 0.4; }
