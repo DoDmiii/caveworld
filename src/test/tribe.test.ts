@@ -6,9 +6,8 @@ describe('allied camp inhabitants', () => {
     expect(CAMP_ALLIES).toHaveLength(6);
     expect(new Set(CAMP_ALLIES.map(member => member.id)).size).toBe(6);
   });
-  it('keeps the sixth idle-only template stationary without invented walking frames', () => {
-    expect(CAMP_ALLIES[5].walkingFrames).toBe(0);
-    expect(CAMP_ALLIES.slice(0, 5).map(member => member.walkingFrames)).toEqual([6, 6, 6, 6, 6]);
+  it('gives all six camp members six walking frames', () => {
+    expect(CAMP_ALLIES.map(member => member.walkingFrames)).toEqual([6, 6, 6, 6, 6, 6]);
   });
   it('keeps wandering inside camp and away from the fire and sleeping place', () => {
     expect(isCampDestination(950, 710)).toBe(true);
