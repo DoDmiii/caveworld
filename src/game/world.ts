@@ -26,6 +26,7 @@ import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
+import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
@@ -72,6 +73,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     nearBed = false;
     bed?: Phaser.GameObjects.Image;
     creatures: Creature[] = [];
+    campers: Camper[] = [];
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
     hidden = false;
@@ -88,6 +90,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     spear: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number } | undefined = undefined;
     spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
     preload() {
+      preloadCampers(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
       (['none','axe','spear'] as Weapon[]).forEach(w => {
@@ -261,9 +264,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       };
       for (let i = 0; i < 5; i++) { const s = safeSpot(); if (s) spawn('gazelle', s.x, s.y); }
       for (let i = 0; i < 1; i++) { const s = safeSpot(); if (s) spawn('tiger', s.x, s.y); }
+      this.campers = createCampers(this, this.player, this.obstacles);
+      for (const camper of this.campers) {
+        for (const creature of this.creatures) this.physics.add.collider(camper.sprite, creature.sprite);
+      }
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
+      tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
