@@ -12,6 +12,16 @@ const RESOURCES=[['wood','Holz',resWood.url],['stone','Stein',resStone.url],['fl
 import type { GameInput, GameStatus } from './world';
 import { RECIPES, canCraft, xpForLevel, type ItemId } from './progress';
 import { RESOURCE_NAME } from './harvest';
+import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
+
+const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',300,3000],['Dschungel der Afrikans',2450,3000]] as const;
+/** Paints the biome layout into a small image for the mini and world map. */
+function renderBiomeMap(){
+ const S=32,w=MAP.w/S,h=MAP.h/S;const cv=document.createElement('canvas');cv.width=w;cv.height=h;const c=cv.getContext('2d');if(!c)return '';
+ const img=c.createImageData(w,h);
+ for(let j=0;j<h;j++){const y=MAP.y+j*S;const rx=riverX(y);for(let i=0;i<w;i++){const x=MAP.x+i*S;const col=Math.abs(x-rx)<64?(isFord(y)?[150,170,160]:[70,120,150]):BIOME_COLOR[biomeAt(x,y)];const o=(j*w+i)*4;img.data[o]=col[0]!;img.data[o+1]=col[1]!;img.data[o+2]=col[2]!;img.data[o+3]=255;}}
+ c.putImageData(img,0,0);return cv.toDataURL();
+}
 
 type Slot = 'hand' | 'head' | 'chest' | 'feet';
 type Item = { id: string; name: string; slot: Slot; icon: string | undefined; weapon: Weapon | undefined };
@@ -36,6 +46,7 @@ export default function GameView(){
  const [hotbar,setHotbar]=useState<(string|null)[]>(['axe',null,null]);
  const [active,setActive]=useState(0);
  const [pick,setPick]=useState<string|null>(null);
+ const [mapUrl,setMapUrl]=useState('');useEffect(()=>{setMapUrl(renderBiomeMap());},[]);const mapBg={backgroundImage:mapUrl?`url(${mapUrl})`:undefined,backgroundSize:'100% 100%',imageRendering:'pixelated' as const};
  const owns=(id:string)=>id==='fists'||status.owned.includes(id as ItemId);
  const bag=ITEMS.filter(i=>owns(i.id));
  const hold=(id:string)=>{const it=(ITEMS.find(i=>i.id===id)??ITEMS[0])!;setEquipped(e=>({...e,hand:it.id}));input.current.weapon=it.weapon??'none';input.current.club=it.id==='club';};
@@ -62,9 +73,9 @@ export default function GameView(){
     <div className="top-shade"/>
     <div className="hud"><div className="portrait"><img src={IDLE[status.weapon][2]} alt="Dein Höhlenmensch"/></div><div className="vitals"><div className="vitals-label"><span>HÖHLENMENSCH</span><span>LV. {status.level}</span></div><div className="xp-track" title={`${status.xp} EP`}><i style={{width:`${Math.min(100,(status.xp-xpForLevel(status.level))/(xpForLevel(status.level+1)-xpForLevel(status.level))*100)}%`}}/></div><div className="stat-row"><Heart className="health-icon"/><div key={status.healPulse} className={`stat-track health ${status.healPulse?"is-healing":""}`}><i style={{width:`${status.health}%`}}/></div><span>{status.health}</span></div><div className="stat-row"><Zap className="energy-icon"/><div className="stat-track energy"><i style={{width:`${status.stamina}%`}}/></div><span>{status.stamina}</span></div></div><Button variant="ghost" size="icon" className="glass-icon pause-button" title={paused?'Fortsetzen':'Pause'} aria-label={paused?'Fortsetzen':'Pause'} onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}</Button></div>
     <div className="location-label"><span className="live-dot"/>{status.area}<ChevronDown size={12}/></div>
-    <Button variant="ghost" className="mini-map" aria-label="Karte öffnen" title="Karte öffnen" onClick={()=>setPanel('map')}><div className="map-terrain"><span className="map-river"/><span className="map-mountain"/><i className="map-player" style={{left:`${status.x/2048*100}%`,top:`${status.y/2048*100}%`}}/><span className="north-marker">N</span></div><span className="map-caption"><Map size={10}/> KARTE</span></Button>
+    <Button variant="ghost" className="mini-map" aria-label="Karte öffnen" title="Karte öffnen" onClick={()=>setPanel('map')}><div className="map-terrain" style={mapBg}><i className="map-player" style={{left:`${(status.x-MAP.x)/MAP.w*100}%`,top:`${(status.y-MAP.y)/MAP.h*100}%`}}/><span className="north-marker">N</span></div><span className="map-caption"><Map size={10}/> KARTE</span></Button>
     <Button variant="ghost" size="icon" className="glass-icon gear-button" aria-label="Inventar öffnen" title="Inventar" onClick={()=>setPanel('gear')}><Backpack/></Button>
-    <div className="camp-marker"><Flame size={12}/> LAGERFEUER <span>·</span> {Math.round(Math.hypot(status.x-1000,status.y-680))} m</div>
+    <div className="camp-marker"><Flame size={12}/> LAGERFEUER <span>·</span> {Math.round(Math.hypot(status.x-CAMP_POS.x,status.y-CAMP_POS.y-40))} m</div>
     {status.message&&<div className="game-toast" role="status"><Hand size={16}/>{status.message}</div>}
     {status.nearFire&&status.meat>0&&!status.nearBed&&<div className="sleep-hint"><Flame size={14}/> AKTION zum Fleisch braten</div>}
     {status.nearBed&&!status.sleeping&&<div className="sleep-hint"><Moon size={14}/> AKTION zum Schlafen</div>}
@@ -92,8 +103,8 @@ export default function GameView(){
        :<div className="gear-items"><p className="gear-items-title">Proviant · antippen zum Essen</p><div className="gear-grid">{([['berries','Beeren','✦',status.berries,15],['meat','Rohes Fleisch','🥩',status.meat,20],['cooked','Gebraten','🍖',status.cooked,45]] as const).map(([id,name,ic,n,hp])=><button key={id} className="gear-item" disabled={n<=0} onClick={()=>{input.current.eat=id;}}><span className="slot-sil">{ic}</span><em>{name} ×{n} · +{hp}</em></button>)}</div><p className="gear-items-title">Ressourcen</p><div className="gear-grid">{RESOURCES.map(([id,name,icon])=><div key={id} className="gear-item is-static"><img src={icon} alt={name}/><em>{name} ×{status[id]}</em></div>)}</div><p className="gear-items-title">Beutel · antippen für Schnellslot</p>{pick&&<div className="assign-row">{ITEMS.find(i=>i.id===pick)?.name} auf Slot: {[0,1,2].map(n=><Button key={n} size="sm" variant="outline" onClick={()=>assign(n,pick)}>{n+1}</Button>)}<Button size="sm" variant="ghost" onClick={()=>{const it=ITEMS.find(i=>i.id===pick);if(it)equip(it);setPick(null);}}>Ausrüsten</Button></div>}<div className="gear-grid">{bag.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} onClick={()=>i.id==='fists'?equip(i):setPick(i.id)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}{hotbar.includes(i.id)?` · ${hotbar.indexOf(i.id)+1}`:''}</em></button>)}</div></div>}</>}
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><Play size={16}/> Weiter erkunden</Button>
      </>:panel==='map'?<>
-      <h2>Die graue Wildnis</h2>
-      <div className="large-map"><span className="map-river"/><span className="map-mountain"/><span className="large-map-cave">▲ Höhle</span><span className="large-map-fire">♨ Lager</span><i className="map-player" style={{left:`${status.x/2048*100}%`,top:`${status.y/2048*100}%`}}/><span className="north-marker">N</span></div><p className="coordinates">POSITION {status.x} / {status.y}</p>
+      <h2>Die Urzeit-Welt</h2>
+      <div className="large-map" style={{...mapBg,aspectRatio:`${MAP.w}/${MAP.h}`,height:"auto",maxHeight:"52vh",margin:"0 auto"}}>{MAP_LABELS.map(([n,x,y])=><span key={n} className="large-map-region" style={{left:`${(x-MAP.x)/MAP.w*100}%`,top:`${(y-MAP.y)/MAP.h*100}%`}}>{n}</span>)}<span className="large-map-fire" style={{left:`${(CAMP_POS.x-MAP.x)/MAP.w*100}%`,top:`${(CAMP_POS.y-MAP.y)/MAP.h*100}%`}}>♨ Lager</span><i className="map-player" style={{left:`${(status.x-MAP.x)/MAP.w*100}%`,top:`${(status.y-MAP.y)/MAP.h*100}%`}}/><span className="north-marker">N</span></div><p className="coordinates">POSITION {status.x} / {status.y}</p>
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);}}><Play size={16}/> Weiter erkunden</Button>
      </>:panel==='settings'?<>
       <h2>Einstellungen</h2>
