@@ -4,6 +4,11 @@ import { Button } from '@/components/ui/button';
 import loader from '@/assets/loader.gif.asset.json';
 import cover from '@/assets/cover.jpg.asset.json';
 import { ICON_AXE, ICON_SPEAR, IDLE, type Weapon } from './gear';
+import resWood from '@/assets/res-wood.png.asset.json';
+import resStone from '@/assets/res-stone.png.asset.json';
+import resFlint from '@/assets/res-flint.png.asset.json';
+import resFiber from '@/assets/res-fiber.png.asset.json';
+const RESOURCES=[['wood','Holz',resWood.url],['stone','Stein',resStone.url],['flint','Feuerstein',resFlint.url],['fiber','Fasern',resFiber.url]] as const;
 import type { GameInput, GameStatus } from './world';
 
 type Slot = 'hand' | 'head' | 'chest' | 'feet';
@@ -18,7 +23,7 @@ const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', ches
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
  const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0,eat:null});
- const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,cooked:0,nearFire:false,healPulse:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false});
+ const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,cooked:0,nearFire:false,healPulse:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false,wood:0,stone:0,flint:0,fiber:0});
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|null>(null);
  const [knob,setKnob]=useState({x:0,y:0});const [sprinting,setSprinting]=useState(false);
@@ -67,7 +72,7 @@ export default function GameView(){
        </div>
       </div>
       {openSlot?<div className="gear-items"><p className="gear-items-title">{SLOT_LABEL[openSlot]} wählen</p><div className="gear-grid">{ITEMS.filter(i=>i.slot===openSlot).map(i=><button key={i.id} className={`gear-item ${equipped[openSlot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>
-       :<div className="gear-items"><p className="gear-items-title">Proviant · antippen zum Essen</p><div className="gear-grid">{([['berries','Beeren','✦',status.berries,15],['meat','Rohes Fleisch','🥩',status.meat,20],['cooked','Gebraten','🍖',status.cooked,45]] as const).map(([id,name,ic,n,hp])=><button key={id} className="gear-item" disabled={n<=0} onClick={()=>{input.current.eat=id;}}><span className="slot-sil">{ic}</span><em>{name} ×{n} · +{hp}</em></button>)}</div><p className="gear-items-title">Beutel</p><div className="gear-grid">{ITEMS.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>}
+       :<div className="gear-items"><p className="gear-items-title">Proviant · antippen zum Essen</p><div className="gear-grid">{([['berries','Beeren','✦',status.berries,15],['meat','Rohes Fleisch','🥩',status.meat,20],['cooked','Gebraten','🍖',status.cooked,45]] as const).map(([id,name,ic,n,hp])=><button key={id} className="gear-item" disabled={n<=0} onClick={()=>{input.current.eat=id;}}><span className="slot-sil">{ic}</span><em>{name} ×{n} · +{hp}</em></button>)}</div><p className="gear-items-title">Ressourcen</p><div className="gear-grid">{RESOURCES.map(([id,name,icon])=><div key={id} className="gear-item is-static"><img src={icon} alt={name}/><em>{name} ×{status[id]}</em></div>)}</div><p className="gear-items-title">Beutel</p><div className="gear-grid">{ITEMS.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>}
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><Play size={16}/> Weiter erkunden</Button>
      </>:panel==='map'?<>
       <h2>Die graue Wildnis</h2>
