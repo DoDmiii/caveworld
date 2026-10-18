@@ -333,7 +333,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
         const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
         this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
-        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown>0?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
+        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
       }
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
