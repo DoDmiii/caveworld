@@ -5,3 +5,7 @@
 - [x] Import all six allied tribe templates, retaining their uploaded appearance.
 - [x] Add camp inhabitants with safe movement, collisions and idle animation fallback.
 - [x] Verify six inhabitants, walking, collisions and pause behavior in the running game.
+- [x] Destructible trees/rocks with axe, resource drops (wood/stone/flint/fiber) and pickup.
+- [x] Crouch as toggle (C/Strg).
+- [ ] Crafting menu, hotbar quick-slots and level system (waiting on user's item designs).
+- [ ] Bring gazelle herd closer to camp; fix mobile loading hang.

@@ -28,9 +28,18 @@ import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
+import treeCh1 from '@/assets/tree-ch1.png.asset.json';
+import treeCh2 from '@/assets/tree-ch2.png.asset.json';
+import treeStump from '@/assets/tree-stump.png.asset.json';
+import treeFall from '@/assets/tree-fall.png.asset.json';
+import resWood from '@/assets/res-wood.png.asset.json';
+import resStone from '@/assets/res-stone.png.asset.json';
+import resFlint from '@/assets/res-flint.png.asset.json';
+import resFiber from '@/assets/res-fiber.png.asset.json';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number };
 type Creature = {
   kind: 'tiger' | 'gazelle';
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -79,6 +88,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
+    trees: { x: number; y: number; dir: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    stock: Stock = emptyStock();
+    crouchOn = false;
     hidden = false;
     covers: { x: number; y: number }[] = [];
     hitFlash = 0;
@@ -112,6 +126,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
+      this.load.spritesheet('tree-ch1', treeCh1.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-ch2', treeCh2.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-stump', treeStump.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-fall', treeFall.url, { frameWidth: 96, frameHeight: 96 });
+      this.load.image('res-wood', resWood.url);
+      this.load.image('res-stone', resStone.url);
+      this.load.image('res-flint', resFlint.url);
+      this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
@@ -146,6 +168,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.anims.create({ key: `gazelle-walk-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-walk-${i}`, { start: 0, end: 7 }), frameRate: 9, repeat: -1 });
         this.anims.create({ key: `gazelle-run-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-run-${i}`, { start: 0, end: 5 }), frameRate: 14, repeat: -1 });
       }
+      this.anims.create({ key: 'tree-fall-west', frames: this.anims.generateFrameNumbers('tree-fall', { start: 0, end: 8 }), frameRate: 12, repeat: 0 });
+      this.anims.create({ key: 'tree-fall-east', frames: this.anims.generateFrameNumbers('tree-fall', { start: 9, end: 17 }), frameRate: 12, repeat: 0 });
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
@@ -205,20 +229,23 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.obstacles=this.physics.add.staticGroup();
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
         const obj=this.obstacles?.create(x,y,key) as Phaser.Physics.Arcade.Sprite | undefined;
-        if(!obj)return;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
+        if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
+        return obj;
       };
+      const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(obj)this.trees.push({x,y,dir,hp:TREE_HP,sprite:obj});};
+      const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
         const x=40+random()*(WORLD-80),y=40+random()*(WORLD-80);
         if(y<mEdge(x)+40 || Math.abs(x-riverX(y))<130 || Math.hypot(x-CAMP.x,y-CAMP.y)<200)continue;
         // Forest thins toward the camp so the start stays readable.
         if(Math.hypot(x-CAMP.x,y-CAMP.y)<380&&i%3!==0)continue;
-        if(i%7===0)obstacle(x,y,'rock',24,13); else obstacle(x,y,`tree${i%8}`,22,10);
+        if(i%7===0)mineable(x,y); else choppable(x,y,i%8);
       }
       // Boulders along the cliff foot and flanking the camp.
-      for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;obstacle(x,mEdge(x)+14+random()*20,'rock',24,13);}
-      for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) obstacle(x,y,'rock',24,13);
-      for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) obstacle(x,y,`tree${(x+y)%8}`,22,10);
+      for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;mineable(x,mEdge(x)+14+random()*20);}
+      for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) mineable(x,y);
+      for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) choppable(x,y,(x+y)%8);
       // Invisible segmented colliders: river banks and the mountain wall.
       for(let y=0;y<WORLD;y+=24){ if(y<mEdge(riverX(y)))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
@@ -313,7 +340,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
       if(input.paused||this.attacking){dx=0;dy=0;}
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
-      this.crouching=!running&&!this.attacking&&(input.crouch||!!k?.['CTRL']?.isDown||!!k?.['C']?.isDown);
+      // Ducken als Umschalter: einmal drücken = ducken, erneut drücken = aufstehen.
+      const cKey=k?.['C'],ctrlKey=k?.['CTRL'];
+      if((cKey&&Phaser.Input.Keyboard.JustDown(cKey))||(ctrlKey&&Phaser.Input.Keyboard.JustDown(ctrlKey)))this.crouchOn=!this.crouchOn;
+      if(running||this.attacking)this.crouchOn=false;
+      this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const speed=running?105:this.crouching?34:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
@@ -379,10 +410,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.lastAction=input.action;
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
         const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
+        const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
         const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
         if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
+        else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +1`;}
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){const r=roast(this.pantry());if(r){this.setPantry(r);this.message='Fleisch gebraten · [3] essen';}else{this.stamina=100;this.message='Am Feuer ausgeruht';}}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
@@ -391,6 +424,59 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.tickWildlife(time, delta, p);
       this.report(time,p);
+    }
+    // Bäume fällen und Felsen abbauen mit der Steinaxt (normale Schlag-Animation).
+    chop(time: number, fx: number, fy: number) {
+      const p = this.player; if (!p) return;
+      const inCone = (x: number, y: number, r: number) => { const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy); return d < r && (dx * fx + dy * fy) / Math.max(0.1, d) > 0.3; };
+      const tree = this.trees.find(t => inCone(t.x, t.y, 48));
+      if (tree) {
+        if (this.held !== 'axe') { this.message = 'Dafür brauchst du die Steinaxt'; this.messageUntil = time + 1600; return; }
+        tree.hp--;
+        tree.sprite.setTint(0xffe0b0);
+        this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
+        if (tree.hp === 2) tree.sprite.setTexture('tree-ch1', tree.dir);
+        else if (tree.hp === 1) tree.sprite.setTexture('tree-ch2', tree.dir);
+        else if (tree.hp <= 0) {
+          this.trees = this.trees.filter(t => t !== tree);
+          const { x, y, dir } = tree;
+          tree.sprite.destroy();
+          const fall = this.add.sprite(x, y, 'tree-fall').setDepth(y + 40);
+          fall.play(p.x < x ? 'tree-fall-east' : 'tree-fall-west');
+          fall.on('animationcomplete', () => { fall.destroy(); this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40); });
+          this.dropResources(x, y, TREE_DROP);
+          this.message = 'Baum gefällt · Holz liegt bereit';
+          this.messageUntil = time + 2200;
+        } else { this.message = 'Der Baum wankt …'; this.messageUntil = time + 1200; }
+        return;
+      }
+      const rock = this.rocks.find(r => inCone(r.x, r.y, 44));
+      if (rock) {
+        if (this.held !== 'axe') { this.message = 'Dafür brauchst du die Steinaxt'; this.messageUntil = time + 1600; return; }
+        rock.hp--;
+        rock.sprite.setTint(0xffe0b0);
+        this.time.delayedCall(120, () => { if (rock.sprite.active) rock.sprite.clearTint(); });
+        if (rock.hp <= 0) {
+          this.rocks = this.rocks.filter(r => r !== rock);
+          this.covers = this.covers.filter(c => Math.hypot(c.x - rock.x, c.y - rock.y) > 1);
+          rock.sprite.destroy();
+          this.dropResources(rock.x, rock.y, ROCK_DROP);
+          this.message = 'Fels zertrümmert · Stein und Feuerstein';
+          this.messageUntil = time + 2200;
+        } else { this.message = 'Der Fels bröckelt …'; this.messageUntil = time + 1200; }
+      }
+    }
+    dropResources(x: number, y: number, drop: Partial<Record<Resource, number>>) {
+      let i = 0;
+      for (const [res, n] of Object.entries(drop) as [Resource, number][]) {
+        for (let k = 0; k < n; k++) {
+          const a = i * 2.4 + 0.7, d = 14 + (i % 3) * 8;
+          const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+          const sprite = this.add.image(px, py, `res-${res}`).setDepth(py);
+          this.resPickups.push({ kind: res, x: px, y: py, sprite });
+          i++;
+        }
+      }
     }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
       c.hp -= dmg;
@@ -427,6 +513,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           this.hurt(c, hw === 'spear' ? 22 : hw === 'axe' ? 18 : 10, fx, fy, time);
         }
+        this.chop(time, fx, fy);
       }
       // Creature AI.
       for (const c of this.creatures) {
@@ -519,7 +606,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

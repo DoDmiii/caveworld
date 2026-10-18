@@ -296,3 +296,4 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .stat-track.health.is-healing i { animation: heal-flash 0.9s ease-out; }
 @keyframes heal-flash { 0% { filter: brightness(1.8) hue-rotate(80deg); } 100% { filter: none; } }
 .gear-item:disabled { opacity: 0.4; }
+.gear-item.is-static { cursor: default; }
