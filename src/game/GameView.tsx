@@ -38,11 +38,11 @@ export default function GameView(){
  const [pick,setPick]=useState<string|null>(null);
  const owns=(id:string)=>id==='fists'||status.owned.includes(id as ItemId);
  const bag=ITEMS.filter(i=>owns(i.id));
- const hold=(id:string)=>{const it=ITEMS.find(i=>i.id===id)??ITEMS[0];setEquipped(e=>({...e,hand:it.id}));input.current.weapon=it.weapon??'none';input.current.club=it.id==='club';};
+ const hold=(id:string)=>{const it=(ITEMS.find(i=>i.id===id)??ITEMS[0])!;setEquipped(e=>({...e,hand:it.id}));input.current.weapon=it.weapon??'none';input.current.club=it.id==='club';};
  const selectSlot=(n:number)=>{setActive(n);hold(n===0?'fists':hotbar[n-1]??'fists');};
  const assign=(slot:number,id:string)=>{const next=hotbar.map(h=>h===id?null:h);next[slot]=id;setHotbar(next);setPick(null);if(active===slot+1)hold(id);};
  const wheelRef=useRef({hotbar,active,panel});wheelRef.current={hotbar,active,panel};
- useEffect(()=>{const w=(e:WheelEvent)=>{const c=wheelRef.current;if(c.panel)return;const order=[0,...[1,2,3].filter(n=>c.hotbar[n-1])];const i=order.indexOf(c.active);const n=order[(i+(e.deltaY>0?1:-1)+order.length)%order.length];selectSlot(n);};window.addEventListener('wheel',w,{passive:true});return()=>window.removeEventListener('wheel',w);});
+ useEffect(()=>{const w=(e:WheelEvent)=>{const c=wheelRef.current;if(c.panel)return;const order=[0,...[1,2,3].filter(n=>c.hotbar[n-1])];const i=order.indexOf(c.active);const n=order[(i+(e.deltaY>0?1:-1)+order.length)%order.length];selectSlot(n??0);};window.addEventListener('wheel',w,{passive:true});return()=>window.removeEventListener('wheel',w);});
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);});destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{input.current.paused=paused||panel!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
