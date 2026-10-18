@@ -18,6 +18,17 @@ import tree4 from '@/assets/tree-west.png.asset.json';
 import tree5 from '@/assets/tree-north-west.png.asset.json';
 import tree6 from '@/assets/tree-north.png.asset.json';
 import tree7 from '@/assets/tree-north-east.png.asset.json';
+import snowTree0 from '@/assets/snow/snow-tree-0.png.asset.json';
+import snowTree1 from '@/assets/snow/snow-tree-1.png.asset.json';
+import snowTree2 from '@/assets/snow/snow-tree-2.png.asset.json';
+import snowRock0 from '@/assets/snow/snow-rock-0.png.asset.json';
+import snowRock1 from '@/assets/snow/snow-rock-1.png.asset.json';
+import snowRock2 from '@/assets/snow/snow-rock-2.png.asset.json';
+import snowRock3 from '@/assets/snow/snow-rock-3.png.asset.json';
+import snowRock4 from '@/assets/snow/snow-rock-4.png.asset.json';
+import snowRock5 from '@/assets/snow/snow-rock-5.png.asset.json';
+const SNOW_TREES=[snowTree0,snowTree1,snowTree2];
+const SNOW_ROCKS=[snowRock0,snowRock1,snowRock2,snowRock3,snowRock4,snowRock5];
 import walkEast from '@/assets/walk-east.png.asset.json';
 import walkSouthEast from '@/assets/walk-south-east.png.asset.json';
 import walkSouth from '@/assets/walk-south.png.asset.json';
@@ -129,6 +140,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
+      SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
+      SNOW_ROCKS.forEach((asset, i) => this.load.image(`snow-rock-${i}`, asset.url));
       this.load.image('res-wood', resWood.url);
       this.load.image('res-stone', resStone.url);
       this.load.image('res-flint', resFlint.url);
@@ -246,9 +259,18 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
         return obj;
       };
-      const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(!obj)return;const tint=BIOME_FLORA[biomeAt(x,y)].tint;obj.setTint(tint);this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj});};
+      const choppable=(x:number,y:number,dir:number)=>{
+        const snow=biomeAt(x,y)==='nordics';
+        const obj=obstacle(x,y,snow?`snow-tree-${dir%3}`:`tree${dir}`,22,10);if(!obj)return;
+        const tint=snow?0xffffff:BIOME_FLORA[biomeAt(x,y)].tint;obj.setTint(tint);
+        this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj});
+      };
       this.plantTree=choppable;
-      const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
+      const mineable=(x:number,y:number)=>{
+        const snow=biomeAt(x,y)==='nordics';
+        const key=snow?`snow-rock-${Math.abs(Math.floor(x*7+y*13))%6}`:'rock';
+        const obj=obstacle(x,y,key,24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});
+      };
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
         const x=40+random()*(WORLD-80),y=40+random()*(WORLD-80);
@@ -280,7 +302,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Cover zones: all rock obstacles plus bushes already pushed above.
       this.obstacles.getChildren().forEach(obj => {
         const s = obj as Phaser.Physics.Arcade.Sprite;
-        if (s.texture?.key === 'rock') this.covers.push({ x: s.x, y: s.y });
+        if (s.texture?.key === 'rock' || s.texture?.key.startsWith('snow-rock')) this.covers.push({ x: s.x, y: s.y });
       });
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
