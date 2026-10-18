@@ -31,12 +31,11 @@ import { preloadCampers, createCampers, tickCampers, type Camper } from './campe
 import treeCh1 from '@/assets/tree-ch1.png.asset.json';
 import treeCh2 from '@/assets/tree-ch2.png.asset.json';
 import treeStump from '@/assets/tree-stump.png.asset.json';
-import treeFall from '@/assets/tree-fall.png.asset.json';
 import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
-import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, FALLEN_LIE_MS, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number };
@@ -131,7 +130,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.spritesheet('tree-ch1', treeCh1.url, { frameWidth: 97, frameHeight: 97 });
       this.load.spritesheet('tree-ch2', treeCh2.url, { frameWidth: 97, frameHeight: 97 });
       this.load.spritesheet('tree-stump', treeStump.url, { frameWidth: 97, frameHeight: 97 });
-      this.load.spritesheet('tree-fall', treeFall.url, { frameWidth: 96, frameHeight: 96 });
       this.load.image('res-wood', resWood.url);
       this.load.image('res-stone', resStone.url);
       this.load.image('res-flint', resFlint.url);
@@ -170,8 +168,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.anims.create({ key: `gazelle-walk-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-walk-${i}`, { start: 0, end: 7 }), frameRate: 9, repeat: -1 });
         this.anims.create({ key: `gazelle-run-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-run-${i}`, { start: 0, end: 5 }), frameRate: 14, repeat: -1 });
       }
-      this.anims.create({ key: 'tree-fall-west', frames: this.anims.generateFrameNumbers('tree-fall', { start: 0, end: 8 }), frameRate: 12, repeat: 0 });
-      this.anims.create({ key: 'tree-fall-east', frames: this.anims.generateFrameNumbers('tree-fall', { start: 9, end: 17 }), frameRate: 12, repeat: 0 });
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
@@ -337,7 +333,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
         const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
         this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
-        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);this.message='Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
+        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown>0?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
       }
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
@@ -444,18 +440,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.trees = this.trees.filter(t => t !== tree);
           const { x, y, dir } = tree;
           tree.sprite.destroy();
+          // Fällanimation folgt später: der Baum verschwindet sofort und lässt Stumpf + Ressourcen zurück.
           const stump: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image } = { x, y, dir };
           this.stumps.push(stump);
-          const fall = this.add.sprite(x, y, 'tree-fall').setDepth(y + 40);
-          fall.play(p.x < x ? 'tree-fall-east' : 'tree-fall-west');
-          // Liegender Stamm bleibt 2 s, dann bleibt nur der Stumpf und das Holz liegt bereit.
-          fall.on('animationcomplete', () => {
-            this.time.delayedCall(FALLEN_LIE_MS, () => {
-              fall.destroy();
-              if (this.stumps.includes(stump)) stump.sprite = this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40);
-              this.dropResources(x, y, TREE_DROP);
-            });
-          });
+          stump.sprite = this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40);
+          this.dropResources(x, y, TREE_DROP);
           this.message = 'Baum gefällt!';
           this.messageUntil = time + 2200;
         } else { this.message = 'Der Baum wankt …'; this.messageUntil = time + 1200; }
