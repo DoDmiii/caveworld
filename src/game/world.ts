@@ -229,20 +229,23 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.obstacles=this.physics.add.staticGroup();
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
         const obj=this.obstacles?.create(x,y,key) as Phaser.Physics.Arcade.Sprite | undefined;
-        if(!obj)return;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
+        if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
+        return obj;
       };
+      const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(obj)this.trees.push({x,y,dir,hp:TREE_HP,sprite:obj});};
+      const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
         const x=40+random()*(WORLD-80),y=40+random()*(WORLD-80);
         if(y<mEdge(x)+40 || Math.abs(x-riverX(y))<130 || Math.hypot(x-CAMP.x,y-CAMP.y)<200)continue;
         // Forest thins toward the camp so the start stays readable.
         if(Math.hypot(x-CAMP.x,y-CAMP.y)<380&&i%3!==0)continue;
-        if(i%7===0)obstacle(x,y,'rock',24,13); else obstacle(x,y,`tree${i%8}`,22,10);
+        if(i%7===0)mineable(x,y); else choppable(x,y,i%8);
       }
       // Boulders along the cliff foot and flanking the camp.
-      for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;obstacle(x,mEdge(x)+14+random()*20,'rock',24,13);}
-      for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) obstacle(x,y,'rock',24,13);
-      for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) obstacle(x,y,`tree${(x+y)%8}`,22,10);
+      for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;mineable(x,mEdge(x)+14+random()*20);}
+      for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) mineable(x,y);
+      for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) choppable(x,y,(x+y)%8);
       // Invisible segmented colliders: river banks and the mountain wall.
       for(let y=0;y<WORLD;y+=24){ if(y<mEdge(riverX(y)))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
