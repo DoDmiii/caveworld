@@ -28,9 +28,18 @@ import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
+import treeCh1 from '@/assets/tree-ch1.png.asset.json';
+import treeCh2 from '@/assets/tree-ch2.png.asset.json';
+import treeStump from '@/assets/tree-stump.png.asset.json';
+import treeFall from '@/assets/tree-fall.png.asset.json';
+import resWood from '@/assets/res-wood.png.asset.json';
+import resStone from '@/assets/res-stone.png.asset.json';
+import resFlint from '@/assets/res-flint.png.asset.json';
+import resFiber from '@/assets/res-fiber.png.asset.json';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number };
 type Creature = {
   kind: 'tiger' | 'gazelle';
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -79,6 +88,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
+    trees: { x: number; y: number; dir: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    stock: Stock = emptyStock();
+    crouchOn = false;
     hidden = false;
     covers: { x: number; y: number }[] = [];
     hitFlash = 0;
@@ -112,6 +126,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
+      this.load.spritesheet('tree-ch1', treeCh1.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-ch2', treeCh2.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-stump', treeStump.url, { frameWidth: 97, frameHeight: 97 });
+      this.load.spritesheet('tree-fall', treeFall.url, { frameWidth: 96, frameHeight: 96 });
+      this.load.image('res-wood', resWood.url);
+      this.load.image('res-stone', resStone.url);
+      this.load.image('res-flint', resFlint.url);
+      this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
@@ -146,6 +168,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.anims.create({ key: `gazelle-walk-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-walk-${i}`, { start: 0, end: 7 }), frameRate: 9, repeat: -1 });
         this.anims.create({ key: `gazelle-run-${i}`, frames: this.anims.generateFrameNumbers(`gazelle-run-${i}`, { start: 0, end: 5 }), frameRate: 14, repeat: -1 });
       }
+      this.anims.create({ key: 'tree-fall-west', frames: this.anims.generateFrameNumbers('tree-fall', { start: 0, end: 8 }), frameRate: 12, repeat: 0 });
+      this.anims.create({ key: 'tree-fall-east', frames: this.anims.generateFrameNumbers('tree-fall', { start: 9, end: 17 }), frameRate: 12, repeat: 0 });
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
         const texture = this.textures.createCanvas(key, w, h);
