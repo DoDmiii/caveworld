@@ -36,7 +36,7 @@ import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
-import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, FALLEN_LIE_MS, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number };
@@ -89,6 +89,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
+    plantTree?: (x: number, y: number, dir: number) => void;
     rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     stock: Stock = emptyStock();
@@ -233,6 +235,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return obj;
       };
       const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(obj)this.trees.push({x,y,dir,hp:TREE_HP,sprite:obj});};
+      this.plantTree=choppable;
       const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
@@ -435,17 +438,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         tree.hp--;
         tree.sprite.setTint(0xffe0b0);
         this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
-        if (tree.hp === 2) tree.sprite.setTexture('tree-ch1', tree.dir);
+        if (tree.hp === TREE_HP - 2) tree.sprite.setTexture('tree-ch1', tree.dir);
         else if (tree.hp === 1) tree.sprite.setTexture('tree-ch2', tree.dir);
         else if (tree.hp <= 0) {
           this.trees = this.trees.filter(t => t !== tree);
           const { x, y, dir } = tree;
           tree.sprite.destroy();
+          const stump: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image } = { x, y, dir };
+          this.stumps.push(stump);
           const fall = this.add.sprite(x, y, 'tree-fall').setDepth(y + 40);
           fall.play(p.x < x ? 'tree-fall-east' : 'tree-fall-west');
-          fall.on('animationcomplete', () => { fall.destroy(); this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40); });
-          this.dropResources(x, y, TREE_DROP);
-          this.message = 'Baum gefällt · Holz liegt bereit';
+          // Liegender Stamm bleibt 2 s, dann bleibt nur der Stumpf und das Holz liegt bereit.
+          fall.on('animationcomplete', () => {
+            this.time.delayedCall(FALLEN_LIE_MS, () => {
+              fall.destroy();
+              if (this.stumps.includes(stump)) stump.sprite = this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40);
+              this.dropResources(x, y, TREE_DROP);
+            });
+          });
+          this.message = 'Baum gefällt!';
           this.messageUntil = time + 2200;
         } else { this.message = 'Der Baum wankt …'; this.messageUntil = time + 1200; }
         return;
