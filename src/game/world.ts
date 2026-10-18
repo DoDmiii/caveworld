@@ -36,7 +36,7 @@ import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
-import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, FALLEN_LIE_MS, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number };
