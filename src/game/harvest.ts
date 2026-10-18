@@ -3,8 +3,6 @@ export type Resource = 'wood' | 'stone' | 'flint' | 'fiber';
 export type Stock = Record<Resource, number>;
 
 export const TREE_HP = 5;
-/** Wie lange der gefällte Stamm liegen bleibt, bevor Holz erscheint (ms). */
-export const FALLEN_LIE_MS = 2000;
 export const ROCK_HP = 3;
 
 /** Beute beim Fällen eines Baums. */

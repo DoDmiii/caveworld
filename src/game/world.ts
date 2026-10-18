@@ -478,6 +478,16 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
       }
     }
+    /** Nach dem Schlafen wachsen alle Stümpfe zu neuen Bäumen nach; gibt die Anzahl zurück. */
+    regrowTrees(): number {
+      const grown = this.stumps.length;
+      for (const s of this.stumps) {
+        s.sprite?.destroy();
+        this.plantTree?.(s.x, s.y, s.dir);
+      }
+      this.stumps = [];
+      return grown;
+    }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
       c.hp -= dmg;
       c.sprite.setTint(0xff6b4a);
