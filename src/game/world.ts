@@ -340,7 +340,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
       if(input.paused||this.attacking){dx=0;dy=0;}
       const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
-      this.crouching=!running&&!this.attacking&&(input.crouch||!!k?.['CTRL']?.isDown||!!k?.['C']?.isDown);
+      // Ducken als Umschalter: einmal drücken = ducken, erneut drücken = aufstehen.
+      const cKey=k?.['C'],ctrlKey=k?.['CTRL'];
+      if((cKey&&Phaser.Input.Keyboard.JustDown(cKey))||(ctrlKey&&Phaser.Input.Keyboard.JustDown(ctrlKey)))this.crouchOn=!this.crouchOn;
+      if(running||this.attacking)this.crouchOn=false;
+      this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const speed=running?105:this.crouching?34:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
@@ -419,6 +423,59 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tickWildlife(time, delta, p);
       this.report(time,p);
     }
+    // Bäume fällen und Felsen abbauen mit der Steinaxt (normale Schlag-Animation).
+    chop(time: number, fx: number, fy: number) {
+      const p = this.player; if (!p) return;
+      const inCone = (x: number, y: number, r: number) => { const dx = x - p.x, dy = y - p.y, d = Math.hypot(dx, dy); return d < r && (dx * fx + dy * fy) / Math.max(0.1, d) > 0.3; };
+      const tree = this.trees.find(t => inCone(t.x, t.y, 48));
+      if (tree) {
+        if (this.held !== 'axe') { this.message = 'Dafür brauchst du die Steinaxt'; this.messageUntil = time + 1600; return; }
+        tree.hp--;
+        tree.sprite.setTint(0xffe0b0);
+        this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
+        if (tree.hp === 2) tree.sprite.setTexture('tree-ch1', tree.dir);
+        else if (tree.hp === 1) tree.sprite.setTexture('tree-ch2', tree.dir);
+        else if (tree.hp <= 0) {
+          this.trees = this.trees.filter(t => t !== tree);
+          const { x, y, dir } = tree;
+          tree.sprite.destroy();
+          const fall = this.add.sprite(x, y, 'tree-fall').setDepth(y + 40);
+          fall.play(p.x < x ? 'tree-fall-east' : 'tree-fall-west');
+          fall.on('animationcomplete', () => { fall.destroy(); this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40); });
+          this.dropResources(x, y, TREE_DROP);
+          this.message = 'Baum gefällt · Holz liegt bereit';
+          this.messageUntil = time + 2200;
+        } else { this.message = 'Der Baum wankt …'; this.messageUntil = time + 1200; }
+        return;
+      }
+      const rock = this.rocks.find(r => inCone(r.x, r.y, 44));
+      if (rock) {
+        if (this.held !== 'axe') { this.message = 'Dafür brauchst du die Steinaxt'; this.messageUntil = time + 1600; return; }
+        rock.hp--;
+        rock.sprite.setTint(0xffe0b0);
+        this.time.delayedCall(120, () => { if (rock.sprite.active) rock.sprite.clearTint(); });
+        if (rock.hp <= 0) {
+          this.rocks = this.rocks.filter(r => r !== rock);
+          this.covers = this.covers.filter(c => Math.hypot(c.x - rock.x, c.y - rock.y) > 1);
+          rock.sprite.destroy();
+          this.dropResources(rock.x, rock.y, ROCK_DROP);
+          this.message = 'Fels zertrümmert · Stein und Feuerstein';
+          this.messageUntil = time + 2200;
+        } else { this.message = 'Der Fels bröckelt …'; this.messageUntil = time + 1200; }
+      }
+    }
+    dropResources(x: number, y: number, drop: Partial<Record<Resource, number>>) {
+      let i = 0;
+      for (const [res, n] of Object.entries(drop) as [Resource, number][]) {
+        for (let k = 0; k < n; k++) {
+          const a = i * 2.4 + 0.7, d = 14 + (i % 3) * 8;
+          const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
+          const sprite = this.add.image(px, py, `res-${res}`).setDepth(py);
+          this.resPickups.push({ kind: res, x: px, y: py, sprite });
+          i++;
+        }
+      }
+    }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
       c.hp -= dmg;
       c.sprite.setTint(0xff6b4a);
@@ -454,6 +511,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           this.hurt(c, hw === 'spear' ? 22 : hw === 'axe' ? 18 : 10, fx, fy, time);
         }
+        this.chop(time, fx, fy);
       }
       // Creature AI.
       for (const c of this.creatures) {
