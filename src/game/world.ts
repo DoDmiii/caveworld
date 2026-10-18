@@ -89,6 +89,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
+    plantTree?: (x: number, y: number, dir: number) => void;
     rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     stock: Stock = emptyStock();
@@ -233,6 +235,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return obj;
       };
       const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(obj)this.trees.push({x,y,dir,hp:TREE_HP,sprite:obj});};
+      this.plantTree=choppable;
       const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
