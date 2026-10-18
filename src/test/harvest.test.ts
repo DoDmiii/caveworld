@@ -1,9 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { FALLEN_LIE_MS, TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, emptyStock, gain } from '@/game/harvest';
+import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, emptyStock, gain } from '@/game/harvest';
 
 describe('Ernte-Regeln', () => {
   it('Baum braucht 5 Axtschläge', () => expect(TREE_HP).toBe(5));
-  it('Gefällter Stamm liegt 2 Sekunden', () => expect(FALLEN_LIE_MS).toBe(2000));
   it('Fels braucht 3 Axtschläge', () => expect(ROCK_HP).toBe(3));
   it('Baum lässt 3 Holz und 1 Faser fallen', () => {
     expect(TREE_DROP.wood).toBe(3);

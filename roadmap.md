@@ -7,5 +7,7 @@
 - [x] Verify six inhabitants, walking, collisions and pause behavior in the running game.
 - [x] Destructible trees/rocks with axe, resource drops (wood/stone/flint/fiber) and pickup.
 - [x] Crouch as toggle (C/Strg).
+- [x] Tree felling: 5 axe hits, tree vanishes leaving stump + drops; stumps regrow after sleeping.
+- [ ] Tree fall animation once the user delivers final sprites.
 - [ ] Crafting menu, hotbar quick-slots and level system (waiting on user's item designs).
 - [ ] Bring gazelle herd closer to camp; fix mobile loading hang.
