@@ -250,8 +250,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             else col=BIOME_COLOR[biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48)];
             const n=(nr()-.5)*16,o=(j*bw+i)*4;img.data[o]=col[0]+n;img.data[o+1]=col[1]+n;img.data[o+2]=col[2]+n;img.data[o+3]=255;}}
         ctx.putImageData(img,0,0);bt.refresh();}
-      this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS);
-      this.add.image(0,0,'ground').setOrigin(0);
+      this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS).setDepth(MAP.y-200);
+      this.add.image(0,0,'ground').setOrigin(0).setDepth(MAP.y-199);
       this.physics.world.setBounds(MAP.x,MAP.y,MAP.w,MAP.h);
       this.obstacles=this.physics.add.staticGroup();
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
