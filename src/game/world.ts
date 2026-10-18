@@ -10,6 +10,7 @@ import southWest from '@/assets/south-west.png.asset.json';
 import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
 import campfire from '@/assets/campfire.png.asset.json';
+import { CAMP_TEXTURES, CAMP_LAYOUT } from './camp';
 import tree0 from '@/assets/tree-east.png.asset.json';
 import tree1 from '@/assets/tree-south-east.png.asset.json';
 import tree2 from '@/assets/tree-south.png.asset.json';
@@ -147,6 +148,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
+      for(const [k,u] of Object.entries(CAMP_TEXTURES)) this.load.image(k,u);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
         this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 40, frameHeight: 40 });
@@ -281,8 +283,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       // Boulders along the cliff foot and flanking the camp.
       for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;mineable(x,mEdge(x)+14+random()*20);}
-      for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) mineable(x,y);
-      for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) choppable(x,y,(x+y)%8);
+      for(const [x,y] of [[800,610],[1200,615]] as const) mineable(x,y);
+      for(const [x,y] of [[790,770],[1215,775],[900,870],[1110,875]] as const) choppable(x,y,(x+y)%8);
+      // Main camp: huts and palisade.
+      for(const pc of CAMP_LAYOUT){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
       // Outer biomes beyond the start region, density driven by each biome's flora.
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
