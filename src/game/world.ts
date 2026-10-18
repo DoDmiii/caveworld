@@ -438,17 +438,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         tree.hp--;
         tree.sprite.setTint(0xffe0b0);
         this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
-        if (tree.hp === 2) tree.sprite.setTexture('tree-ch1', tree.dir);
+        if (tree.hp === TREE_HP - 2) tree.sprite.setTexture('tree-ch1', tree.dir);
         else if (tree.hp === 1) tree.sprite.setTexture('tree-ch2', tree.dir);
         else if (tree.hp <= 0) {
           this.trees = this.trees.filter(t => t !== tree);
           const { x, y, dir } = tree;
           tree.sprite.destroy();
+          const stump: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image } = { x, y, dir };
+          this.stumps.push(stump);
           const fall = this.add.sprite(x, y, 'tree-fall').setDepth(y + 40);
           fall.play(p.x < x ? 'tree-fall-east' : 'tree-fall-west');
-          fall.on('animationcomplete', () => { fall.destroy(); this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40); });
-          this.dropResources(x, y, TREE_DROP);
-          this.message = 'Baum gefällt · Holz liegt bereit';
+          // Liegender Stamm bleibt 2 s, dann bleibt nur der Stumpf und das Holz liegt bereit.
+          fall.on('animationcomplete', () => {
+            this.time.delayedCall(FALLEN_LIE_MS, () => {
+              fall.destroy();
+              if (this.stumps.includes(stump)) stump.sprite = this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40);
+              this.dropResources(x, y, TREE_DROP);
+            });
+          });
+          this.message = 'Baum gefällt!';
           this.messageUntil = time + 2200;
         } else { this.message = 'Der Baum wankt …'; this.messageUntil = time + 1200; }
         return;
