@@ -1,5 +1,6 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
+import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS } from './biomes';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -85,7 +86,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
-    trees: { x: number; y: number; dir: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     plantTree?: (x: number, y: number, dir: number) => void;
     rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
@@ -219,16 +220,33 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(const [dx,dy,w] of [[-48,-30,8],[40,-34,10],[-30,-50,14],[18,-52,12],[-52,-4,10],[44,-6,9]] as const)rect(c,'#7c8076',CAMP.x+dx,cy+dy,w,4);
         // Warm hearth light pooled on the forecourt.
         c.fillStyle='rgba(180,110,50,0.12)';c.beginPath();c.ellipse(CAMP.x,CAMP.y+30,70,40,0,0,Math.PI*2);c.fill();
+        // Shallow fords: lighter water with stepping stones.
+        for(const fy of FORDS){if(fy<0||fy>WORLD)continue;const fx=riverX(fy);c.fillStyle='#7d9a92';c.fillRect(fx-62,fy-30,124,60);
+          for(let sx=-56;sx<=56;sx+=14){const oy=Math.floor((rand()-.5)*16);rect(c,'#3e4a42',fx+sx-1,fy+oy-4,12,9);rect(c,'#9a9c90',fx+sx,fy+oy-5,10,7);rect(c,'#b8b9ad',fx+sx+2,fy+oy-5,5,2);}}
+        // Fade the start region's edges into the surrounding biome layer.
+        c.globalCompositeOperation='destination-out';const F=260;
+        for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,F,0,0,WORLD,F],[0,WORLD,0,WORLD-F,0,WORLD-F,WORLD,F],[0,0,F,0,0,0,F,WORLD],[WORLD,0,WORLD-F,0,WORLD-F,0,F,WORLD]] as const){const g=c.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(rx,ry,rw,rh);}
+        c.globalCompositeOperation='source-over';
       });
+      // Low-res biome layer for the whole map (4 px texels keep memory small on phones).
+      const BS=4,bw=MAP.w/BS,bh=MAP.h/BS;const bt=this.textures.createCanvas('biome',bw,bh);
+      if(bt){const ctx=bt.context;const img=ctx.createImageData(bw,bh);let ns=99;const nr=()=>{ns=ns*16807%2147483647;return ns/2147483647;};
+        for(let j=0;j<bh;j++){const wy=MAP.y+j*BS;const rx=riverX(wy);const ford=isFord(wy);
+          for(let i=0;i<bw;i++){const wx=MAP.x+i*BS;const d=Math.abs(wx-rx);let col:readonly [number,number,number];
+            if(d<56)col=ford?[125,154,146]:d<32?[92,135,138]:[75,115,120];else if(d<72)col=[122,124,112];
+            else col=BIOME_COLOR[biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48)];
+            const n=(nr()-.5)*16,o=(j*bw+i)*4;img.data[o]=col[0]+n;img.data[o+1]=col[1]+n;img.data[o+2]=col[2]+n;img.data[o+3]=255;}}
+        ctx.putImageData(img,0,0);bt.refresh();}
+      this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS);
       this.add.image(0,0,'ground').setOrigin(0);
-      this.physics.world.setBounds(0,0,WORLD,WORLD);
+      this.physics.world.setBounds(MAP.x,MAP.y,MAP.w,MAP.h);
       this.obstacles=this.physics.add.staticGroup();
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
         const obj=this.obstacles?.create(x,y,key) as Phaser.Physics.Arcade.Sprite | undefined;
         if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
         return obj;
       };
-      const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(obj)this.trees.push({x,y,dir,hp:TREE_HP,sprite:obj});};
+      const choppable=(x:number,y:number,dir:number)=>{const obj=obstacle(x,y,`tree${dir}`,22,10);if(!obj)return;const tint=BIOME_FLORA[biomeAt(x,y)].tint;obj.setTint(tint);this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj});};
       this.plantTree=choppable;
       const mineable=(x:number,y:number)=>{const obj=obstacle(x,y,'rock',24,13);if(obj)this.rocks.push({x,y,hp:ROCK_HP,sprite:obj});};
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
@@ -243,8 +261,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(let x=30;x<WORLD;x+=70+Math.floor(random()*90)){if(Math.abs(x-CAMP.x)<70)continue;mineable(x,mEdge(x)+14+random()*20);}
       for(const [x,y] of [[870,600],[1135,610],[860,700],[1145,705]] as const) mineable(x,y);
       for(const [x,y] of [[820,760],[1190,770],[930,820],[1090,830]] as const) choppable(x,y,(x+y)%8);
+      // Outer biomes beyond the start region, density driven by each biome's flora.
+      let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
+      for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
+        if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
+        const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Invisible segmented colliders: river banks and the mountain wall.
-      for(let y=0;y<WORLD;y+=24){ if(y<mEdge(riverX(y)))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
+      for(let y=MAP.y;y<MAP.y+MAP.h;y+=24){ if(y>=0&&y<=WORLD&&y<mEdge(riverX(y)))continue;if(isFord(y))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
       const glow=this.add.image(CAMP.x,CAMP.y+FIRE_DY+6,'glow').setDepth(CAMP.y).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({targets:glow,alpha:{from:.4,to:.6},scale:{from:.95,to:1.06},duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
@@ -264,7 +287,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.setSize(10,7).setOffset(11,23);
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
       this.physics.add.collider(this.player,this.obstacles);
-      this.cameras.main.setBounds(0,0,WORLD,WORLD).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
+      this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE') as Record<string,Phaser.Input.Keyboard.Key>;
       this.input.mouse?.disableContextMenu();
       this.input.on('pointerdown',(ptr:Phaser.Input.Pointer)=>{if(ptr.wasTouch)return;if(ptr.rightButtonDown())this.lockReq=true;else if(ptr.leftButtonDown())this.clickAttack=true;});
@@ -432,7 +455,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (this.held !== 'axe') { this.message = 'Dafür brauchst du die Steinaxt'; this.messageUntil = time + 1600; return; }
         tree.hp--;
         tree.sprite.setTint(0xffe0b0);
-        this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
+        this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.setTint(tree.tint); });
         if (tree.hp <= 0) {
           this.trees = this.trees.filter(t => t !== tree);
           const { x, y, dir } = tree;
@@ -614,12 +637,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.y<mEdge(p.x)+140?'Am Bergmassiv':Math.abs(p.x-riverX(p.y))<220?'Flussufer':'Graue Wildnis',message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
 }
-function riverX(y:number){const t=Phaser.Math.Clamp(y/WORLD,0,1);return (1-t)**3*1570+3*(1-t)**2*t*1290+3*(1-t)*t*t*1750+t**3*1580;}
 
 // Southern edge of the mountain massif; flattened at the camp with rock spurs either side.
 function mEdge(x:number){const base=440+55*Math.sin(x/150)+30*Math.sin(x/57+2)+18*Math.sin(x/23);const w=Math.exp(-(((x-CAMP.x)/200)**2));const spur=110*Math.exp(-(((Math.abs(x-CAMP.x)-210)/55)**2));return base*(1-w)+560*w+spur;}
