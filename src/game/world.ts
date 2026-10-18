@@ -28,9 +28,6 @@ import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE } from './wildlife';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
-import treeCh1 from '@/assets/tree-ch1.png.asset.json';
-import treeCh2 from '@/assets/tree-ch2.png.asset.json';
-import treeStump from '@/assets/tree-stump.png.asset.json';
 import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
@@ -127,9 +124,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('spear-proj', ICON_SPEAR);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
-      this.load.spritesheet('tree-ch1', treeCh1.url, { frameWidth: 97, frameHeight: 97 });
-      this.load.spritesheet('tree-ch2', treeCh2.url, { frameWidth: 97, frameHeight: 97 });
-      this.load.spritesheet('tree-stump', treeStump.url, { frameWidth: 97, frameHeight: 97 });
       this.load.image('res-wood', resWood.url);
       this.load.image('res-stone', resStone.url);
       this.load.image('res-flint', resFlint.url);
@@ -434,16 +428,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         tree.hp--;
         tree.sprite.setTint(0xffe0b0);
         this.time.delayedCall(120, () => { if (tree.sprite.active) tree.sprite.clearTint(); });
-        if (tree.hp === TREE_HP - 2) tree.sprite.setTexture('tree-ch1', tree.dir);
-        else if (tree.hp === 1) tree.sprite.setTexture('tree-ch2', tree.dir);
-        else if (tree.hp <= 0) {
+        if (tree.hp <= 0) {
           this.trees = this.trees.filter(t => t !== tree);
           const { x, y, dir } = tree;
           tree.sprite.destroy();
-          // Fällanimation folgt später: der Baum verschwindet sofort und lässt Stumpf + Ressourcen zurück.
-          const stump: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image } = { x, y, dir };
-          this.stumps.push(stump);
-          stump.sprite = this.add.image(x, y, 'tree-stump', dir).setDepth(y - 40);
+          // Baum verschwindet komplett; Position wird nur zum Nachwachsen gemerkt.
+          this.stumps.push({ x, y, dir });
           this.dropResources(x, y, TREE_DROP);
           this.message = 'Baum gefällt!';
           this.messageUntil = time + 2200;
