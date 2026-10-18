@@ -12,6 +12,16 @@ const RESOURCES=[['wood','Holz',resWood.url],['stone','Stein',resStone.url],['fl
 import type { GameInput, GameStatus } from './world';
 import { RECIPES, canCraft, xpForLevel, type ItemId } from './progress';
 import { RESOURCE_NAME } from './harvest';
+import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
+
+const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',300,3000],['Dschungel der Afrikans',2450,3000]] as const;
+/** Paints the biome layout into a small image for the mini and world map. */
+function renderBiomeMap(){
+ const S=32,w=MAP.w/S,h=MAP.h/S;const cv=document.createElement('canvas');cv.width=w;cv.height=h;const c=cv.getContext('2d');if(!c)return '';
+ const img=c.createImageData(w,h);
+ for(let j=0;j<h;j++){const y=MAP.y+j*S;const rx=riverX(y);for(let i=0;i<w;i++){const x=MAP.x+i*S;const col=Math.abs(x-rx)<64?(isFord(y)?[150,170,160]:[70,120,150]):BIOME_COLOR[biomeAt(x,y)];const o=(j*w+i)*4;img.data[o]=col[0]!;img.data[o+1]=col[1]!;img.data[o+2]=col[2]!;img.data[o+3]=255;}}
+ c.putImageData(img,0,0);return cv.toDataURL();
+}
 
 type Slot = 'hand' | 'head' | 'chest' | 'feet';
 type Item = { id: string; name: string; slot: Slot; icon: string | undefined; weapon: Weapon | undefined };
