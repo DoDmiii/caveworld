@@ -1,4 +1,4 @@
-// Wildlife sprite URL maps. Tiger & gazelle 40x40; snow animals use their own cell size. 8 directions.
+// Wildlife sprite URL maps. Tiger 64x64 (all anims share one cell), gazelle 40x40; snow animals use their own cell size. 8 directions.
 type Map = Record<string, { url: string }>;
 const all = import.meta.glob('../assets/npc/*.png.asset.json', { eager: true, import: 'default' }) as Map;
 
@@ -23,7 +23,7 @@ export type SnowSpecies = {
 };
 // Wolves hunt in small packs, bears are slow tanks, mammoths only fight back.
 export const SNOW: Record<SnowKind, SnowSpecies> = {
-  wolf: { name: 'Schneewolf', cell: 36, body: [14, 8, 11, 24], hp: 40, damage: 8, speed: 82, sight: 160, aggressive: true, count: 6, idle: pick('wolf-idle'), walk: pick('wolf-walk'), attack: pick('wolf-attack') },
-  bear: { name: 'Höhlenbär', cell: 48, body: [20, 10, 14, 32], hp: 110, damage: 16, speed: 58, sight: 120, aggressive: true, count: 3, idle: pick('bear-idle'), walk: pick('bear-walk') },
+  wolf: { name: 'Schneewolf', cell: 52, body: [14, 8, 19, 32], hp: 40, damage: 8, speed: 82, sight: 160, aggressive: true, count: 6, idle: pick('wolf-idle'), walk: pick('wolf-walk'), attack: pick('wolf-attack') },
+  bear: { name: 'Höhlenbär', cell: 80, body: [20, 10, 30, 48], hp: 110, damage: 16, speed: 58, sight: 120, aggressive: true, count: 3, idle: pick('bear-idle'), walk: pick('bear-walk'), attack: pick('bear-attack') },
   mammoth: { name: 'Mammut', cell: 96, body: [40, 16, 28, 66], hp: 200, damage: 22, speed: 48, sight: 0, aggressive: false, count: 4, idle: pick('mammoth-idle'), walk: pick('mammoth-walk'), attack: pick('mammoth-attack') },
 };
