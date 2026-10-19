@@ -197,8 +197,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES})) this.load.image(k,u);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
-        this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 40, frameHeight: 40 });
-        this.load.spritesheet(`tiger-attack-${i}`, TIGER.attack[i]!, { frameWidth: 40, frameHeight: 40 });
+        this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 64, frameHeight: 64 });
+        this.load.spritesheet(`tiger-attack-${i}`, TIGER.attack[i]!, { frameWidth: 64, frameHeight: 64 });
         this.load.image(`gazelle-idle-${i}`, GAZELLE.idle[i]!);
         this.load.spritesheet(`gazelle-walk-${i}`, GAZELLE.walk[i]!, { frameWidth: 40, frameHeight: 40 });
         this.load.spritesheet(`gazelle-run-${i}`, GAZELLE.run[i]!, { frameWidth: 40, frameHeight: 40 });
@@ -386,7 +386,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const spawn = (kind: Creature['kind'], x: number, y: number) => {
         const key = `${kind}-idle-2`;
         const s = this.physics.add.sprite(x, y, key).setDepth(y).setCollideWorldBounds(true);
-        if (kind === 'tiger' || kind === 'gazelle') s.setSize(14, 8).setOffset(13, 28);
+        if (kind === 'tiger') s.setSize(14, 8).setOffset(25, 40);
+        else if (kind === 'gazelle') s.setSize(14, 8).setOffset(13, 28);
         else { const b = SNOW[kind].body; s.setSize(b[0], b[1]).setOffset(b[2], b[3]); }
         if (this.obstacles) this.physics.add.collider(s, this.obstacles);
         // Solid bodies: player and animals can't overlap.
