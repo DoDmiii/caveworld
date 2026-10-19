@@ -50,10 +50,11 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
+import { START_MINUTES, clockOf, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[] };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -105,6 +106,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     minedRocks: [number, number][] = [];
+    hunger = 100;
+    warmth = 100;
+    clock = START_MINUTES; // Spielminuten seit Tag 1, 00:00
+    nextHungerWarn = 0;
+    nextColdWarn = 0;
+    nightTex: Phaser.Textures.CanvasTexture | undefined = undefined;
+    night: Phaser.GameObjects.Image | undefined = undefined;
     lastAutosave = 0;
     lastSaveReq = 0;
     plantTree?: (x: number, y: number, dir: number) => void;
@@ -131,8 +139,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastRespawn = 0;
     spear: { img: Phaser.GameObjects.Image; target: Creature | undefined; tx: number; ty: number } | undefined = undefined;
     spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
-    pantry(){return{health:this.health,stamina:this.stamina,berries:this.count,meat:this.meat,cooked:this.cooked};}
-    setPantry(r:Pantry){this.health=r.health;this.stamina=r.stamina;this.count=r.berries;this.meat=r.meat;this.cooked=r.cooked;}
+    pantry(){return{health:this.health,stamina:this.stamina,hunger:this.hunger,berries:this.count,meat:this.meat,cooked:this.cooked};}
+    setPantry(r:Pantry){this.health=r.health;this.stamina=r.stamina;this.hunger=r.hunger;this.count=r.berries;this.meat=r.meat;this.cooked=r.cooked;}
     /** Aktueller Spielstand der Welt; null, solange Speichern keinen Sinn ergibt (tot, schlafend, noch nicht bereit). */
     snapshot(): GameSave | null {
       const p = this.player;
@@ -141,6 +149,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         x: Math.round(p.x), y: Math.round(p.y),
         health: Math.min(100, Math.max(1, Math.round(this.health))),
         stamina: Math.min(100, Math.max(0, Math.round(this.stamina))),
+        hunger: Math.round(this.hunger), warmth: Math.round(this.warmth), clock: Math.floor(this.clock),
         berries: this.count, meat: this.meat, cooked: this.cooked,
         stock: { ...this.stock }, xp: this.xp, owned: [...this.owned],
         stumps: this.stumps.map(({ x, y, dir }) => ({ x, y, dir })),
@@ -154,6 +163,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player; if (!p) return;
       this.health = g.health; this.stamina = g.stamina;
       this.count = g.berries; this.meat = g.meat; this.cooked = g.cooked;
+      this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
       for (const s of g.stumps) {
@@ -171,6 +181,34 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
+    }
+    /** Dunkelheit als Overlay mit "Lichtlöchern" am Lagerfeuer und um den Spieler (Canvas-Textur, deckt die Kamerasicht ab). */
+    updateNight() {
+      const tex = this.nightTex, img = this.night, p = this.player;
+      if (!tex || !img || !p) return;
+      const sky = skyTint(clockOf(this.clock).minutesOfDay);
+      if (sky.a < 0.01) { img.setVisible(false); return; }
+      const wv = this.cameras.main.worldView, pad = 14;
+      const wx = wv.x - pad, wy = wv.y - pad, ww = wv.width + pad * 2, wh = wv.height + pad * 2;
+      const cw = Math.max(16, Math.ceil(ww / 3)), ch = Math.max(16, Math.ceil(wh / 3)); // 1 Canvas-Pixel = 3 Weltpixel
+      if (tex.width !== cw || tex.height !== ch) tex.setSize(cw, ch);
+      const ctx = tex.context, k = cw / ww;
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.clearRect(0, 0, cw, ch);
+      ctx.fillStyle = `rgba(${sky.r},${sky.g},${sky.b},${sky.a})`;
+      ctx.fillRect(0, 0, cw, ch);
+      ctx.globalCompositeOperation = 'destination-out';
+      const hole = (x: number, y: number, r: number, strength: number) => {
+        const cx = (x - wx) * k, cy = (y - wy) * k, cr = r * k;
+        const g = ctx.createRadialGradient(cx, cy, 0, cx, cy, cr);
+        g.addColorStop(0, `rgba(0,0,0,${strength})`); g.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
+      };
+      hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); // Lagerfeuer
+      hole(p.x, p.y, 70, 0.35);                  // Restlicht um den Spieler
+      ctx.globalCompositeOperation = 'source-over';
+      tex.refresh();
+      img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
     }
     preload() {
       preloadCampers(this);
@@ -426,6 +464,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const camper of this.campers) {
         for (const creature of this.creatures) this.physics.add.collider(camper.sprite, creature.sprite);
       }
+      if (this.textures.exists('night')) this.textures.remove('night');
+      this.nightTex = this.textures.createCanvas('night', 64, 64) ?? undefined;
+      if (this.nightTex) {
+        this.nightTex.setFilter(Phaser.Textures.FilterMode.LINEAR);
+        this.night = this.add.image(0, 0, 'night').setOrigin(0).setDepth(900000).setVisible(false);
+        this.events.on('postupdate', () => this.updateNight());
+      }
       if (initial) this.restore(initial);
       // Beim Schließen oder Wegwischen der Seite sofort sichern (visibilitychange ist auf Mobilgeräten am zuverlässigsten).
       const flush = () => this.persist();
@@ -444,7 +489,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.dead){
         p.setVelocity(0,0);
         if(input.respawn!==this.lastRespawn){
-          this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.stamina=100;p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();p.setTexture(`${this.held}-idle-2`);this.lastFacing=2;
+          this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.stamina=100;this.hunger=Math.max(this.hunger,50);this.warmth=Math.max(this.warmth,80);p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();p.setTexture(`${this.held}-idle-2`);this.lastFacing=2;
           for(const c of this.creatures)if(c.state==='chase'||c.state==='attack'){c.state='wander';c.alert=0;}
           this.message='Du erwachst am Lagerfeuer';this.messageUntil=time+2400;
         }
@@ -454,6 +499,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.health<=0){
         this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
         this.report(time,p);return;
+      }
+      if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000;}
+      else if(!input.paused){
+        const dt=Math.min(delta,100)/1000;
+        this.clock=advanceClock(this.clock,dt);
+        const minutesOfDay=clockOf(this.clock).minutesOfDay;
+        const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120;
+        this.hunger=tickHunger(this.hunger,dt);
+        this.warmth=tickWarmth(this.warmth,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});
+        this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));
+        if(time>=this.messageUntil){
+          if(this.warmth<COLD_WARN&&time>this.nextColdWarn){this.nextColdWarn=time+25000;this.message='Dir ist kalt – such ein Feuer';this.messageUntil=time+2400;}
+          else if(this.hunger<HUNGER_WARN&&time>this.nextHungerWarn){this.nextHungerWarn=time+25000;this.message='Dein Magen knurrt – du brauchst Nahrung';this.messageUntil=time+2400;}
+        }
       }
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
       else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
@@ -466,7 +525,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
         const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
         this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
-        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;this.persist();});
+        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;this.hunger=Math.max(5,this.hunger-SLEEP_HUNGER_COST);this.warmth=Math.max(this.warmth,90);p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;this.persist();});
       }
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
@@ -761,7 +820,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:''});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
