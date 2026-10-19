@@ -1,7 +1,7 @@
 import type { Resource, Stock } from './harvest';
 
 /** XP-Belohnungen pro Tätigkeit. */
-export const XP = { tree: 15, rock: 15, gazelle: 35, tiger: 100, berry: 5, roast: 10, craft: 25 } as const;
+export const XP = { tree: 15, rock: 15, gazelle: 35, tiger: 100, wolf: 50, bear: 120, mammoth: 150, berry: 5, roast: 10, craft: 25 } as const;
 
 /** Gesamt-XP, die für das Erreichen eines Levels nötig sind (Lv. 1 = 0). */
 export function xpForLevel(level: number): number {
