@@ -1,7 +1,13 @@
+import h0 from '@/assets/nordic/snow-hut-0.png.asset.json';
+import h1 from '@/assets/nordic/snow-hut-1.png.asset.json';
+import h2 from '@/assets/nordic/snow-hut-2.png.asset.json';
+import h3 from '@/assets/nordic/snow-hut-3.png.asset.json';
+import h4 from '@/assets/nordic/snow-hut-4.png.asset.json';
+import h5 from '@/assets/nordic/snow-hut-5.png.asset.json';
 import { VILLAGES } from './biomes';
 import type { Piece } from './camp';
 
-const HUTS = [0, 1, 2, 3, 4, 5].map(i => import.meta.glob('@/assets/nordic/snow-hut-*.png.asset.json', { eager: true, import: 'default' })[`/src/assets/nordic/snow-hut-${i}.png.asset.json`] as { url: string });
+const HUTS = [h0, h1, h2, h3, h4, h5];
 
 /** Snow hut textures (key → url). */
 export const NORDIC_TEXTURES: Record<string, string> = Object.fromEntries(HUTS.map((a, i) => [`snow-hut-${i}`, a.url]));
