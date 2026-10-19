@@ -58,3 +58,13 @@ export function biomeAt(x: number, y: number): Biome {
   if (y > southLine(x)) return east ? 'jungle' : 'dry';
   return east ? 'wenjaEast' : 'wenjaWest';
 }
+
+/** Nordic villages: centre and protected radius wildlife keeps away from. */
+export const VILLAGES = [
+  { name: 'Frostheim', x: 250, y: -350, r: 150 },
+  { name: 'Gipfelwacht', x: -560, y: -1050, r: 120 },
+  { name: 'Eisfurt', x: 1150, y: -880, r: 120 },
+] as const;
+/** Village whose protected zone (plus margin) contains the point, if any. */
+export const villageAt = (x: number, y: number, margin = 0) =>
+  VILLAGES.find(v => Math.hypot(x - v.x, y - v.y) < v.r + margin);

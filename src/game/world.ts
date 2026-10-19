@@ -1,6 +1,6 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
-import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS } from './biomes';
+import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt } from './biomes';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -11,6 +11,7 @@ import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
 import campfire from '@/assets/campfire.png.asset.json';
 import { CAMP_TEXTURES, CAMP_LAYOUT } from './camp';
+import { NORDIC_TEXTURES, NORDIC_LAYOUT } from './nordic';
 import tree0 from '@/assets/tree-east.png.asset.json';
 import tree1 from '@/assets/tree-south-east.png.asset.json';
 import tree2 from '@/assets/tree-south.png.asset.json';
@@ -148,7 +149,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
-      for(const [k,u] of Object.entries(CAMP_TEXTURES)) this.load.image(k,u);
+      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES})) this.load.image(k,u);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
         this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 40, frameHeight: 40 });
@@ -291,7 +292,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40))continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+      // Nordic villages.
+      for(const pc of NORDIC_LAYOUT){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
       // Invisible segmented colliders: river banks and the mountain wall.
       for(let y=MAP.y;y<MAP.y+MAP.h;y+=24){ if(y>=0&&y<=WORLD&&y<mEdge(riverX(y)))continue;if(isFord(y))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
@@ -621,6 +624,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const wx = c.wanderX - s.x, wy = c.wanderY - s.y, wl = Math.hypot(wx, wy);
           if (wl > 8) body.setVelocity(wx / wl * 22, wy / wl * 22);
           else body.setVelocity(0, 0);
+        }
+        // Villages are off-limits: steer wildlife back out of the protected zone.
+        const vil = villageAt(s.x, s.y, 50);
+        if (vil) {
+          const ox = s.x - vil.x, oy = s.y - vil.y, ol = Math.max(1, Math.hypot(ox, oy));
+          body.setVelocity(ox / ol * 60, oy / ol * 60);
+          c.wanderX = vil.x + ox / ol * (vil.r + 120); c.wanderY = vil.y + oy / ol * (vil.r + 120);
+          if (c.state === 'chase' || c.state === 'attack') { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 2500; }
         }
         // Animate based on velocity.
         if (c.state !== 'attack') {

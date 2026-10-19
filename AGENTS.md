@@ -15,4 +15,4 @@
 - Keep the React HUD and touch controls separate from the game engine, communicating through a shared input object and status callback.
 - Keep allied camp NPCs in dedicated tribe asset definitions and camper movement modules, separate from wildlife combat targets, so friendly inhabitants cannot be hunted.
 - Pack each uploaded tribe template into one directional atlas; preserve original pixels and center smaller frames without rescaling to keep downloads compact and proportions intact.
-- Keep world geography (map bounds, river course, biome zones, fords) in the engine-free biomes module so the HUD maps and Phaser world share one source; the original start region keeps its coordinates and the map grows around it.
+- Keep world geography (map bounds, river course, biome zones, fords, village zones) in the engine-free biomes module so the HUD maps and Phaser world share one source; the original start region keeps its coordinates and the map grows around it.

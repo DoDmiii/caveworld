@@ -12,3 +12,9 @@ describe('biomes', () => {
     for (let y = MAP.y; y < MAP.y + MAP.h; y += 256) expect(riverX(y)).toBeGreaterThan(CAMP_POS.x + 200);
   });
 });
+
+import { VILLAGES as V2, villageAt as va, biomeAt as ba } from '@/game/biomes';
+describe('nordic villages', () => {
+  it('all three lie in the Nordics', () => { expect(V2).toHaveLength(3); for (const v of V2) expect(ba(v.x, v.y)).toBe('nordics'); });
+  it('protects the village centre but not the camp', () => { expect(va(250, -350)).toBeTruthy(); expect(va(1000, 640)).toBeUndefined(); });
+});
