@@ -47,9 +47,10 @@ import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
+import { saveGame, type GameSave } from './save';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[] };
 type Creature = {
   kind: 'tiger' | 'gazelle';
@@ -73,7 +74,7 @@ const WORLD = 2048;
 const CAMP = { x: 1000, y: 640 };
 const FIRE_DY = 40;
 
-export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void) {
+export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void, initial: GameSave | null = null) {
   class Wilderness extends Phaser.Scene {
     player?: Phaser.Physics.Arcade.Sprite;
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
@@ -101,6 +102,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
+    minedRocks: [number, number][] = [];
+    lastAutosave = 0;
+    lastSaveReq = 0;
     plantTree?: (x: number, y: number, dir: number) => void;
     rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
@@ -127,6 +131,45 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     spearOnGround: { x: number; y: number; img: Phaser.GameObjects.Image } | undefined = undefined;
     pantry(){return{health:this.health,stamina:this.stamina,berries:this.count,meat:this.meat,cooked:this.cooked};}
     setPantry(r:Pantry){this.health=r.health;this.stamina=r.stamina;this.count=r.berries;this.meat=r.meat;this.cooked=r.cooked;}
+    /** Aktueller Spielstand der Welt; null, solange Speichern keinen Sinn ergibt (tot, schlafend, noch nicht bereit). */
+    snapshot(): GameSave | null {
+      const p = this.player;
+      if (!p || this.dead || this.sleeping || this.health <= 0) return null;
+      return {
+        x: Math.round(p.x), y: Math.round(p.y),
+        health: Math.min(100, Math.max(1, Math.round(this.health))),
+        stamina: Math.min(100, Math.max(0, Math.round(this.stamina))),
+        berries: this.count, meat: this.meat, cooked: this.cooked,
+        stock: { ...this.stock }, xp: this.xp, owned: [...this.owned],
+        stumps: this.stumps.map(({ x, y, dir }) => ({ x, y, dir })),
+        minedRocks: this.minedRocks.map(([x, y]) => [x, y] as [number, number]),
+        pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
+      };
+    }
+    persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
+    /** Wendet einen Spielstand auf die frisch (deterministisch) erzeugte Welt an. */
+    restore(g: GameSave) {
+      const p = this.player; if (!p) return;
+      this.health = g.health; this.stamina = g.stamina;
+      this.count = g.berries; this.meat = g.meat; this.cooked = g.cooked;
+      this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
+      // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
+      for (const s of g.stumps) {
+        const t = this.trees.find(t => Math.hypot(t.x - s.x, t.y - s.y) < 2); if (!t) continue;
+        this.trees = this.trees.filter(o => o !== t); t.sprite.destroy();
+        this.stumps.push({ x: t.x, y: t.y, dir: t.dir });
+      }
+      for (const [x, y] of g.minedRocks) {
+        const r = this.rocks.find(r => Math.hypot(r.x - x, r.y - y) < 2); if (!r) continue;
+        this.rocks = this.rocks.filter(o => o !== r);
+        this.covers = this.covers.filter(c => Math.hypot(c.x - r.x, c.y - r.y) > 1);
+        r.sprite.destroy(); this.minedRocks.push([r.x, r.y]);
+      }
+      for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
+      p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
+      this.cameras.main.centerOn(p.x, p.y);
+      this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
+    }
     preload() {
       preloadCampers(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
@@ -354,6 +397,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const camper of this.campers) {
         for (const creature of this.creatures) this.physics.add.collider(camper.sprite, creature.sprite);
       }
+      if (initial) this.restore(initial);
+      // Beim Schließen oder Wegwischen der Seite sofort sichern (visibilitychange ist auf Mobilgeräten am zuverlässigsten).
+      const flush = () => this.persist();
+      const onHide = () => { if (document.visibilityState === 'hidden') flush(); };
+      window.addEventListener('pagehide', flush);
+      document.addEventListener('visibilitychange', onHide);
+      const off = () => { window.removeEventListener('pagehide', flush); document.removeEventListener('visibilitychange', onHide); };
+      this.events.once('shutdown', off); this.events.once('destroy', off);
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
@@ -375,6 +426,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
         this.report(time,p);return;
       }
+      if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
+      else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
       if(input.craft){const rc=RECIPES.find(x=>x.id===input.craft);const next=rc&&craft(rc,this.stock,levelFromXp(this.xp),this.owned);if(rc&&next){this.stock=next;this.owned=[...this.owned,rc.id];this.message=`${rc.name} hergestellt · +25 EP`;this.messageUntil=time+2400;this.addXp(XP.craft);}input.craft=null;}
       if(input.weapon!==this.weapon){this.weapon=input.weapon;this.attacking=false;}
       const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
@@ -384,7 +437,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
         const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
         this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
-        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;});
+        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;this.persist();});
       }
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
@@ -506,6 +559,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.time.delayedCall(120, () => { if (rock.sprite.active) rock.sprite.clearTint(); });
         if (rock.hp <= 0) {
           this.rocks = this.rocks.filter(r => r !== rock);
+          this.minedRocks.push([rock.x, rock.y]);
           this.covers = this.covers.filter(c => Math.hypot(c.x - rock.x, c.y - rock.y) > 1);
           rock.sprite.destroy();
           this.dropResources(rock.x, rock.y, ROCK_DROP);

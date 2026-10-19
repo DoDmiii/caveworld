@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Zap, Hand, VolumeX, Backpack, Moon, Sword } from 'lucide-react';
+import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Zap, Hand, VolumeX, Backpack, Moon, Sword, Save } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import loader from '@/assets/loader.gif.asset.json';
 import cover from '@/assets/cover.jpg.asset.json';
@@ -12,6 +12,7 @@ const RESOURCES=[['wood','Holz',resWood.url],['stone','Stein',resStone.url],['fl
 import type { GameInput, GameStatus } from './world';
 import { RECIPES, canCraft, xpForLevel, type ItemId } from './progress';
 import { RESOURCE_NAME } from './harvest';
+import { loadSave, saveGame, clearSave, blockSaving, type UiSave } from './save';
 import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
 
 const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',300,3000],['Dschungel der Afrikans',2450,3000]] as const;
@@ -35,7 +36,7 @@ const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', ches
 
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
- const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0,eat:null,club:false,craft:null});
+ const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0,eat:null,club:false,craft:null,save:0});
  const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,cooked:0,nearFire:false,healPulse:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false,wood:0,stone:0,flint:0,fiber:0,xp:0,level:1,owned:['axe']});
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|null>(null);
@@ -46,6 +47,7 @@ export default function GameView(){
  const [hotbar,setHotbar]=useState<(string|null)[]>(['axe',null,null]);
  const [active,setActive]=useState(0);
  const [pick,setPick]=useState<string|null>(null);
+ const [uiRestored,setUiRestored]=useState(false);
  const [mapUrl,setMapUrl]=useState('');useEffect(()=>{setMapUrl(renderBiomeMap());},[]);const mapBg={backgroundImage:mapUrl?`url(${mapUrl})`:undefined,backgroundSize:'100% 100%',imageRendering:'pixelated' as const};
  const owns=(id:string)=>id==='fists'||status.owned.includes(id as ItemId);
  const bag=ITEMS.filter(i=>owns(i.id));
@@ -54,7 +56,17 @@ export default function GameView(){
  const assign=(slot:number,id:string)=>{const next=hotbar.map(h=>h===id?null:h);next[slot]=id;setHotbar(next);setPick(null);if(active===slot+1)hold(id);};
  const wheelRef=useRef({hotbar,active,panel});wheelRef.current={hotbar,active,panel};
  useEffect(()=>{const w=(e:WheelEvent)=>{const c=wheelRef.current;if(c.panel)return;const order=[0,...[1,2,3].filter(n=>c.hotbar[n-1])];const i=order.indexOf(c.active);const n=order[(i+(e.deltaY>0?1:-1)+order.length)%order.length];selectSlot(n??0);};window.addEventListener('wheel',w,{passive:true});return()=>window.removeEventListener('wheel',w);});
- useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);});destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
+ const restoreUi=(ui:UiSave|undefined,owned:readonly string[])=>{
+  if(ui){
+   const ok=(id:string|null):id is string=>!!id&&ITEMS.some(i=>i.id===id)&&(id==='fists'||owned.includes(id));
+   const hb=ui.hotbar.map(id=>ok(id)?id:null);const hand=ok(ui.hand)?ui.hand:'fists';
+   const it=(ITEMS.find(i=>i.id===hand)??ITEMS[0])!;
+   setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
+  }
+  setUiRestored(true);
+ };
+ useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
+ useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active}});},[uiRestored,hotbar,equipped.hand,active]);
  useEffect(()=>{input.current.paused=paused||panel!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
@@ -112,8 +124,10 @@ export default function GameView(){
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);}}><Play size={16}/> Weiter erkunden</Button>
      </>:<>
       <h2>Eine kurze Rast.</h2>
-      <p>Deine Wildnis wartet auf dich.</p>
+      <p>Deine Wildnis wartet auf dich. Dein Fortschritt wird automatisch gespeichert.</p>
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);}}><Play size={16}/> Weiter erkunden</Button>
+      <Button variant="outline" onClick={()=>{input.current.save++;}}><Save size={16}/> Jetzt speichern</Button>
+      <Button variant="ghost" onClick={()=>{if(window.confirm('Neues Spiel beginnen? Dein Spielstand wird gelöscht.')){blockSaving();clearSave();window.location.reload();}}}>Neues Spiel</Button>
      </>}
     </div></div>}
    </section>
