@@ -25,5 +25,5 @@ export type SnowSpecies = {
 export const SNOW: Record<SnowKind, SnowSpecies> = {
   wolf: { name: 'Schneewolf', cell: 52, body: [14, 8, 19, 32], hp: 40, damage: 8, speed: 82, sight: 160, aggressive: true, count: 6, idle: pick('wolf-idle'), walk: pick('wolf-walk'), attack: pick('wolf-attack') },
   bear: { name: 'Höhlenbär', cell: 80, body: [20, 10, 30, 48], hp: 110, damage: 16, speed: 58, sight: 120, aggressive: true, count: 3, idle: pick('bear-idle'), walk: pick('bear-walk'), attack: pick('bear-attack') },
-  mammoth: { name: 'Mammut', cell: 96, body: [40, 16, 28, 66], hp: 200, damage: 22, speed: 48, sight: 0, aggressive: false, count: 4, idle: pick('mammoth-idle'), walk: pick('mammoth-walk'), attack: pick('mammoth-attack') },
+  mammoth: { name: 'Mammut', cell: 112, body: [40, 16, 36, 74], hp: 200, damage: 22, speed: 48, sight: 0, aggressive: false, count: 4, idle: pick('mammoth-idle'), walk: pick('mammoth-walk'), attack: pick('mammoth-attack') },
 };

@@ -316,3 +316,15 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .recipe-cost i.ok{background:oklch(0.35 0.08 140);}
 .assign-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px;font-size:11px;margin-bottom:6px;}
 .large-map-region {position:absolute;transform:translate(-50%,-50%);font-size:9px;font-weight:600;color:var(--foreground);text-shadow:0 1px 2px var(--background);text-align:center;max-width:30%;line-height:1.1;pointer-events:none;}
+
+
+/* Hunger- und Wärmeleiste (eine kompakte Zeile unter Leben und Ausdauer) */
+:root { --hunger: oklch(.74 .13 58); --warmth: oklch(.82 .09 225); }
+.stat-row.duo { gap: 5px; }
+.stat-row.duo svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
+.hunger-icon { color: var(--hunger); }
+.warmth-icon { color: var(--warmth); }
+.stat-track.hunger i { background: var(--hunger); }
+.stat-track.warmth i { background: var(--warmth); }
+.stat-track.is-low { animation: vital-low 1s ease-in-out infinite; }
+@keyframes vital-low { 50% { opacity: .35; } }

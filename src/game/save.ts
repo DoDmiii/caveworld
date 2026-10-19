@@ -1,6 +1,7 @@
 // Lokaler Spielstand (localStorage). Engine-frei, damit React-HUD und Phaser-Welt ihn teilen
 // und vitest ihn ohne Phaser testen kann.
 import { z } from 'zod';
+import { START_MINUTES } from './survival';
 
 export const SAVE_KEY = 'caveworld:save';
 export const SAVE_VERSION = 1;
@@ -14,6 +15,10 @@ const GameSchema = z.object({
   y: coord,
   health: z.number().min(1).max(100),
   stamina: z.number().min(0).max(100),
+  // Neu seit Tag/Nacht + Überleben; Defaults, damit ältere Spielstände weiter laden.
+  hunger: z.number().min(0).max(100).default(100),
+  warmth: z.number().min(0).max(100).default(100),
+  clock: z.number().min(0).max(10_000_000).default(START_MINUTES),
   berries: count,
   meat: count,
   cooked: count,
