@@ -801,7 +801,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
-      if (o.rel && f.c.state !== 'camp') this.rel = changePersonalRelationship(changeVillageRelationship(this.rel, vk, o.rel), f.c.id, o.rel, vk);
+      if (o.rel && f.c.state !== 'camp') this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, f.c.id, o.rel, vk), vk, o.rel);
       if (o.alarm) this.rel = raiseAlarm(this.rel, vk, Date.now());
       if (o.state !== f.c.state) {
         f.c = { ...f.c, state: o.state, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) };
