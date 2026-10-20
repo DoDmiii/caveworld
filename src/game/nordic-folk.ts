@@ -21,8 +21,17 @@ const T = [
   { id: 'nordic-m3', url: m3.url, walk: 8, captive: false, village: 1, dx: -30, dy: -50 },
   { id: 'nordic-w3', url: w3.url, walk: 6, captive: true, village: 2, dx: -20, dy: 20 },
   { id: 'nordic-m2', url: m2.url, walk: 6, captive: true, village: 2, dx: 30, dy: -10 },
+  // Extra inhabitants for the smaller villages reuse existing atlases under unique IDs.
+  { id: 'nordic-w0-g', tex: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 1, dx: -60, dy: 30 },
+  { id: 'nordic-m0-g', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 1, dx: 50, dy: 40 },
+  { id: 'nordic-w1-g', tex: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 1, dx: 0, dy: -10 },
+  { id: 'nordic-m1-g', tex: 'nordic-m1', url: m1.url, walk: 6, captive: false, village: 1, dx: 0, dy: 80 },
+  { id: 'nordic-w2-e', tex: 'nordic-w2', url: w2.url, walk: 6, captive: true, village: 2, dx: 50, dy: 40 },
+  { id: 'nordic-m0-e', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 2, dx: -60, dy: -30 },
+  { id: 'nordic-w1-e', tex: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 2, dx: 0, dy: 50 },
+  { id: 'nordic-m3-e', tex: 'nordic-m3', url: m3.url, walk: 8, captive: false, village: 2, dx: 0, dy: -80 },
 ] as const;
-export const NORDIC_FOLK = T.map(t => ({ ...t, x: VILLAGES[t.village].x + t.dx, y: VILLAGES[t.village].y + t.dy }));
+export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: VILLAGES[t.village].x + t.dx, y: VILLAGES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
@@ -33,16 +42,16 @@ export type Folk = {
 };
 
 export function preloadFolk(scene: Phaser.Scene) {
-  for (const t of NORDIC_FOLK) scene.load.spritesheet(t.id, t.url, { frameWidth: 32, frameHeight: 32 });
+  for (const t of NORDIC_FOLK) if (t.tex === t.id) scene.load.spritesheet(t.tex, t.url, { frameWidth: 32, frameHeight: 32 });
 }
 
 export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade.StaticGroup): Folk[] {
   return NORDIC_FOLK.map((t, i) => {
-    for (let d = 0; d < 8; d++) {
+    for (let d = 0; d < 8 && !scene.anims.exists(`${t.tex}-walk-0`) || (d > 0 && d < 8 && !scene.anims.exists(`${t.tex}-walk-${d}`)); d++) {
       const s = 8 + d * t.walk;
-      scene.anims.create({ key: `${t.id}-walk-${d}`, frames: scene.anims.generateFrameNumbers(t.id, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
+      scene.anims.create({ key: `${t.tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(t.tex, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
     }
-    const sprite = scene.physics.add.sprite(t.x, t.y, t.id, 2).setSize(10, 7).setOffset(11, 23).setDepth(t.y).setPushable(false);
+    const sprite = scene.physics.add.sprite(t.x, t.y, t.tex, 2).setSize(10, 7).setOffset(11, 23).setDepth(t.y).setPushable(false);
     scene.physics.add.collider(sprite, obstacles);
     return { sprite, t, c: { id: t.id, state: 'free', x: t.x, y: t.y }, facing: 2, next: scene.time.now + 800 + i * 300, until: 0, tx: t.x, ty: t.y, seed: 977 + i * 151 };
   });
@@ -88,7 +97,7 @@ export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGr
     if (time < f.until && d > 4) {
       s.setVelocity(dx / d * 18, dy / d * 18);
       f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-      s.play(`${f.t.id}-walk-${f.facing}`, true);
+      s.play(`${f.t.tex}-walk-${f.facing}`, true);
     } else { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing); }
     s.setDepth(s.y);
   }
