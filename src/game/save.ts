@@ -29,6 +29,7 @@ const GameSchema = z.object({
   stumps: z.array(z.object({ x: coord, y: coord, dir: z.number().int().min(0).max(7) })).max(5000),
   minedRocks: z.array(z.tuple([coord, coord])).max(5000),
   pickedBerries: z.array(z.number().int().min(0).max(999)).max(100),
+  lootedHouses: z.array(z.string().max(80)).max(100).default([]),
 });
 
 /** Alles, was das React-HUD besitzt (Schnellleiste, Ausrüstung). */

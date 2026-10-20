@@ -1,4 +1,7 @@
 # Roadmap
+- [x] Expand Nordic villages with uploaded fences and more houses.
+- [x] Add persistent house loot: resources, food and existing weapons.
+- [x] Verify village entrances, looting and reload persistence.
 - [x] Create explorable pixel wilderness using the eight uploaded sprites, smooth camera and collisions.
 - [x] Add portrait touch controls and top status HUD.
 - [x] Verify movement, actions and layout on mobile and desktop.
@@ -9,5 +12,5 @@
 - [x] Crouch as toggle (C/Strg).
 - [x] Tree felling: 5 axe hits, tree vanishes leaving stump + drops; stumps regrow after sleeping.
 - [ ] Tree fall animation once the user delivers final sprites.
-- [ ] Crafting menu, hotbar quick-slots and level system (waiting on user's item designs).
+- [x] Crafting menu, hotbar quick-slots and level system.
 - [ ] Bring gazelle herd closer to camp; fix mobile loading hang.

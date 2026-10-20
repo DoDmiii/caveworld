@@ -11,7 +11,8 @@ import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
 import campfire from '@/assets/campfire.png.asset.json';
 import { CAMP_TEXTURES, CAMP_LAYOUT } from './camp';
-import { NORDIC_TEXTURES, NORDIC_LAYOUT } from './nordic';
+import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
+import { lootHouse } from './village-loot';
 import tree0 from '@/assets/tree-east.png.asset.json';
 import tree1 from '@/assets/tree-south-east.png.asset.json';
 import tree2 from '@/assets/tree-south.png.asset.json';
@@ -106,6 +107,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     minedRocks: [number, number][] = [];
+    lootedHouses: string[] = [];
+    villageSupplies = new Map<string, Phaser.GameObjects.Image>();
     hunger = 100;
     warmth = 100;
     clock = START_MINUTES; // Spielminuten seit Tag 1, 00:00
@@ -155,6 +158,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         stumps: this.stumps.map(({ x, y, dir }) => ({ x, y, dir })),
         minedRocks: this.minedRocks.map(([x, y]) => [x, y] as [number, number]),
         pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
+        lootedHouses: [...this.lootedHouses],
       };
     }
     persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
@@ -165,6 +169,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.count = g.berries; this.meat = g.meat; this.cooked = g.cooked;
       this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
+      this.lootedHouses = [...g.lootedHouses];
+      for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
       for (const s of g.stumps) {
         const t = this.trees.find(t => Math.hypot(t.x - s.x, t.y - s.y) < 2); if (!t) continue;
@@ -387,7 +393,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
         if(villageAt(x,y,40))continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Nordic villages.
-      for(const pc of NORDIC_LAYOUT){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
+      for(const pc of NORDIC_LAYOUT){
+        if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
+        const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
+      }
+      for (const h of NORDIC_HOUSES) {
+        this.villageSupplies.set(h.id, this.add.image(h.x, h.y + 38, h.variant === 0 ? 'spear-proj' : 'res-wood').setScale(h.variant === 0 ? 0.55 : 1).setDepth(h.y + 38));
+      }
       // Invisible segmented colliders: river banks and the mountain wall.
       for(let y=MAP.y;y<MAP.y+MAP.h;y+=24){ if(y>=0&&y<=WORLD&&y<mEdge(riverX(y)))continue;if(isFord(y))continue;const zone=this.add.zone(riverX(y),y,115,30);this.physics.add.existing(zone,true);this.obstacles.add(zone); }
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
@@ -603,10 +615,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
         const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
         const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
+        const house = NORDIC_HOUSES.find(h => Math.hypot(p.x-h.x,p.y-h.y-38)<28);
         if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +1`;}
+        else if(house){
+          const next = lootHouse({ stock:this.stock, berries:this.count, meat:this.meat, cooked:this.cooked, owned:this.owned, lootedHouses:this.lootedHouses }, house.id);
+          if(next){
+            const weapon = next.owned.find(id => !this.owned.includes(id));
+            this.stock=next.stock;this.count=next.berries;this.meat=next.meat;this.cooked=next.cooked;this.owned=next.owned;this.lootedHouses=next.lootedHouses;
+            this.villageSupplies.get(house.id)?.destroy();this.villageSupplies.delete(house.id);
+            const name = weapon === 'spear' ? 'Steinspeer' : weapon === 'club' ? 'Holzkeule' : 'Steinaxt';
+            this.message=`${house.village} · +4 Holz, +3 Stein, +2 Fasern, +1 Feuerstein · +3 Beeren, +1 Fleisch, +2 Gebratenes${weapon ? ` · ${name}` : ''}`;
+            this.persist();
+          } else this.message='Dieses Haus ist bereits durchsucht';
+        }
         else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';this.messageUntil=time+2400;if(this.addXp(XP.berry))return this.report(time,p);}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){const r=roast(this.pantry());if(r){this.setPantry(r);this.message='Fleisch gebraten · [3] essen';this.messageUntil=time+2400;if(this.addXp(XP.roast))return this.report(time,p);}else{this.stamina=100;this.message='Am Feuer ausgeruht';}}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';

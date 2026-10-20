@@ -5,6 +5,7 @@ const game: GameSave = {
   x: 1000, y: 610, health: 80, stamina: 60, hunger: 55, warmth: 70, clock: 1500, berries: 2, meat: 1, cooked: 0,
   stock: { wood: 3, stone: 1, flint: 0, fiber: 1 }, xp: 120, owned: ['axe', 'club'],
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
+  lootedHouses: ['Frostheim:0'],
 };
 
 beforeEach(() => localStorage.clear());
@@ -35,6 +36,12 @@ describe('save', () => {
   it('kaputtes JSON wird ignoriert', () => {
     localStorage.setItem(SAVE_KEY, '{kaputt');
     expect(loadSave()).toBeNull();
+  });
+
+  it('ältere Spielstände ohne Dorfbeute bleiben kompatibel', () => {
+    const { lootedHouses: _l, ...old } = game;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: old }));
+    expect(loadSave()?.game?.lootedHouses).toEqual([]);
   });
 
   it('unplausible Werte werden abgelehnt und als Backup behalten', () => {
