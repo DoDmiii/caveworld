@@ -47,7 +47,7 @@ export function preloadFolk(scene: Phaser.Scene) {
 
 export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade.StaticGroup): Folk[] {
   return NORDIC_FOLK.map((t, i) => {
-    for (let d = 0; d < 8 && !scene.anims.exists(`${t.tex}-walk-0`) || (d > 0 && d < 8 && !scene.anims.exists(`${t.tex}-walk-${d}`)); d++) {
+    if (!scene.anims.exists(`${t.tex}-walk-0`)) for (let d = 0; d < 8; d++) {
       const s = 8 + d * t.walk;
       scene.anims.create({ key: `${t.tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(t.tex, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
     }
