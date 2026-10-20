@@ -53,11 +53,17 @@ import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
 import { strike, interact, drop, CARRY_SPEED } from './captives';
+import { VILLAGES } from './biomes';
+import { decideReaction, type BehaviorDecision } from './behavior';
+import type { InteractionContext, InteractionId } from './interactions';
+import { EMPTY_RELATIONSHIPS, changeVillageRelationship, changePersonalRelationship, getPersonalRelationship, isAlarmActive, raiseAlarm, type RelationshipState } from './relationships';
+import { resolveInteraction, villageKey, INTERACTION_RANGE } from './tribal';
 import { START_MINUTES, clockOf, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null };
+export type TalkTarget = InteractionContext & { id: string; name: string };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -111,6 +117,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
     folk: Folk[] = [];
+    rel: RelationshipState = EMPTY_RELATIONSHIPS;
+    folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision }>();
+    talk: TalkTarget | null = null;
     carried: Folk | undefined = undefined;
     carryImg?: Phaser.GameObjects.Image;
     villageSupplies = new Map<string, Phaser.GameObjects.Image>();
@@ -168,6 +177,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
+        relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
       };
     }
     persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
@@ -179,6 +189,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
       this.lootedHouses = [...g.lootedHouses];
+      this.rel = g.relationships;
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
       for (const s of g.stumps) {
@@ -510,6 +521,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p=this.player;if(!p)return;
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
+      this.tribal(time);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
@@ -738,6 +750,67 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.stumps = [];
       return grown;
     }
+    /** Nearby villager for the interaction wheel, NPC reactions (icons, fleeing, guards) and wheel choices. */
+    tribal(time: number) {
+      const p = this.player; if (!p) return;
+      const now = Date.now();
+      const req = input.interaction; input.interaction = null;
+      if (req) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); }
+      const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
+      const inside = !!villageAt(p.x, p.y);
+      let best: Folk | undefined, bd = INTERACTION_RANGE;
+      for (const f of this.folk) {
+        if (f.c.state === 'carried') continue;
+        const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
+        if (d < bd) { bd = d; best = f; }
+        let m = this.folkMood.get(f.c.id);
+        if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
+        const v = VILLAGES[f.t.village], vk = villageKey(v.name);
+        if (f.c.state !== 'free' || d > 160) { m.dec = undefined; m.icon.setVisible(false); continue; }
+        if (time > m.next) {
+          m.next = time + 400;
+          m.dec = decideReaction({ relationship: getPersonalRelationship(this.rel, f.c.id, vk), armed: this.held !== 'none', crouching: this.crouching, carryingCaptive: !!this.carried, night: isNight(clockOf(this.clock).minutesOfDay), witnessedCrime: false, insideVillage: inside, alarmActive: isAlarmActive(this.rel, vk, now), role: f.t.captive ? 'villager' : 'guard' });
+          if (m.dec.shouldRaiseAlarm) { this.rel = raiseAlarm(this.rel, vk, now); this.message = `${v.name} schlägt Alarm!`; this.messageUntil = time + 1800; }
+        }
+        const dec = m.dec; if (!dec) continue;
+        m.icon.setText(dec.icon === 'none' ? '' : dec.icon).setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(dec.icon !== 'none');
+        if (stop) continue;
+        const dx = p.x - s.x, dy = p.y - s.y, len = Math.max(1, d);
+        const home = Math.hypot(s.x - v.x, s.y - v.y) < v.r;
+        const face = (vx: number, vy: number) => { f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); };
+        if (dec.shouldAttack && !f.t.captive) {
+          // Guards close in and strike; they never leave their village.
+          if (d > 16 && home) { s.setVelocity(dx / len * 55, dy / len * 55); face(dx, dy); }
+          else { s.setVelocity(0, 0); if (d <= 18 && time > this.lastDamage + 1100) { this.health = Math.max(0, this.health - 6); this.hitFlash = time + 200; this.lastDamage = time; this.message = 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400; } }
+        } else if ((dec.shouldFlee || dec.state === 'hostile') && home) { s.setVelocity(-dx / len * 45, -dy / len * 45); face(-dx, -dy); }
+        s.setDepth(s.y);
+      }
+      if (best && !this.carried) {
+        const f = best, st = f.c.state, vk = villageKey(VILLAGES[f.t.village].name);
+        this.talk = {
+          id: f.c.id, name: st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${VILLAGES[f.t.village].name}`,
+          target: st === 'camp' ? 'ally' : st === 'surrender' || st === 'bound' ? 'captive' : f.t.captive ? 'villager' : 'guard',
+          targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
+          hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
+          targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
+        };
+      } else this.talk = null;
+    }
+    applyInteraction(f: Folk, id: InteractionId, time: number) {
+      const vk = villageKey(VILLAGES[f.t.village].name);
+      const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+      if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
+      this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
+      if (o.rel && f.c.state !== 'camp') this.rel = changePersonalRelationship(changeVillageRelationship(this.rel, vk, o.rel), f.c.id, o.rel, vk);
+      if (o.alarm) this.rel = raiseAlarm(this.rel, vk, Date.now());
+      if (o.state !== f.c.state) {
+        f.c = { ...f.c, state: o.state, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) };
+        if (o.carry) this.carried = f;
+        poseFolk(f);
+      }
+      this.message = o.message; this.messageUntil = time + 2200;
+      this.persist();
+    }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
       c.hp -= dmg;
       c.sprite.setTint(0xff6b4a);
@@ -782,6 +855,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
           f.c = strike(f.c, true); poseFolk(f);
           this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
+          // Witnesses from the same village raise the alarm and the village remembers it.
+          if (this.folk.some(o => o !== f && o.c.state === 'free' && o.t.village === f.t.village && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) < 180)) {
+            const vk = villageKey(VILLAGES[f.t.village].name);
+            this.rel = changeVillageRelationship(raiseAlarm(this.rel, vk, Date.now()), vk, -35);
+            this.message = 'Ergibt sich! Zeugen schlagen Alarm';
+          }
         }
         this.chop(time, fx, fy);
       }
@@ -888,7 +967,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:''});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
