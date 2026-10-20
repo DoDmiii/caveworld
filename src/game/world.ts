@@ -621,7 +621,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // Bound captive lies across the shoulders and bobs with the walk cycle.
         const side=[0,1,7,6].includes(this.lastFacing)?0:4;
         const bob=p.anims.isPlaying?(p.anims.currentFrame?.index??0)%2:0;
-        this.carryImg.setTexture(this.carried.t.id,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
+        this.carryImg.setTexture(this.carried.t.tex,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
       }
       const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':null;
       const food=input.eat??eatKey;input.eat=null;
