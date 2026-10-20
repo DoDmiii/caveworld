@@ -31,6 +31,11 @@ const GameSchema = z.object({
   pickedBerries: z.array(z.number().int().min(0).max(999)).max(100),
   lootedHouses: z.array(z.string().max(80)).max(100).default([]),
   captives: z.array(z.object({ id: z.string().max(40), state: z.enum(['surrender', 'bound', 'camp']), x: coord, y: coord })).max(50).default([]),
+  relationships: z.object({
+    village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
+    personal: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
+    alarmUntil: z.record(z.string(), z.number().finite()).default({}),
+  }).default({ village: {}, personal: {}, alarmUntil: {} }),
 });
 
 /** Alles, was das React-HUD besitzt (Schnellleiste, Ausrüstung). */

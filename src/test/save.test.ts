@@ -7,6 +7,7 @@ const game: GameSave = {
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
   lootedHouses: ['Frostheim:0'],
   captives: [],
+  relationships: { village: { frostheim: 15 }, personal: {}, alarmUntil: {} },
 };
 
 beforeEach(() => localStorage.clear());
