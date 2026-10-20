@@ -13,6 +13,8 @@ import type { GameInput, GameStatus } from './world';
 import { RECIPES, canCraft, xpForLevel, type ItemId } from './progress';
 import { RESOURCE_NAME } from './harvest';
 import { formatMinutes, isNight } from './survival';
+import { InteractionWheel } from './InteractionWheel';
+import type { TalkTarget } from './world';
 import { loadSave, saveGame, clearSave, blockSaving, type UiSave } from './save';
 import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
 
@@ -48,6 +50,8 @@ export default function GameView(){
  const [hotbar,setHotbar]=useState<(string|null)[]>(['axe',null,null]);
  const [active,setActive]=useState(0);
  const [pick,setPick]=useState<string|null>(null);
+ const [talk,setTalk]=useState<TalkTarget|null>(null);
+ const talkRef=useRef<TalkTarget|null>(null);talkRef.current=status.talk??null;
  const [uiRestored,setUiRestored]=useState(false);
  const [mapUrl,setMapUrl]=useState('');useEffect(()=>{setMapUrl(renderBiomeMap());},[]);const mapBg={backgroundImage:mapUrl?`url(${mapUrl})`:undefined,backgroundSize:'100% 100%',imageRendering:'pixelated' as const};
  const owns=(id:string)=>id==='fists'||status.owned.includes(id as ItemId);
@@ -68,7 +72,8 @@ export default function GameView(){
  };
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active}});},[uiRestored,hotbar,equipped.hand,active]);
- useEffect(()=>{input.current.paused=paused||panel!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel]);
+ useEffect(()=>{input.current.paused=paused||panel!==null||talk!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel,talk]);
+ useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
    setEquipped(e=>({...e,[item.slot]:item.id}));
@@ -96,6 +101,8 @@ export default function GameView(){
      {status.crouching&&!status.hidden&&!status.dead&&<div className="stealth-hint">Geduckt · leiser</div>}
      {status.dead&&<div className="death-screen" role="alertdialog" aria-label="Du bist gestorben"><span className="eyebrow">DIE WILDNIS IST GNADENLOS</span><h2>Du bist gefallen</h2><p>{status.meat} Fleisch · {status.berries} Beeren gesammelt</p><Button className="resume-button" onClick={()=>input.current.respawn++}><Flame size={16}/> Am Lagerfeuer erwachen</Button></div>}
     <div className="touch-controls"><div className="joystick-area"><div className="joystick" role="group" aria-label="Bewegungsjoystick" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);move(e);}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))move(e);}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}><span className="joystick-arrow up">⌃</span><span className="joystick-arrow down">⌄</span><span className="joystick-arrow left">‹</span><span className="joystick-arrow right">›</span><span className="joystick-knob" style={{transform:`translate(${knob.x}px,${knob.y}px)`}}><span/></span></div><span className="control-caption">BEWEGEN</span></div><div className="action-area"><Button variant="ghost" className={`run-button ${sprinting?'is-active':''}`} aria-label="Sprinten" title="Sprinten" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);input.current.sprint=true;setSprinting(true);}} onPointerUp={()=>{input.current.sprint=false;setSprinting(false);}} onPointerCancel={()=>{input.current.sprint=false;setSprinting(false);}} onLostPointerCapture={()=>{input.current.sprint=false;setSprinting(false);}}><Footprints/></Button><Button variant="ghost" className="attack-button" aria-label="Angreifen" title="Angreifen" onClick={()=>input.current.attack++}><Sword/></Button><div className="gather-wrap"><Button variant="ghost" className="gather-button" aria-label="Sammeln" title="Sammeln, schlafen oder am Feuer ausruhen" onClick={()=>input.current.action++}><Hand/></Button><span className="control-caption">AKTION</span></div></div></div>
+    {ready&&status.talk&&!talk&&!panel&&!paused&&<button className="sleep-hint talk-hint" onClick={()=>setTalk(status.talk??null)}>{status.talk.name} · Interagieren [T]</button>}
+    {talk&&<InteractionWheel context={talk} onClose={()=>setTalk(null)} onChoose={id=>{input.current.interaction={id,target:talk.id};setTalk(null);}}/>}
     {ready&&<div className="hotbar" role="toolbar" aria-label="Schnellmenü">{[0,1,2,3].map(n=>{const id=n===0?'fists':hotbar[n-1];const it=id?ITEMS.find(i=>i.id===id):undefined;return <button key={n} className={`hot-slot ${active===n?'is-active':''}`} aria-label={it?.name??`Leerer Slot ${n}`} title={it?.name??'Im Rucksack belegen'} onClick={()=>it?selectSlot(n):setPanel('gear')}>{it?.icon?<img src={it.icon} alt=""/>:<span className="slot-sil">{it?(it.id==='fists'?'●':'✦'):''}</span>}<em>{n===0?'H':n}</em></button>;})}</div>}
     <div className="game-bottom"><button className="food-quick" title="Beeren essen (+15) · Taste 1" onClick={()=>{input.current.eat='berries';}}><span className="berry-icon">✦</span> {status.berries} <span className="resource-label">BEEREN</span></button><button className="food-quick" title="Rohes Fleisch essen (+20) · Taste 2" onClick={()=>{input.current.eat='meat';}}><span className="berry-icon">🥩</span> {status.meat} <span className="resource-label">ROH</span></button><button className="food-quick" title="Gebratenes Fleisch essen (+45, volle Ausdauer) · Taste 3" onClick={()=>{input.current.eat='cooked';}}><span className="berry-icon">🍖</span> {status.cooked} <span className="resource-label">GEBRATEN</span></button><span><span className="sun-icon">{isNight(status.minutes)?'☾':'☀'}</span> TAG {status.day} <span className="bottom-dot">·</span> {formatMinutes(status.minutes)}</span><Button variant="ghost" size="icon" aria-label="Vollbild" title="Vollbild" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void document.querySelector('.game-frame')?.requestFullscreen?.();}}><Maximize/></Button></div>
     {(paused||panel)&&<div className="pause-overlay"><div className={`pause-panel ${panel==='gear'?'gear-panel':''}`}><div className="panel-heading"><span className="eyebrow">URZEIT</span><Button variant="ghost" size="icon" aria-label="Schließen" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><X/></Button></div>
