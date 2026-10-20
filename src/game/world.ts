@@ -51,7 +51,7 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
-import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, NORDIC_FOLK, type Folk } from './nordic-folk';
+import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
 import { strike, interact, drop, CARRY_SPEED } from './captives';
 import { START_MINUTES, clockOf, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
@@ -167,7 +167,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
-          : f.c.state === 'surrender' ? { ...f.c, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) } : { ...f.c }),
+          : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
       };
     }
     persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
@@ -489,7 +489,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.folk = createFolk(this, this.obstacles);
       for (const f of this.folk) this.physics.add.collider(f.sprite, this.player, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
-      this.carryImg = this.add.image(0, 0, NORDIC_FOLK[0].id, 0).setOrigin(0.5).setVisible(false);
+      this.carryImg = this.add.image(0, 0, 'nordic-w0', 0).setOrigin(0.5).setVisible(false);
       if (this.textures.exists('night')) this.textures.remove('night');
       this.nightTex = this.textures.createCanvas('night', 64, 64) ?? undefined;
       if (this.nightTex) {
