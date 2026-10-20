@@ -1,35 +1,32 @@
 import type * as Phaser from 'phaser';
 import w0 from '@/assets/nordic-people/nordic-w0.png.asset.json';
 import w1 from '@/assets/nordic-people/nordic-w1.png.asset.json';
-import w2 from '@/assets/nordic-people/nordic-w2.png.asset.json';
 import w3 from '@/assets/nordic-people/nordic-w3.png.asset.json';
 import m0 from '@/assets/nordic-people/nordic-m0.png.asset.json';
-import m1 from '@/assets/nordic-people/nordic-m1.png.asset.json';
 import m2 from '@/assets/nordic-people/nordic-m2.png.asset.json';
-import m3 from '@/assets/nordic-people/nordic-m3.png.asset.json';
 import { VILLAGES } from './biomes';
 import { isCampDestination } from './tribe';
 import type { Captive } from './captives';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
+// Only blond Nordic atlases (w0, w1, w3, m0, m2) may spawn in Nordic villages.
 const T = [
   { id: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 0, dx: -40, dy: 10 },
   { id: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 0, dx: 50, dy: -20 },
   { id: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 0, dx: 10, dy: 50 },
-  { id: 'nordic-m1', url: m1.url, walk: 6, captive: false, village: 0, dx: 0, dy: -90 },
-  { id: 'nordic-w2', url: w2.url, walk: 6, captive: true, village: 1, dx: 20, dy: 10 },
-  { id: 'nordic-m3', url: m3.url, walk: 8, captive: false, village: 1, dx: -30, dy: -50 },
+  { id: 'nordic-m2-f', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 0, dx: 0, dy: -90 },
   { id: 'nordic-w3', url: w3.url, walk: 6, captive: true, village: 2, dx: -20, dy: 20 },
   { id: 'nordic-m2', url: m2.url, walk: 6, captive: true, village: 2, dx: 30, dy: -10 },
-  // Extra inhabitants for the smaller villages reuse existing atlases under unique IDs.
   { id: 'nordic-w0-g', tex: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 1, dx: -60, dy: 30 },
   { id: 'nordic-m0-g', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 1, dx: 50, dy: 40 },
   { id: 'nordic-w1-g', tex: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 1, dx: 0, dy: -10 },
-  { id: 'nordic-m1-g', tex: 'nordic-m1', url: m1.url, walk: 6, captive: false, village: 1, dx: 0, dy: 80 },
-  { id: 'nordic-w2-e', tex: 'nordic-w2', url: w2.url, walk: 6, captive: true, village: 2, dx: 50, dy: 40 },
-  { id: 'nordic-m0-e', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 2, dx: -60, dy: -30 },
+  { id: 'nordic-w3-g', tex: 'nordic-w3', url: w3.url, walk: 6, captive: true, village: 1, dx: 20, dy: 10 },
+  { id: 'nordic-m2-g', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 1, dx: 0, dy: 80 },
+  { id: 'nordic-m0-gw', tex: 'nordic-m0', url: m0.url, walk: 6, captive: false, village: 1, dx: -30, dy: -50 },
   { id: 'nordic-w1-e', tex: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 2, dx: 0, dy: 50 },
-  { id: 'nordic-m3-e', tex: 'nordic-m3', url: m3.url, walk: 8, captive: false, village: 2, dx: 0, dy: -80 },
+  { id: 'nordic-m0-e', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 2, dx: -60, dy: -30 },
+  { id: 'nordic-w0-e', tex: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 2, dx: 50, dy: 40 },
+  { id: 'nordic-m2-e', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 2, dx: 0, dy: -80 },
 ] as const;
 export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: VILLAGES[t.village].x + t.dx, y: VILLAGES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
