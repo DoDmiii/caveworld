@@ -30,6 +30,7 @@ const GameSchema = z.object({
   minedRocks: z.array(z.tuple([coord, coord])).max(5000),
   pickedBerries: z.array(z.number().int().min(0).max(999)).max(100),
   lootedHouses: z.array(z.string().max(80)).max(100).default([]),
+  captives: z.array(z.object({ id: z.string().max(40), state: z.enum(['surrender', 'bound', 'camp']), x: coord, y: coord })).max(50).default([]),
 });
 
 /** Alles, was das React-HUD besitzt (Schnellleiste, Ausrüstung). */
