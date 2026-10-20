@@ -118,7 +118,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lootedHouses: string[] = [];
     folk: Folk[] = [];
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
-    folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision }>();
+    folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined }>();
     talk: TalkTarget | null = null;
     carried: Folk | undefined = undefined;
     carryImg?: Phaser.GameObjects.Image;
