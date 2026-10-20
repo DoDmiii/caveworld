@@ -16,3 +16,4 @@
 - Keep allied camp NPCs in dedicated tribe asset definitions and camper movement modules, separate from wildlife combat targets, so friendly inhabitants cannot be hunted.
 - Pack each uploaded tribe template into one directional atlas; preserve original pixels and center smaller frames without rescaling to keep downloads compact and proportions intact.
 - Keep world geography (map bounds, river course, biome zones, fords, village zones) in the engine-free biomes module so the HUD maps and Phaser world share one source; the original start region keeps its coordinates and the map grows around it.
+- Keep Nordic structures and stable house identities in nordic.ts, finite loot rules in the engine-free village-loot module, and persist searched house IDs in the existing game save so reloads cannot duplicate rewards.
