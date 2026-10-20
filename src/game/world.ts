@@ -51,6 +51,8 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
+import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
+import { strike, interact, drop, CARRY_SPEED } from './captives';
 import { START_MINUTES, clockOf, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
@@ -108,6 +110,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
+    folk: Folk[] = [];
+    carried: Folk | undefined = undefined;
+    carryImg?: Phaser.GameObjects.Image;
     villageSupplies = new Map<string, Phaser.GameObjects.Image>();
     hunger = 100;
     warmth = 100;
@@ -159,6 +164,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         minedRocks: this.minedRocks.map(([x, y]) => [x, y] as [number, number]),
         pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
         lootedHouses: [...this.lootedHouses],
+        // A captive on the shoulders is saved lying bound at the player's feet.
+        captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
+          ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
+          : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
       };
     }
     persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
@@ -184,6 +193,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         r.sprite.destroy(); this.minedRocks.push([r.x, r.y]);
       }
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
+      for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
@@ -218,6 +228,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     preload() {
       preloadCampers(this);
+      preloadFolk(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
       (['none','axe','spear'] as Weapon[]).forEach(w => {
@@ -476,6 +487,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const camper of this.campers) {
         for (const creature of this.creatures) this.physics.add.collider(camper.sprite, creature.sprite);
       }
+      this.folk = createFolk(this, this.obstacles);
+      for (const f of this.folk) this.physics.add.collider(f.sprite, this.player, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
+      this.carryImg = this.add.image(0, 0, 'nordic-w0', 0).setOrigin(0.5).setVisible(false);
       if (this.textures.exists('night')) this.textures.remove('night');
       this.nightTex = this.textures.createCanvas('night', 64, 64) ?? undefined;
       if (this.nightTex) {
@@ -495,6 +509,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
+      tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
@@ -542,13 +557,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
       if(input.paused||this.attacking){dx=0;dy=0;}
-      const moving=Math.hypot(dx,dy)>0.12;const running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
+      const moving=Math.hypot(dx,dy)>0.12;const running=!this.carried&&moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
       // Ducken als Umschalter: einmal drücken = ducken, erneut drücken = aufstehen.
       const cKey=k?.['C'],ctrlKey=k?.['CTRL'];
       if((cKey&&Phaser.Input.Keyboard.JustDown(cKey))||(ctrlKey&&Phaser.Input.Keyboard.JustDown(ctrlKey)))this.crouchOn=!this.crouchOn;
       if(running||this.attacking)this.crouchOn=false;
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
-      const speed=running?105:this.crouching?34:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
+      const speed=running?105:this.crouching?34:this.carried?CARRY_SPEED:65; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
@@ -577,7 +592,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const qKey=k?.['Q'];
       const keyAttack=(qKey&&Phaser.Input.Keyboard.JustDown(qKey))||this.clickAttack;this.clickAttack=false;
-      if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
+      if(this.carried&&(input.attack!==this.lastAttack||keyAttack)){this.lastAttack=input.attack;this.message='Hände voll · erst absetzen [E]';this.messageUntil=time+1400;}
+      else if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
         this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
@@ -601,6 +617,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         p.setTexture(`${w}-idle-${this.lastFacing}`);
       }
       p.setDepth(p.y);
+      if(this.carried&&this.carryImg){
+        // Bound captive lies across the shoulders and bobs with the walk cycle.
+        const side=[0,1,7,6].includes(this.lastFacing)?0:4;
+        const bob=p.anims.isPlaying?(p.anims.currentFrame?.index??0)%2:0;
+        this.carryImg.setTexture(this.carried.t.id,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
+      }
       const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':null;
       const food=input.eat??eatKey;input.eat=null;
       if(food&&!this.dead&&!this.sleeping){const r=eat(this.pantry(),food);
@@ -616,7 +638,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
         const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
         const house = NORDIC_HOUSES.find(h => Math.hypot(p.x-h.x,p.y-h.y-38)<28);
-        if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
+        const captive = this.carried ? undefined : this.folk.find(f=>(f.c.state==='surrender'||f.c.state==='bound')&&Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)<30);
+        if(this.carried){
+          const f=this.carried;const inCamp=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-50)<130;
+          f.c=drop(f.c,p.x,p.y+6,inCamp);this.carried=undefined;this.carryImg?.setVisible(false);poseFolk(f);
+          this.message=inCamp?'Willkommen im Stamm! Die Gefangene gehört jetzt zu euch':'Gefangene abgesetzt · [E] wieder aufheben';
+          this.persist();
+        }
+        else if(captive){
+          const was=captive.c.state;captive.c=interact(captive.c,false);
+          if(was==='surrender'){captive.c={...captive.c,x:Math.round(captive.sprite.x),y:Math.round(captive.sprite.y)};this.message='Gefesselt · [E] auf die Schultern nehmen';}
+          else{this.carried=captive;this.message='Auf den Schultern · bring sie ins Höhlenlager';}
+          poseFolk(captive);
+        }
+        else if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
         else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +1`;}
@@ -738,6 +773,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           this.hurt(c, hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10, fx, fy, time);
+        }
+        for (const f of this.folk) {
+          if (f.c.state !== 'free') continue;
+          const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
+          if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
+          if (!f.t.captive) { this.message = 'Die Wache wehrt deinen Schlag ab'; this.messageUntil = time + 1600; continue; }
+          f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
+          f.c = strike(f.c, true); poseFolk(f);
+          this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
         }
         this.chop(time, fx, fy);
       }

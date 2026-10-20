@@ -6,6 +6,7 @@ const game: GameSave = {
   stock: { wood: 3, stone: 1, flint: 0, fiber: 1 }, xp: 120, owned: ['axe', 'club'],
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
   lootedHouses: ['Frostheim:0'],
+  captives: [],
 };
 
 beforeEach(() => localStorage.clear());

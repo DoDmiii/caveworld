@@ -13,4 +13,4 @@
 - [x] Tree felling: 5 axe hits, tree vanishes leaving stump + drops; stumps regrow after sleeping.
 - [ ] Tree fall animation once the user delivers final sprites.
 - [x] Crafting menu, hotbar quick-slots and level system.
-- [ ] Bring gazelle herd closer to camp; fix mobile loading hang.
+- [ ] Bring gazelle herd closer to camp; fix mobile loading hang.- [x] Nordic villagers in Frostheim/Gipfelwacht/Eisfurt; capture (hit → surrender → E bind → E carry → E drop, joins tribe in camp), saved
