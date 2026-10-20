@@ -1,4 +1,7 @@
 # Roadmap
+- [ ] Expand Nordic villages with uploaded fences and more houses.
+- [ ] Add persistent house loot: resources, food and existing weapons.
+- [ ] Verify village entrances, looting and reload persistence.
 - [x] Create explorable pixel wilderness using the eight uploaded sprites, smooth camera and collisions.
 - [x] Add portrait touch controls and top status HUD.
 - [x] Verify movement, actions and layout on mobile and desktop.
