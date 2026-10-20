@@ -39,7 +39,7 @@ export type Folk = {
 };
 
 export function preloadFolk(scene: Phaser.Scene) {
-  for (const t of NORDIC_FOLK) if (!scene.textures.exists(t.tex)) scene.load.spritesheet(t.tex, t.url, { frameWidth: 32, frameHeight: 32 });
+  for (const t of NORDIC_FOLK) if (t.tex === t.id) scene.load.spritesheet(t.tex, t.url, { frameWidth: 32, frameHeight: 32 });
 }
 
 export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade.StaticGroup): Folk[] {
