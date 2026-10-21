@@ -2,6 +2,7 @@
 // und vitest ihn ohne Phaser testen kann.
 import { z } from 'zod';
 import { START_MINUTES } from './survival';
+import { ITEM_IDS } from './progress';
 
 export const SAVE_KEY = 'caveworld:save';
 export const SAVE_VERSION = 1;
@@ -24,7 +25,7 @@ const GameSchema = z.object({
   cooked: count,
   stock: z.object({ wood: count, stone: count, flint: count, fiber: count }),
   xp: count,
-  owned: z.array(z.enum(['axe', 'spear', 'club'])).max(10),
+  owned: z.array(z.enum(ITEM_IDS)).max(20),
   // Die Welt wird deterministisch (Seeds) neu erzeugt. Gespeichert wird nur die Abweichung davon.
   stumps: z.array(z.object({ x: coord, y: coord, dir: z.number().int().min(0).max(7) })).max(5000),
   minedRocks: z.array(z.tuple([coord, coord])).max(5000),
