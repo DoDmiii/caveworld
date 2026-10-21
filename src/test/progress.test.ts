@@ -10,3 +10,8 @@ describe('progress', () => {
   it('craft deducts cost', () => { expect(craft(club, stock, 1, [])).toEqual({ ...stock, wood: 1 }); });
   it('no craft when missing or owned', () => { expect(craft(club, { ...stock, wood: 2 }, 1, [])).toBeNull(); expect(craft(club, stock, 1, ['club'])).toBeNull(); });
 });
+import { coldFactor, pickupAmount } from '@/game/progress';
+describe('crafted helpers', () => {
+  it('fur halves cold, torch halves at night', () => { expect(coldFactor(['fur'], false)).toBe(0.5); expect(coldFactor(['torch'], false)).toBe(1); expect(coldFactor(['torch', 'fur'], true)).toBe(0.25); });
+  it('bag doubles pickups', () => { expect(pickupAmount(['bag'])).toBe(2); expect(pickupAmount([])).toBe(1); });
+});
