@@ -40,7 +40,7 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { XP, levelFromXp, RECIPES, craft, type ItemId } from './progress';
+import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
@@ -66,6 +66,7 @@ export type TalkTarget = InteractionContext & { id: string; name: string };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
+  slowUntil?: number;
   sprite: Phaser.Physics.Arcade.Sprite;
   state: 'idle' | 'wander' | 'flee' | 'chase' | 'attack' | 'dead';
   facing: number;
@@ -547,7 +548,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120;
         this.hunger=tickHunger(this.hunger,dt);
-        this.warmth=tickWarmth(this.warmth,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});
+        {const before=this.warmth;const after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay)):after;}
+        if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));
         if(time>=this.messageUntil){
           if(this.warmth<COLD_WARN&&time>this.nextColdWarn){this.nextColdWarn=time+25000;this.message='Dir ist kalt – such ein Feuer';this.messageUntil=time+2400;}
@@ -585,7 +587,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!input.paused&&lockNow){
         const cands=this.creatures.filter(c=>c.state!=='dead'&&c!==this.target&&Math.hypot(c.sprite.x-p.x,c.sprite.y-p.y)<260).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y));
         this.target=cands[0];
-        this.message=this.target?`${NAME[this.target.kind]} anvisiert`:'Kein Tier in Sicht';this.messageUntil=time+1400;
+        if(this.target&&this.owned.includes('bola')){this.target.slowUntil=time+BOLA_MS;}
+        this.message=this.target?`${NAME[this.target.kind]} anvisiert${this.owned.includes('bola')?' · Bola trifft!':''}`:'Kein Tier in Sicht';this.messageUntil=time+1400;
       }
       // Throw (R): spear only, needs a locked target and the spear in hand.
       const rKey=k?.['R'];
@@ -596,7 +599,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else{
           const t=this.target;this.lastFacing=(Math.round(Math.atan2(t.sprite.y-p.y,t.sprite.x-p.x)/(Math.PI/4))+8)%8;
           this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;p.play(`anim-spear-attack-${this.lastFacing}`);
-          this.hasSpear=false;
+          this.hasSpear=this.owned.includes('bundle');
           const img=this.add.image(p.x,p.y-8,'spear-proj').setScale(0.5);
           this.spear={img,target:t,tx:t.sprite.x,ty:t.sprite.y};
           this.message='Speer geworfen!';
@@ -667,7 +670,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
-        else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +1`;}
+        else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);{const n=pickupAmount(this.owned);for(let i=0;i<n;i++)this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +${n}`;}}
         else if(house){
           const next = lootHouse({ stock:this.stock, berries:this.count, meat:this.meat, cooked:this.cooked, owned:this.owned, lootedHouses:this.lootedHouses }, house.id);
           if(next){
@@ -935,10 +938,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (time > c.stateUntil) c.state = 'chase';
         } else if (c.state === 'flee') {
           const nx = -dx, ny = -dy, nl = Math.max(1, Math.hypot(nx, ny));
-          body.setVelocity(nx / nl * 95, ny / nl * 95);
+          const sl = c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1;
+          body.setVelocity(nx / nl * 95 * sl, ny / nl * 95 * sl);
         } else if (c.state === 'chase') {
           const nl = Math.max(1, dist);
-          const sp = c.kind === 'tiger' ? 70 : SNOW[c.kind as SnowKind].speed;
+          const sp = (c.kind === 'tiger' ? 70 : SNOW[c.kind as SnowKind].speed) * (c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1);
           if (dist < reachOf(c.kind) - 6) body.setVelocity(0, 0); else body.setVelocity(dx / nl * sp, dy / nl * sp);
         } else {
           // Wander: pick a nearby target now and then.
