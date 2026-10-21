@@ -41,7 +41,7 @@ import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { XP, levelFromXp, RECIPES, craft, type ItemId } from './progress';
-import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, DEATH, CROUCH, type Weapon } from './gear';
+import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, type Weapon } from './gear';
 import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
