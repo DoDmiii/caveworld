@@ -118,7 +118,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lootedHouses: string[] = [];
     folk: Folk[] = [];
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
-    folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined }>();
+    folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
     talk: TalkTarget | null = null;
     carried: Folk | undefined = undefined;
     carryImg?: Phaser.GameObjects.Image;
@@ -251,6 +251,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
       this.load.image('spear-proj', ICON_SPEAR);
+      this.load.image('folk-axe', ICON_AXE);
       this.load.image('bed', BED);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
@@ -766,6 +767,29 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         let m = this.folkMood.get(f.c.id);
         if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
         const v = VILLAGES[f.t.village], vk = villageKey(v.name);
+        // Villagers who saw an attack draw their weapons and hunt the player for a while.
+        const armed = f.c.state === 'free' && (m.armedUntil ?? 0) > time;
+        if (!armed) m.weapon?.setVisible(false);
+        if (armed && !stop) {
+          const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y, len = Math.max(1, d);
+          if (!m.weapon) m.weapon = this.add.image(0, 0, f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(0.45);
+          const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4;
+          f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+          if (d > 15 && inRange) { s2.setVelocity(dx / len * 58, dy / len * 58); s2.play(`${f.t.tex}-walk-${f.facing}`, true); }
+          else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
+          const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
+          if (d <= 19 && time > this.lastDamage + 1200) {
+            this.health = Math.max(0, this.health - (f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
+            (m as { swingUntil?: number }).swingUntil = time + 220;
+            this.message = f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
+          }
+          const sw = time < swing ? 1.2 : 0;
+          m.weapon.setVisible(true).setFlipX(left).setPosition(s2.x + (left ? -7 : 7), s2.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(s2.y + 1);
+          m.icon.setText('⚔').setPosition(s2.x, s2.y - 14).setDepth(s2.y + 2000).setVisible(true);
+          s2.setDepth(s2.y);
+          if (d > 260 || !inRange && d > 120) m.armedUntil = 0;
+          continue;
+        }
         if (f.c.state !== 'free' || d > 160) { m.dec = undefined; m.icon.setVisible(false); continue; }
         if (time > m.next) {
           m.next = time + 400;
@@ -795,6 +819,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
         };
       } else this.talk = null;
+    }
+    /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
+    armFolk(f: Folk, time: number) {
+      for (const o of this.folk) {
+        if (o.c.state !== 'free' || o.t.village !== f.t.village) continue;
+        if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
+        const m = this.folkMood.get(o.c.id); if (m) m.armedUntil = time + 25000;
+      }
     }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const vk = villageKey(VILLAGES[f.t.village].name);
@@ -851,7 +883,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (f.c.state !== 'free') continue;
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          if (!f.t.captive) { this.message = 'Die Wache wehrt deinen Schlag ab'; this.messageUntil = time + 1600; continue; }
+          if (!f.t.captive) { this.armFolk(f, time); this.message = 'Die Wache wehrt deinen Schlag ab und greift an!'; this.messageUntil = time + 1600; continue; }
           f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
           f.c = strike(f.c, true); poseFolk(f);
           this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
@@ -859,7 +891,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (this.folk.some(o => o !== f && o.c.state === 'free' && o.t.village === f.t.village && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) < 180)) {
             const vk = villageKey(VILLAGES[f.t.village].name);
             this.rel = changeVillageRelationship(raiseAlarm(this.rel, vk, Date.now()), vk, -35);
-            this.message = 'Ergibt sich! Zeugen schlagen Alarm';
+            this.armFolk(f, time);
+            this.message = 'Ergibt sich! Zeugen zücken ihre Waffen!';
           }
         }
         this.chop(time, fx, fy);
