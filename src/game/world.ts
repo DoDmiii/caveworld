@@ -1,6 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
+import { flankSlot, separation, lungeIndex } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -763,6 +764,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
+      const armedFolk = this.folk.filter(o => o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
         if (f.c.state === 'carried') continue;
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
@@ -774,16 +776,26 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const armed = f.c.state === 'free' && (m.armedUntil ?? 0) > time;
         if (!armed) m.weapon?.setVisible(false);
         if (armed && !stop) {
-          const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y, len = Math.max(1, d);
+          const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
           if (!m.weapon) m.weapon = this.add.image(0, 0, f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(0.45);
           const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4;
+          const idx = armedFolk.indexOf(f), n = armedFolk.length;
+          const lunging = idx === lungeIndex(n, time);
+          // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
+          const goal = lunging ? { x: p.x, y: p.y } : flankSlot(idx, n, p, 34, time, f.seed);
+          const sep = separation(s2, armedFolk.filter(o => o !== f).map(o => o.sprite), 26);
+          let gx = goal.x - s2.x + sep.x * 40, gy = goal.y - s2.y + sep.y * 40;
+          const gl = Math.hypot(gx, gy);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-          if (d > 15 && inRange) { s2.setVelocity(dx / len * 58, dy / len * 58); s2.play(`${f.t.tex}-walk-${f.facing}`, true); }
-          else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
+          if (gl > 4 && inRange && !(lunging && d <= 15)) {
+            const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
+            s2.setVelocity(gx * spd, gy * spd); s2.play(`${f.t.tex}-walk-${f.facing}`, true);
+          } else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
-          if (d <= 19 && time > this.lastDamage + 1200) {
+          if (lunging && d <= 19 && time > this.lastDamage + 900) {
             this.health = Math.max(0, this.health - (f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
             (m as { swingUntil?: number }).swingUntil = time + 220;
+            this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
             this.message = f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
           }
           const sw = time < swing ? 1.2 : 0;
