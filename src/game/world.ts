@@ -858,7 +858,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.message = o.message; this.messageUntil = time + 2200;
       this.persist();
     }
+    /** Pixel blood: droplets fly in hit direction, then leave fading stains on the ground. */
+    bleed(x: number, y: number, dx: number, dy: number, n: number) {
+      const reds = [0x8a0f0f, 0xb01818, 0x5e0808];
+      for (let i = 0; i < n; i++) {
+        const sz = Math.random() < 0.3 ? 2 : 1;
+        const drop = this.add.rectangle(x, y - 6, sz, sz, reds[i % 3]).setDepth(y + 5);
+        const spread = (Math.random() - 0.5) * 1.4, sp = 10 + Math.random() * 18;
+        const a = Math.atan2(dy, dx) + spread;
+        const tx = x + Math.cos(a) * sp, ty = y + Math.sin(a) * sp * 0.6 + 2;
+        this.tweens.add({ targets: drop, x: tx, y: { from: y - 6, to: ty }, duration: 220 + Math.random() * 160, ease: 'Quad.easeOut', onComplete: () => {
+          drop.setDepth(-1e6 + 1).setAlpha(0.85);
+          this.tweens.add({ targets: drop, alpha: 0, delay: 9000, duration: 4000, onComplete: () => drop.destroy() });
+        } });
+      }
+      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 5 + n * 0.5, 3 + n * 0.25, 0x6e0b0b, 0.7).setDepth(-1e6);
+      this.tweens.add({ targets: pool, alpha: 0, delay: 12000, duration: 5000, onComplete: () => pool.destroy() });
+    }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
+      if (c.kind !== 'mammoth' || dmg > 0) this.bleed(c.sprite.x, c.sprite.y, fx, fy, c.kind === 'gazelle' ? 6 : 9);
       c.hp -= dmg;
       c.sprite.setTint(0xff6b4a);
       this.time.delayedCall(140, () => { if (c.state !== 'dead') c.sprite.clearTint(); });
@@ -901,6 +919,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (!f.t.captive) { this.armFolk(f, time); this.message = 'Die Wache wehrt deinen Schlag ab und greift an!'; this.messageUntil = time + 1600; continue; }
           f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
           f.c = strike(f.c, true); poseFolk(f);
+          this.bleed(f.sprite.x, f.sprite.y, fx, fy, 10);
           this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
           // Witnesses from the same village raise the alarm and the village remembers it.
           if (this.folk.some(o => o !== f && o.c.state === 'free' && o.t.village === f.t.village && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) < 180)) {
@@ -940,6 +959,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             if (time > this.lastDamage + 900) {
               this.health = Math.max(0, this.health - (c.kind === 'tiger' ? 10 : SNOW[c.kind].damage));
               this.hitFlash = time + 200;
+              this.bleed(p.x, p.y, dx / Math.max(1, dist), dy / Math.max(1, dist), 7);
               this.lastDamage = time;
               this.message = `${nm} greift dich an!`;
               this.messageUntil = time + 1600;
@@ -953,9 +973,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const sl = c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1;
           body.setVelocity(nx / nl * 95 * sl, ny / nl * 95 * sl);
         } else if (c.state === 'chase') {
-          const nl = Math.max(1, dist);
           const sp = (c.kind === 'tiger' ? 70 : SNOW[c.kind as SnowKind].speed) * (c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1);
-          if (dist < reachOf(c.kind) - 6) body.setVelocity(0, 0); else body.setVelocity(dx / nl * sp, dy / nl * sp);
+          // Pack hunters approach from different angles and keep apart instead of stacking.
+          const pack = this.creatures.filter(o => o !== c && o.state !== 'dead' && (o.state === 'chase' || o.state === 'attack'));
+          const sep = separation(s, pack.map(o => o.sprite), reachOf(c.kind) * 0.9);
+          let gx = dx, gy = dy;
+          if (pack.length && dist > reachOf(c.kind)) {
+            const all = [c, ...pack].sort((a, b) => a.sprite.x - b.sprite.x);
+            const slot = flankSlot(all.indexOf(c), all.length, p, reachOf(c.kind) * 0.8, time, c.sprite.x % 7);
+            gx = slot.x - s.x; gy = slot.y - s.y;
+          }
+          gx += sep.x * 50; gy += sep.y * 50;
+          const gl = Math.max(1, Math.hypot(gx, gy));
+          if (dist < reachOf(c.kind) - 6 && Math.hypot(sep.x, sep.y) < 0.05) body.setVelocity(0, 0); else body.setVelocity(gx / gl * sp, gy / gl * sp);
         } else {
           // Wander: pick a nearby target now and then.
           if (time > c.nextDecision) {
