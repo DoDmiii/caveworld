@@ -868,11 +868,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const a = Math.atan2(dy, dx) + spread;
         const tx = x + Math.cos(a) * sp, ty = y + Math.sin(a) * sp * 0.6 + 2;
         this.tweens.add({ targets: drop, x: tx, y: { from: y - 6, to: ty }, duration: 220 + Math.random() * 160, ease: 'Quad.easeOut', onComplete: () => {
-          drop.setDepth(-1e6 + 1).setAlpha(0.85);
+          drop.setDepth(MAP.y - 197).setAlpha(0.85);
           this.tweens.add({ targets: drop, alpha: 0, delay: 9000, duration: 4000, onComplete: () => drop.destroy() });
         } });
       }
-      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 5 + n * 0.5, 3 + n * 0.25, 0x6e0b0b, 0.7).setDepth(-1e6);
+      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 5 + n * 0.5, 3 + n * 0.25, 0x6e0b0b, 0.7).setDepth(MAP.y - 198);
       this.tweens.add({ targets: pool, alpha: 0, delay: 12000, duration: 5000, onComplete: () => pool.destroy() });
     }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
