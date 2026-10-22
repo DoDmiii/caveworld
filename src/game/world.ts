@@ -1,6 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
+import { flankSlot, separation, lungeIndex } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -763,6 +764,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
+      const armedFolk = this.folk.filter(o => o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
         if (f.c.state === 'carried') continue;
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
@@ -774,16 +776,26 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const armed = f.c.state === 'free' && (m.armedUntil ?? 0) > time;
         if (!armed) m.weapon?.setVisible(false);
         if (armed && !stop) {
-          const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y, len = Math.max(1, d);
+          const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
           if (!m.weapon) m.weapon = this.add.image(0, 0, f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(0.45);
           const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4;
+          const idx = armedFolk.indexOf(f), n = armedFolk.length;
+          const lunging = idx === lungeIndex(n, time);
+          // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
+          const goal = lunging ? { x: p.x, y: p.y } : flankSlot(idx, n, p, 34, time, f.seed);
+          const sep = separation(s2, armedFolk.filter(o => o !== f).map(o => o.sprite), 26);
+          let gx = goal.x - s2.x + sep.x * 40, gy = goal.y - s2.y + sep.y * 40;
+          const gl = Math.hypot(gx, gy);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-          if (d > 15 && inRange) { s2.setVelocity(dx / len * 58, dy / len * 58); s2.play(`${f.t.tex}-walk-${f.facing}`, true); }
-          else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
+          if (gl > 4 && inRange && !(lunging && d <= 15)) {
+            const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
+            s2.setVelocity(gx * spd, gy * spd); s2.play(`${f.t.tex}-walk-${f.facing}`, true);
+          } else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
-          if (d <= 19 && time > this.lastDamage + 1200) {
+          if (lunging && d <= 19 && time > this.lastDamage + 900) {
             this.health = Math.max(0, this.health - (f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
             (m as { swingUntil?: number }).swingUntil = time + 220;
+            this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
             this.message = f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
           }
           const sw = time < swing ? 1.2 : 0;
@@ -846,7 +858,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.message = o.message; this.messageUntil = time + 2200;
       this.persist();
     }
+    /** Pixel blood: droplets fly in hit direction, then leave fading stains on the ground. */
+    bleed(x: number, y: number, dx: number, dy: number, n: number) {
+      const reds = [0x8a0f0f, 0xb01818, 0x5e0808];
+      for (let i = 0; i < n; i++) {
+        const sz = Math.random() < 0.3 ? 2 : 1;
+        const drop = this.add.rectangle(x, y - 6, sz, sz, reds[i % 3]).setDepth(y + 5);
+        const spread = (Math.random() - 0.5) * 1.4, sp = 10 + Math.random() * 18;
+        const a = Math.atan2(dy, dx) + spread;
+        const tx = x + Math.cos(a) * sp, ty = y + Math.sin(a) * sp * 0.6 + 2;
+        this.tweens.add({ targets: drop, x: tx, y: { from: y - 6, to: ty }, duration: 220 + Math.random() * 160, ease: 'Quad.easeOut', onComplete: () => {
+          drop.setDepth(MAP.y - 197).setAlpha(0.85);
+          this.tweens.add({ targets: drop, alpha: 0, delay: 9000, duration: 4000, onComplete: () => drop.destroy() });
+        } });
+      }
+      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 5 + n * 0.5, 3 + n * 0.25, 0x6e0b0b, 0.7).setDepth(MAP.y - 198);
+      this.tweens.add({ targets: pool, alpha: 0, delay: 12000, duration: 5000, onComplete: () => pool.destroy() });
+    }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
+      if (c.kind !== 'mammoth' || dmg > 0) this.bleed(c.sprite.x, c.sprite.y, fx, fy, c.kind === 'gazelle' ? 6 : 9);
       c.hp -= dmg;
       c.sprite.setTint(0xff6b4a);
       this.time.delayedCall(140, () => { if (c.state !== 'dead') c.sprite.clearTint(); });
@@ -889,6 +919,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (!f.t.captive) { this.armFolk(f, time); this.message = 'Die Wache wehrt deinen Schlag ab und greift an!'; this.messageUntil = time + 1600; continue; }
           f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
           f.c = strike(f.c, true); poseFolk(f);
+          this.bleed(f.sprite.x, f.sprite.y, fx, fy, 10);
           this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
           // Witnesses from the same village raise the alarm and the village remembers it.
           if (this.folk.some(o => o !== f && o.c.state === 'free' && o.t.village === f.t.village && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) < 180)) {
@@ -928,6 +959,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             if (time > this.lastDamage + 900) {
               this.health = Math.max(0, this.health - (c.kind === 'tiger' ? 10 : SNOW[c.kind].damage));
               this.hitFlash = time + 200;
+              this.bleed(p.x, p.y, dx / Math.max(1, dist), dy / Math.max(1, dist), 7);
               this.lastDamage = time;
               this.message = `${nm} greift dich an!`;
               this.messageUntil = time + 1600;
@@ -941,9 +973,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const sl = c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1;
           body.setVelocity(nx / nl * 95 * sl, ny / nl * 95 * sl);
         } else if (c.state === 'chase') {
-          const nl = Math.max(1, dist);
           const sp = (c.kind === 'tiger' ? 70 : SNOW[c.kind as SnowKind].speed) * (c.slowUntil && c.slowUntil > time ? BOLA_SLOW : 1);
-          if (dist < reachOf(c.kind) - 6) body.setVelocity(0, 0); else body.setVelocity(dx / nl * sp, dy / nl * sp);
+          // Pack hunters approach from different angles and keep apart instead of stacking.
+          const pack = this.creatures.filter(o => o !== c && o.state !== 'dead' && (o.state === 'chase' || o.state === 'attack'));
+          const sep = separation(s, pack.map(o => o.sprite), reachOf(c.kind) * 0.9);
+          let gx = dx, gy = dy;
+          if (pack.length && dist > reachOf(c.kind)) {
+            const all = [c, ...pack].sort((a, b) => a.sprite.x - b.sprite.x);
+            const slot = flankSlot(all.indexOf(c), all.length, p, reachOf(c.kind) * 0.8, time, c.sprite.x % 7);
+            gx = slot.x - s.x; gy = slot.y - s.y;
+          }
+          gx += sep.x * 50; gy += sep.y * 50;
+          const gl = Math.max(1, Math.hypot(gx, gy));
+          if (dist < reachOf(c.kind) - 6 && Math.hypot(sep.x, sep.y) < 0.05) body.setVelocity(0, 0); else body.setVelocity(gx / gl * sp, gy / gl * sp);
         } else {
           // Wander: pick a nearby target now and then.
           if (time > c.nextDecision) {

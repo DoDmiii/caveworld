@@ -19,3 +19,4 @@
 - Keep Nordic structures and stable house identities in nordic.ts, finite loot rules in the engine-free village-loot module, and persist searched house IDs in the existing game save so reloads cannot duplicate rewards.
 - Keep Nordic villagers in nordic-folk.ts (one packed atlas per template: idle, walk, surrender, bound) and capture rules in the engine-free captives module; captives on the shoulders are saved as bound at the player's feet so reloads never lose them.
 - Keep NPC reaction rules (behavior.ts), the interaction registry (interactions.ts), relationship state (relationships.ts) and wheel effects (tribal.ts) engine-free; world.ts only detects targets, applies outcomes and saves relationships in the game save.
+- Keep chaser formation rules (ring slots, separation, lunge turns) in the engine-free combat module; world.ts only applies the resulting velocities so future tribe-vs-village battles reuse them.
