@@ -73,8 +73,8 @@ import spear_attack_6 from '../assets/gear/spear-attack-6.png.asset.json';
 import spear_attack_7 from '../assets/gear/spear-attack-7.png.asset.json';
 import sleep_tex from '../assets/gear/sleep.png.asset.json';
 import bed_tex from '../assets/gear/bed.png.asset.json';
-import icon_axe from '../assets/gear/icon-axe.png.asset.json';
-import icon_spear from '../assets/gear/icon-spear.png.asset.json';
+import icon_axe from '../assets/craft/icon-axe.png.asset.json';
+import icon_spear from '../assets/craft/icon-spear.png.asset.json';
 export type Weapon='none'|'axe'|'spear';
 export const IDLE:Record<Weapon,string[]>={
   none:[none_idle_0.url,none_idle_1.url,none_idle_2.url,none_idle_3.url,none_idle_4.url,none_idle_5.url,none_idle_6.url,none_idle_7.url],
