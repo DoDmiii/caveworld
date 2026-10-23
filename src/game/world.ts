@@ -1,7 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
-import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, FINISHER_REACH, newFighter } from './combat';
+import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -53,7 +53,7 @@ import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
-import { strike, interact, drop, CARRY_SPEED } from './captives';
+import { interact, drop, CARRY_SPEED } from './captives';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
 import type { InteractionContext, InteractionId } from './interactions';

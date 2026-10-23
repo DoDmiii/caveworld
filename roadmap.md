@@ -1,5 +1,5 @@
 # Roadmap
-- [ ] Add uploaded Steinkeil weapon, knockdowns and finishers; verify combat and save/reload.
+- [x] Add uploaded Steinkeil weapon, knockdowns and finishers; verify combat and save/reload.
 - [x] Expand Nordic villages with uploaded fences and more houses.
 - [x] Add persistent house loot: resources, food and existing weapons.
 - [x] Verify village entrances, looting and reload persistence.
