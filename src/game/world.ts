@@ -1,7 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
-import { flankSlot, separation, lungeIndex } from './combat';
+import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, FINISHER_REACH, newFighter } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -42,7 +42,7 @@ import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
-import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, type Weapon } from './gear';
+import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, type Weapon } from './gear';
 import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
@@ -102,6 +102,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lastAction = 0;
     lastAttack = 0;
     attacking = false;
+    finisher: Folk | undefined = undefined;
     sleeping = false;
     weapon: Weapon = 'none';
     lastReport = 0;
@@ -179,6 +180,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
+        fighters: this.folk.filter(f => f.combat.hp !== 60 || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
       };
     }
@@ -207,6 +209,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
+      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0 }; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
@@ -244,11 +247,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       preloadFolk(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
-      (['none','axe','spear'] as Weapon[]).forEach(w => {
+      (['none','axe','spear','wedge'] as Weapon[]).forEach(w => {
         IDLE[w].forEach((u, i) => this.load.image(`${w}-idle-${i}`, u));
         WALK[w].forEach((u, i) => this.load.spritesheet(`${w}-walk-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
         ATTACK[w].forEach((u, i) => this.load.spritesheet(`${w}-attack-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
       });
+      FINISHER.forEach((u,i)=>this.load.spritesheet(`finisher-${i}`,u,{frameWidth:32,frameHeight:32}));
       DEATH.forEach((u,i)=>this.load.spritesheet(`death-${i}`,u,{frameWidth:32,frameHeight:32}));
       CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
@@ -284,7 +288,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (let i = 0; i < 8; i++) {
         this.anims.create({ key: `walk-${i}`, frames: this.anims.generateFrameNumbers(`walk${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
       }
-      (['none','axe','spear'] as Weapon[]).forEach(w => {
+      (['none','axe','spear','wedge'] as Weapon[]).forEach(w => {
         for (let i = 0; i < 8; i++) {
           const walkKey = `${w}-walk-${i}`;
           this.anims.create({ key: walkKey, frames: this.anims.generateFrameNumbers(walkKey, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
@@ -295,6 +299,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
       });
       for (let i = 0; i < 8; i++) {
+        this.anims.create({ key: `anim-finisher-${i}`, frames: this.anims.generateFrameNumbers(`finisher-${i}`), frameRate: 10, repeat: 0 });
         this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
         this.anims.create({ key: `anim-crouch-${i}`, frames: this.anims.generateFrameNumbers(`crouch-${i}`), frameRate: 7, repeat: -1 });
         this.anims.create({ key: `tiger-walk-${i}`, frames: this.anims.generateFrameNumbers(`tiger-walk-${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
@@ -444,7 +449,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
       this.player.setSize(10,7).setOffset(11,23);
-      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;});
+      this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if(a.key.startsWith('anim-finisher-') && frame.index === 9)this.landFinisher();});
+      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')){this.finisher=undefined;this.persist();}});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE') as Record<string,Phaser.Input.Keyboard.Key>;
@@ -539,7 +545,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.lastRespawn=input.respawn;
       if(this.health<=0){
-        this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
+        this.finisher=undefined;this.attackPending=false;this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
         this.report(time,p);return;
       }
       if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000;}
@@ -559,8 +565,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
       else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
+      if(this.finisher){p.setVelocity(0,0);this.lastAttack=input.attack;this.lastAction=input.action;if(input.paused)p.anims.pause();else p.anims.resume();this.report(time,p);return;}
       if(input.craft){const rc=RECIPES.find(x=>x.id===input.craft);const next=rc&&craft(rc,this.stock,levelFromXp(this.xp),this.owned);if(rc&&next){this.stock=next;this.owned=[...this.owned,rc.id];this.message=`${rc.name} hergestellt · +25 EP`;this.messageUntil=time+2400;this.addXp(XP.craft);}input.craft=null;}
-      if(input.weapon!==this.weapon){this.weapon=input.weapon;this.attacking=false;}
+      if(input.weapon!==this.weapon){this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';this.attacking=false;this.attackPending=false;}
       const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
       this.nearBed=Math.hypot(p.x-bedX,p.y-bedY)<34;
       // Sleeping: lie on the bed, fade, restore vitals, wake up.
@@ -611,7 +618,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const keyAttack=(qKey&&Phaser.Input.Keyboard.JustDown(qKey))||this.clickAttack;this.clickAttack=false;
       if(this.carried&&(input.attack!==this.lastAttack||keyAttack)){this.lastAttack=input.attack;this.message='Hände voll · erst absetzen [E]';this.messageUntil=time+1400;}
       else if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
-        this.lastAttack=input.attack;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
+        this.lastAttack=input.attack;
+        const downed=this.folk.filter(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
+        if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
+        this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
@@ -648,8 +658,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.messageUntil=time+2000;}
       const actionKey=k?.['E'],spaceKey=k?.['SPACE'];
       const keyboardAction=(actionKey&&Phaser.Input.Keyboard.JustDown(actionKey))||(spaceKey&&Phaser.Input.Keyboard.JustDown(spaceKey));
-      if(!input.paused&&(input.action!==this.lastAction||keyboardAction)){
+      if(!input.paused&&!this.attacking&&(input.action!==this.lastAction||keyboardAction)){
         this.lastAction=input.action;
+        const downed=this.folk.find(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),w==='wedge',false));
+        if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
+        const knocked=this.folk.find(f=>f.c.state==='free'&&f.combat.phase==='downed'&&f.t.captive&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<30);
+        if(knocked){knocked.combat=newFighter();knocked.c={...knocked.c,state:'surrender'};poseFolk(knocked);}
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
         const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
         const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
@@ -764,9 +778,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
-      const armedFolk = this.folk.filter(o => o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
+      for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free')continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
+      const armedFolk = this.folk.filter(o => o.combat.phase === 'ready' && o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
-        if (f.c.state === 'carried') continue;
+        if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
+        if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
         if (d < bd) { bd = d; best = f; }
         let m = this.folkMood.get(f.c.id);
@@ -838,12 +854,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
     armFolk(f: Folk, time: number) {
       for (const o of this.folk) {
-        if (o.c.state !== 'free' || o.t.village !== f.t.village) continue;
+        if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
         if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
         const m = this.folkMood.get(o.c.id); if (m) m.armedUntil = time + 25000;
       }
     }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
+      const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
+      if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
       const vk = villageKey(VILLAGES[f.t.village].name);
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
@@ -857,6 +875,23 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.message = o.message; this.messageUntil = time + 2200;
       this.persist();
+    }
+    startFinisher(f:Folk):boolean {
+      const p=this.player;
+      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',f.c.state!=='free'))return false;
+      const angle=Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x);
+      this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
+      this.target=undefined;this.finisher=f;this.attacking=true;this.attackPending=false;this.crouchOn=false;
+      p.setPosition(f.sprite.x-Math.cos(angle)*14,f.sprite.y-Math.sin(angle)*14).setVelocity(0,0).setDepth(f.sprite.y+1);
+      p.anims.timeScale=1;p.play(`anim-finisher-${this.lastFacing}`);
+      this.message='Finisher!';this.messageUntil=this.time.now+1800;return true;
+    }
+    landFinisher(){
+      const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
+      f.combat=finishFighter(f.combat);poseFolk(f);this.armFolk(f,this.time.now);
+      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),18);
+      const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
+      this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
     /** Pixel blood: droplets fly in hit direction, then leave fading stains on the ground. */
     bleed(x: number, y: number, dx: number, dy: number, n: number) {
@@ -900,34 +935,31 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       p.setAlpha(this.hidden ? 0.6 : this.crouching ? 0.85 : 1);
       // Player attack hit: resolve on the first tick after attack starts.
       const hw = this.held;
-      const reach = hw === 'spear' ? 46 : hw === 'axe' ? 38 : 30;
+      const reach = hw === 'wedge' ? 24 : hw === 'spear' ? 46 : hw === 'axe' ? 38 : 30;
       const fa = this.lastFacing * (Math.PI / 4);
       const fx = Math.cos(fa), fy = Math.sin(fa);
-      if (this.attackPending) {
+      if (this.attackPending && (hw !== 'wedge' || (p.anims.currentFrame?.index ?? 0) >= 7)) {
         this.attackPending = false;
         for (const c of this.creatures) {
           if (c.state === 'dead') continue;
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          this.hurt(c, hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10, fx, fy, time);
+          this.hurt(c, hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10, fx, fy, time);
         }
         for (const f of this.folk) {
           if (f.c.state !== 'free') continue;
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          if (!f.t.captive) { this.armFolk(f, time); this.message = 'Die Wache wehrt deinen Schlag ab und greift an!'; this.messageUntil = time + 1600; continue; }
-          f.facing = (Math.round(Math.atan2(-ddy, -ddx) / (Math.PI / 4)) + 8) % 8;
-          f.c = strike(f.c, true); poseFolk(f);
-          this.bleed(f.sprite.x, f.sprite.y, fx, fy, 10);
-          this.message = 'Ergibt sich! [E] fesseln'; this.messageUntil = time + 2000;
-          // Witnesses from the same village raise the alarm and the village remembers it.
-          if (this.folk.some(o => o !== f && o.c.state === 'free' && o.t.village === f.t.village && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) < 180)) {
-            const vk = villageKey(VILLAGES[f.t.village].name);
-            this.rel = changeVillageRelationship(raiseAlarm(this.rel, vk, Date.now()), vk, -35);
-            this.armFolk(f, time);
-            this.message = 'Ergibt sich! Zeugen zücken ihre Waffen!';
-          }
+          if(f.combat.phase!=='ready')continue;
+          f.combat=hitFighter(f.combat,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10,time);
+          this.armFolk(f,time);
+          this.bleed(f.sprite.x,f.sprite.y,fx,fy,10);
+          if(f.combat.phase==='downed'){poseFolk(f);this.message=f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Wache niedergeschlagen · Steinkeil: Finisher';}
+          else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>f.sprite.clearTint());this.message='Treffer! Das Dorf greift an!';}
+          this.messageUntil=time+2000;
+          const vk=villageKey(VILLAGES[f.t.village].name);
+          this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-15);
         }
         this.chop(time, fx, fy);
       }
