@@ -13,6 +13,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains the Steinkeil and finished enemies across reload', () => {
+    const next = { ...game, owned: ['axe', 'wedge'] as GameSave['owned'], fighters: [{ id: 'nordic-m2-f', hp: 0, phase: 'dead' as const, x: 200, y: -700, facing: 2 }] };
+    expect(saveGame({ game: next })).toBe(true);
+    expect(loadSave()?.game).toEqual(next);
+  });
   it('ohne Spielstand gibt es null', () => { expect(loadSave()).toBeNull(); });
 
   it('speichert und lädt unverändert', () => {

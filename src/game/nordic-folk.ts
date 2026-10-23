@@ -7,6 +7,7 @@ import m2 from '@/assets/nordic-people/nordic-m2.png.asset.json';
 import { VILLAGES } from './biomes';
 import { isCampDestination } from './tribe';
 import type { Captive } from './captives';
+import { newFighter, type Fighter } from './combat';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
 // Only blond Nordic atlases (w0, w1, w3, m0, m2) may spawn in Nordic villages.
@@ -34,6 +35,7 @@ const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
 export type Folk = {
+  combat: Fighter;
   sprite: Phaser.Physics.Arcade.Sprite; t: FolkTemplate; c: Captive;
   facing: number; next: number; until: number; tx: number; ty: number; seed: number;
 };
@@ -50,7 +52,7 @@ export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade
     }
     const sprite = scene.physics.add.sprite(t.x, t.y, t.tex, 2).setSize(10, 7).setOffset(11, 23).setDepth(t.y).setPushable(false);
     scene.physics.add.collider(sprite, obstacles);
-    return { sprite, t, c: { id: t.id, state: 'free', x: t.x, y: t.y }, facing: 2, next: scene.time.now + 800 + i * 300, until: 0, tx: t.x, ty: t.y, seed: 977 + i * 151 };
+    return { sprite, t, combat: newFighter(), c: { id: t.id, state: 'free', x: t.x, y: t.y }, facing: 2, next: scene.time.now + 800 + i * 300, until: 0, tx: t.x, ty: t.y, seed: 977 + i * 151 };
   });
 }
 
@@ -58,8 +60,17 @@ export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade
 export function poseFolk(f: Folk) {
   const s = f.sprite; s.anims.stop(); s.setVelocity(0, 0);
   const body = s.body as Phaser.Physics.Arcade.Body;
-  body.enable = f.c.state !== 'carried';
+  body.enable = f.c.state !== 'carried' && f.combat.phase === 'ready';
   s.setVisible(f.c.state !== 'carried');
+  s.setAngle(0);
+  if (f.combat.phase !== 'ready') {
+    // Use this inhabitant's own lying pose; templates without it fall sideways, never borrow another ethnicity.
+    const frame = boundFrame(f.t, 0);
+    if (s.texture.has(String(frame))) s.setFrame(frame);
+    else s.setFrame(f.facing).setAngle(90);
+    s.setDepth(s.y);
+    return;
+  }
   if (f.c.state === 'surrender') s.setFrame(surrenderFrame(f.t, f.facing));
   else if (f.c.state === 'bound') s.setFrame(boundFrame(f.t, 0));
   else s.setFrame(f.facing);
@@ -69,6 +80,7 @@ export function poseFolk(f: Folk) {
 
 export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean) {
   for (const f of folk) {
+    if (f.combat.phase !== 'ready') continue;
     if (f.c.state !== 'free' && f.c.state !== 'camp') continue;
     const s = f.sprite, v = VILLAGES[f.t.village];
     const home = f.c.state === 'camp'

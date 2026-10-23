@@ -20,3 +20,5 @@
 - Keep Nordic villagers in nordic-folk.ts (one packed atlas per template: idle, walk, surrender, bound) and capture rules in the engine-free captives module; captives on the shoulders are saved as bound at the player's feet so reloads never lose them.
 - Keep NPC reaction rules (behavior.ts), the interaction registry (interactions.ts), relationship state (relationships.ts) and wheel effects (tribal.ts) engine-free; world.ts only detects targets, applies outcomes and saves relationships in the game save.
 - Keep chaser formation rules (ring slots, separation, lunge turns) in the engine-free combat module; world.ts only applies the resulting velocities so future tribe-vs-village battles reuse them.
+- Keep fighter health, knockdown recovery and finisher eligibility in combat.ts; save fighter outcomes separately from captive states so defeated guards cannot respawn or become captives on reload.
+- Import uploaded Steinkeil and finisher frames through wedge.ts, preserving pixels on a shared player canvas; Phaser resolves finisher impact from the animation frame rather than a timer.
