@@ -3,7 +3,7 @@ import { ChevronDown, Flame, Footprints, Heart, Map, Maximize, Pause, Play, X, Z
 import { Button } from '@/components/ui/button';
 import loader from '@/assets/loader.gif.asset.json';
 import cover from '@/assets/cover.jpg.asset.json';
-import { ICON_AXE, ICON_SPEAR, IDLE, type Weapon } from './gear';
+import { ICON_AXE, ICON_SPEAR, ICON_WEDGE, IDLE, type Weapon } from './gear';
 import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
@@ -19,7 +19,7 @@ import iBundle from '../assets/craft/icon-bundle.png.asset.json';
 import iBola from '../assets/craft/icon-bola.png.asset.json';
 import iAxe from '../assets/craft/icon-axe.png.asset.json';
 import iSpear from '../assets/craft/icon-spear.png.asset.json';
-const CRAFT_ICON: Partial<Record<ItemId, string>> = { axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url };
+const CRAFT_ICON: Partial<Record<ItemId, string>> = { wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url };
 import { RESOURCE_NAME } from './harvest';
 import { formatMinutes, isNight } from './survival';
 import { InteractionWheel } from './InteractionWheel';
@@ -42,6 +42,7 @@ const ITEMS: Item[] = [
   { id: 'fists', name: 'Fäuste', slot: 'hand', icon: undefined, weapon: 'none' },
   { id: 'axe', name: 'Steinaxt', slot: 'hand', icon: ICON_AXE, weapon: 'axe' },
   { id: 'spear', name: 'Steinspeer', slot: 'hand', icon: ICON_SPEAR, weapon: 'spear' },
+  { id: 'wedge', name: 'Steinkeil', slot: 'hand', icon: ICON_WEDGE, weapon: 'wedge' },
   { id: 'club', name: 'Holzkeule', slot: 'hand', icon: undefined, weapon: 'none' },
 ];
 const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', chest: 'Brust', feet: 'Füße' };
@@ -65,7 +66,7 @@ export default function GameView(){
  const [mapUrl,setMapUrl]=useState('');useEffect(()=>{setMapUrl(renderBiomeMap());},[]);const mapBg={backgroundImage:mapUrl?`url(${mapUrl})`:undefined,backgroundSize:'100% 100%',imageRendering:'pixelated' as const};
  const owns=(id:string)=>id==='fists'||status.owned.includes(id as ItemId);
  const bag=ITEMS.filter(i=>owns(i.id));
- const hold=(id:string)=>{const it=(ITEMS.find(i=>i.id===id)??ITEMS[0])!;setEquipped(e=>({...e,hand:it.id}));input.current.weapon=it.weapon??'none';input.current.club=it.id==='club';};
+ const hold=(id:string)=>{const it=ITEMS.find(i=>i.id===id)??ITEMS[0];if(!it)return;setEquipped(e=>({...e,hand:it.id}));input.current.weapon=it.weapon??'none';input.current.club=it.id==='club';};
  const selectSlot=(n:number)=>{setActive(n);hold(n===0?'fists':hotbar[n-1]??'fists');};
  const assign=(slot:number,id:string)=>{const next=hotbar.map(h=>h===id?null:h);next[slot]=id;setHotbar(next);setPick(null);if(active===slot+1)hold(id);};
  const wheelRef=useRef({hotbar,active,panel});wheelRef.current={hotbar,active,panel};
@@ -74,7 +75,7 @@ export default function GameView(){
   if(ui){
    const ok=(id:string|null):id is string=>!!id&&ITEMS.some(i=>i.id===id)&&(id==='fists'||owned.includes(id));
    const hb=ui.hotbar.map(id=>ok(id)?id:null);const hand=ok(ui.hand)?ui.hand:'fists';
-   const it=(ITEMS.find(i=>i.id===hand)??ITEMS[0])!;
+   const it=ITEMS.find(i=>i.id===hand)??ITEMS[0];if(!it)return;
    setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
   }
   setUiRestored(true);
