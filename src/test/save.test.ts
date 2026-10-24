@@ -13,6 +13,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains following and waiting companions with their positions', () => {
+    const next: GameSave = { ...game, companions: [{ id: 'ally-0', mode: 'follow', x: 950, y: 850 }, { id: 'ally-1', mode: 'wait', x: 900, y: 900 }] };
+    expect(saveGame({ game: next })).toBe(true);
+    expect(loadSave()?.game?.companions).toEqual(next.companions);
+  });
   it('retains the Steinkeil and finished enemies across reload', () => {
     const next = { ...game, owned: ['axe', 'wedge'] as GameSave['owned'], fighters: [{ id: 'nordic-m2-f', hp: 0, phase: 'dead' as const, x: 200, y: -700, facing: 2 }] };
     expect(saveGame({ game: next })).toBe(true);

@@ -1,6 +1,9 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
+import { canRecruit, MAX_COMPANIONS, type CompanionOrder } from './companions';
+import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
+import { getAvailableInteractions } from './interactions';
 import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
@@ -64,7 +67,7 @@ import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null };
 export type TalkTarget = InteractionContext & { id: string; name: string };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
   slowUntil?: number;
@@ -113,6 +116,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     bed?: Phaser.GameObjects.Image;
     creatures: Creature[] = [];
     campers: Camper[] = [];
+    companionOrders = new Map<string, CompanionOrder>();
+    companionMovement = new CompanionMovement();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
@@ -181,6 +186,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
         fighters: this.folk.filter(f => f.combat.hp !== 60 || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
+        companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
       };
     }
@@ -210,6 +216,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0 }; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
+      for (const order of g.companions ?? []) {
+        const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
+        if (order.mode === 'follow' && this.followingCount() >= MAX_COMPANIONS) continue;
+        actor.sprite.setPosition(order.x, order.y);
+        this.companionOrders.set(order.id, { ...order });
+      }
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
@@ -509,6 +521,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.folk = createFolk(this, this.obstacles);
       for (const f of this.folk) this.physics.add.collider(f.sprite, this.player, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
+      const allies = this.companionActors();
+      allies.forEach((ally, i) => { for (const other of allies.slice(i + 1)) this.physics.add.collider(ally.sprite, other.sprite); });
+      for (const f of this.folk) for (const camper of this.campers) this.physics.add.collider(f.sprite, camper.sprite, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
       this.carryImg = this.add.image(0, 0, 'nordic-w0', 0).setOrigin(0.5).setVisible(false);
       if (this.textures.exists('night')) this.textures.remove('night');
       this.nightTex = this.textures.createCanvas('night', 64, 64) ?? undefined;
@@ -528,8 +543,16 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
-      tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
-      tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping);
+      const controlled = new Set(this.companionOrders.keys());
+      tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
+      tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
+      const blocks: Block[] = (this.obstacles?.getChildren() ?? []).flatMap(o => {
+        const body = (o as Phaser.Physics.Arcade.Sprite).body;
+        return body ? [{ x: body.x, y: body.y, width: body.width, height: body.height }] : [];
+      });
+      this.companionMovement.tick(this.companionActors(), this.companionOrders, p, this.lastFacing, time,
+        input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && this.stamina > 1 && !this.carried,
+        this.crouching, blocks);
       this.tribal(time);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
@@ -774,7 +797,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player; if (!p) return;
       const now = Date.now();
       const req = input.interaction; input.interaction = null;
-      if (req) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); }
+      if (req) { if (!this.applyAllyInteraction(req.target, req.id, time)) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); } }
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
@@ -850,6 +873,40 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
         };
       } else this.talk = null;
+      const ally = this.companionActors().filter(a => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
+        .sort((a, b) => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) - Math.hypot(b.sprite.x - p.x, b.sprite.y - p.y))[0];
+      if (!this.carried && ally && (!best || Math.hypot(ally.sprite.x - p.x, ally.sprite.y - p.y) <= bd)) this.talk = this.allyContext(ally);
+    }
+    followingCount() { return [...this.companionOrders.values()].filter(o => o.mode === 'follow').length; }
+    companionActors(): CompanionActor[] {
+      return [
+        ...this.campers.map(c => ({ id: c.template.id, sprite: c.sprite, texture: c.template.id,
+          home: { x: c.template.x, y: c.template.y }, facing: c.facing, face: (d: number) => { c.facing = d; } })),
+        ...this.folk.filter(f => f.c.state === 'camp' && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, texture: f.t.tex,
+          home: { x: 940 + this.folk.indexOf(f) % 4 * 38, y: 735 }, facing: f.facing, face: (d: number) => { f.facing = d; } })),
+      ];
+    }
+    allyContext(a: CompanionActor): TalkTarget {
+      return { id: a.id, name: 'Stammesmitglied', target: 'ally', targetRole: 'villager', relationship: 100,
+        hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
+        targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount() };
+    }
+    applyAllyInteraction(target: string, id: InteractionId, time: number): boolean {
+      const actor = this.companionActors().find(a => a.id === target); if (!actor) return false;
+      const p = this.player;
+      if (!p || this.dead || this.health <= 0 || this.sleeping || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return true;
+      const option = getAvailableInteractions(this.allyContext(actor)).find(o => o.id === id);
+      if (!option || option.disabled) return true;
+      if (id === 'follow' || id === 'wait' || id === 'return') {
+        if (id === 'follow' && !canRecruit(true, this.followingCount(), this.companionOrders.get(target)?.mode === 'follow')) return true;
+        this.companionOrders.set(target, { id: target, mode: id, x: actor.sprite.x, y: actor.sprite.y });
+        actor.sprite.setVelocity(0, 0); this.companionMovement.reset(target);
+        this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
+      } else if (id === 'feed') {
+        const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+        this.count = o.goods.berries; this.cooked = o.goods.cooked; this.message = o.message;
+      } else return true;
+      this.messageUntil = time + 2200; this.persist(); return true;
     }
     /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
     armFolk(f: Folk, time: number) {
@@ -1078,7 +1135,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount()});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

@@ -43,7 +43,7 @@ export function createCampers(scene: Phaser.Scene, player: Phaser.Physics.Arcade
   return campers;
 }
 
-export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean) {
+export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean, controlled: ReadonlySet<string> = new Set()) {
   const clear = (x: number, y: number) => isCampDestination(x, y) && !obstacles?.getChildren().some(object => {
     const body = (object as Phaser.Physics.Arcade.Sprite).body;
     // Test at the feet, where all actor bodies are anchored.
@@ -51,6 +51,7 @@ export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.
       && y + 15 > body.y && y + 5 < body.y + body.height;
   });
   for (const camper of campers) {
+    if (controlled.has(camper.template.id)) { camper.nextDecision = time + 600; continue; }
     const { sprite, template } = camper;
     const body = sprite.body as Phaser.Physics.Arcade.Body;
     const random = () => { camper.seed = camper.seed * 16807 % 2147483647; return camper.seed / 2147483647; };

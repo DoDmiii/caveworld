@@ -78,8 +78,9 @@ export function poseFolk(f: Folk) {
   s.setDepth(s.y);
 }
 
-export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean) {
+export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean, controlled: ReadonlySet<string> = new Set()) {
   for (const f of folk) {
+    if (controlled.has(f.c.id)) { f.next = time + 600; continue; }
     if (f.combat.phase !== 'ready') continue;
     if (f.c.state !== 'free' && f.c.state !== 'camp') continue;
     const s = f.sprite, v = VILLAGES[f.t.village];
