@@ -7,7 +7,6 @@ import { MAP } from './biomes';
 export type Block = Pt & { width: number; height: number };
 export type CompanionActor = { id: string; sprite: Phaser.Physics.Arcade.Sprite; texture: string; home: Pt; facing: number; face: (direction: number) => void };
 type Route = { points: Pt[]; next: number; goal: Pt };
-const CELL = 8;
 const finder = new PF.AStarFinder({ allowDiagonal: true, dontCrossCorners: true });
 
 /** Feet-anchored actor footprint, matching the Arcade collision body. */
@@ -17,16 +16,17 @@ export function clearCompanionPoint(p: Pt, blocks: Block[]) {
 }
 export function findCompanionPath(start: Pt, goal: Pt, blocks: Block[]): Pt[] {
   const length = Math.hypot(goal.x - start.x, goal.y - start.y);
+  const CELL = length > 800 ? 16 : 8;
   const straight = Array.from({ length: Math.max(1, Math.ceil(length / 4)) }, (_, i) => {
     const t = (i + 1) / Math.max(1, Math.ceil(length / 4));
     return { x: start.x + (goal.x - start.x) * t, y: start.y + (goal.y - start.y) * t };
   });
   if (straight.every(p => clearCompanionPoint(p, blocks))) return [goal];
   // Local grid limits per-frame work, while leaving room to walk around buildings.
-  const x0 = Math.floor((Math.min(start.x, goal.x) - 128) / CELL) * CELL;
-  const y0 = Math.floor((Math.min(start.y, goal.y) - 128) / CELL) * CELL;
-  const w = Math.min(180, Math.ceil((Math.abs(start.x - goal.x) + 256) / CELL));
-  const h = Math.min(180, Math.ceil((Math.abs(start.y - goal.y) + 256) / CELL));
+  const x0 = length > 800 ? MAP.x : Math.floor((Math.min(start.x, goal.x) - 128) / CELL) * CELL;
+  const y0 = length > 800 ? MAP.y : Math.floor((Math.min(start.y, goal.y) - 128) / CELL) * CELL;
+  const w = length > 800 ? MAP.w / CELL : Math.ceil((Math.abs(start.x - goal.x) + 256) / CELL);
+  const h = length > 800 ? MAP.h / CELL : Math.ceil((Math.abs(start.y - goal.y) + 256) / CELL);
   const grid = new PF.Grid(w, h);
   for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const p = { x: x0 + x * CELL, y: y0 + y * CELL };

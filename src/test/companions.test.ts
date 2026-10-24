@@ -38,4 +38,11 @@ describe('hunting party', () => {
     expect(path.every(p => clearCompanionPoint(p, blocks))).toBe(true);
     expect(path.at(-1)?.x).toBeGreaterThanOrEqual(200);
   });
+  it('can return to camp from a distant region without teleporting', () => {
+    const blocks = [{ x: 1500, y: 800, width: 24, height: 500 }];
+    const path = findCompanionPath({ x: 2200, y: 1000 }, { x: 950, y: 710 }, blocks);
+    expect(path.length).toBeGreaterThan(20);
+    expect(path.every(p => clearCompanionPoint(p, blocks))).toBe(true);
+    expect(Math.hypot((path.at(-1)?.x ?? 0) - 950, (path.at(-1)?.y ?? 0) - 710)).toBeLessThan(24);
+  });
 });
