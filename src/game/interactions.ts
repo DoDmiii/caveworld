@@ -1,8 +1,9 @@
 /** Declarative action registry used by the interaction wheel. Keep engine calls out of this file. */
 import type { FolkRole } from './behavior';
+import { canRecruit } from './companions';
 
 export type InteractionTarget = 'villager' | 'captive' | 'ally' | 'guard';
-export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'interrogate' | 'ransom' | 'follow' | 'feed' | 'assign' | 'banish';
+export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish';
 export type Risk = 'low' | 'medium' | 'high';
 export interface InteractionContext {
   target: InteractionTarget;
@@ -15,6 +16,8 @@ export interface InteractionContext {
   targetCarried: boolean;
   isOwnTribe: boolean;
   inRange: boolean;
+  following?: boolean;
+  companionCount?: number;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -37,7 +40,9 @@ export const INTERACTIONS: InteractionDefinition[] = [
   { id: 'release', label: 'Freilassen', icon: 'door-open', targets: ['captive'], risk: 'medium', description: 'Lass die Person frei; sie könnte Hilfe holen.' },
   { id: 'interrogate', label: 'Verhören', icon: 'message-circle', targets: ['captive'], risk: 'medium', description: 'Versuche, Informationen zu erhalten.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : null },
   { id: 'ransom', label: 'Lösegeld', icon: 'coins', targets: ['captive'], risk: 'medium', description: 'Fordere eine Zahlung für die Freilassung.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : null },
-  { id: 'follow', label: 'Folgen', icon: 'footprints', targets: ['ally'], risk: 'low', description: 'Lass das Stammesmitglied dich begleiten.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
+  { id: 'follow', label: 'Folgen', icon: 'footprints', targets: ['ally'], risk: 'low', description: 'Schließt sich deinem Jagdtrupp an.', disabledReason: c => canRecruit(c.isOwnTribe, c.companionCount ?? 0, c.following ?? false) ? null : !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : c.following ? 'Begleitet dich bereits.' : 'Dein Trupp ist voll (3 Begleiter).' },
+  { id: 'wait', label: 'Warten', icon: 'hand', targets: ['ally'], risk: 'low', description: 'Bleibt an diesem Ort.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
+  { id: 'return', label: 'Zum Lager', icon: 'door-open', targets: ['ally'], risk: 'low', description: 'Kehrt in dein Höhlenlager zurück.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'feed', label: 'Essen geben', icon: 'wheat', targets: ['ally'], risk: 'low', description: 'Versorge ein Mitglied deiner Sippe.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'assign', label: 'Aufgabe', icon: 'target', targets: ['ally'], risk: 'low', description: 'Weise eine unterstützte Lageraufgabe zu.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'banish', label: 'Verbannen', icon: 'ban', targets: ['ally'], risk: 'high', description: 'Entfernt das Mitglied aus deiner Gemeinschaft.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
