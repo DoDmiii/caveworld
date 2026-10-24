@@ -18,7 +18,7 @@ describe('hunting party', () => {
   it('keeps three distinct slots behind the player', () => {
     const slots = [0, 1, 2].map(i => formationSlot(i, { x: 100, y: 100 }, 0));
     expect(slots.every(s => s.x < 100)).toBe(true);
-    for (let i = 0; i < slots.length; i++) for (const other of slots.slice(i + 1)) expect(Math.hypot(slots[i].x - other.x, slots[i].y - other.y)).toBeGreaterThanOrEqual(28);
+    slots.forEach((slot, i) => { for (const other of slots.slice(i + 1)) expect(Math.hypot(slot.x - other.x, slot.y - other.y)).toBeGreaterThanOrEqual(28); });
   });
   it('keeps pace when sprinting and slows while sneaking', () => {
     expect(companionSpeed(true, false, 40)).toBeGreaterThanOrEqual(105);

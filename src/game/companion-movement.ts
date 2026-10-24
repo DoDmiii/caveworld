@@ -49,7 +49,7 @@ export function findCompanionPath(start: Pt, goal: Pt, blocks: Block[]): Pt[] {
     if (grid.isWalkableAt(x, y)) { end = [x, y]; break; }
   }
   if (!end) return [];
-  return finder.findPath(sx, sy, end[0], end[1], grid).slice(1).map(([x, y]) => ({ x: x0 + x * CELL, y: y0 + y * CELL }));
+  return finder.findPath(sx, sy, end[0], end[1], grid).slice(1).flatMap(([x, y]) => x === undefined || y === undefined ? [] : [{ x: x0 + x * CELL, y: y0 + y * CELL }]);
 }
 
 export class CompanionMovement {

@@ -522,7 +522,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.folk = createFolk(this, this.obstacles);
       for (const f of this.folk) this.physics.add.collider(f.sprite, this.player, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
       const allies = this.companionActors();
-      for (let i = 0; i < allies.length; i++) for (const other of allies.slice(i + 1)) this.physics.add.collider(allies[i].sprite, other.sprite);
+      allies.forEach((ally, i) => { for (const other of allies.slice(i + 1)) this.physics.add.collider(ally.sprite, other.sprite); });
       for (const f of this.folk) for (const camper of this.campers) this.physics.add.collider(f.sprite, camper.sprite, undefined, () => f.c.state === 'free' || f.c.state === 'camp');
       this.carryImg = this.add.image(0, 0, 'nordic-w0', 0).setOrigin(0.5).setVisible(false);
       if (this.textures.exists('night')) this.textures.remove('night');
