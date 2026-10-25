@@ -56,16 +56,17 @@ export class CompanionMovement {
   private routes = new Map<string, Route>();
   reset(id: string) { this.routes.delete(id); }
   tick(actors: CompanionActor[], orders: Map<string, CompanionOrder>, player: Pt, facing: number, time: number,
-    stopped: boolean, sprinting: boolean, crouching: boolean, blocks: Block[]) {
+    stopped: boolean, sprinting: boolean, crouching: boolean, blocks: Block[], engage = new Map<string, Pt>()) {
     const following = actors.filter(a => orders.get(a.id)?.mode === 'follow').sort((a, b) => a.id.localeCompare(b.id));
     for (const actor of actors) {
       const order = orders.get(actor.id); if (!order) continue;
       const s = actor.sprite;
       const idle = () => { s.setVelocity(0, 0); s.anims.stop(); s.setTexture(actor.texture, actor.facing); };
       if (stopped) { idle(); continue; }
-      const goal = order.mode === 'follow' ? formationSlot(following.indexOf(actor), player, facing) : order.mode === 'return' ? actor.home : order;
+      const fight = order.mode === 'follow' ? engage.get(actor.id) : undefined;
+      const goal = fight ?? (order.mode === 'follow' ? formationSlot(following.indexOf(actor), player, facing) : order.mode === 'return' ? actor.home : order);
       const distance = Math.hypot(goal.x - s.x, goal.y - s.y);
-      if (distance < (order.mode === 'follow' ? 10 : 5)) {
+      if (distance < (fight ? 4 : order.mode === 'follow' ? 10 : 5)) {
         idle(); if (order.mode === 'return') { orders.delete(actor.id); this.reset(actor.id); }
         continue;
       }
@@ -79,7 +80,7 @@ export class CompanionMovement {
       let dx = next.x - s.x + sep.x * 12, dy = next.y - s.y + sep.y * 12;
       const len = Math.hypot(dx, dy); if (len < 1) { idle(); continue; }
       dx /= len; dy /= len;
-      const speed = order.mode === 'follow' ? companionSpeed(sprinting, crouching, distance) : 65;
+      const speed = fight ? 96 : order.mode === 'follow' ? companionSpeed(sprinting, crouching, distance) : 65;
       s.setVelocity(dx * speed, dy * speed);
       const direction = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
       actor.face(direction); s.play(`${actor.texture}-walk-${direction}`, true); s.anims.timeScale = crouching ? 0.6 : sprinting ? 1.4 : 1;
