@@ -118,7 +118,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
-    allyFocus?: string;
+    allyFocus: string | undefined;
     allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
@@ -888,7 +888,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           hostile: (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now, ref: f as Creature | Folk })),
       ];
     }
-    allyTarget?: Foe & { ref: Creature | Folk };
+    allyTarget: (Foe & { ref: Creature | Folk }) | undefined;
     allyEngage(time: number, p: Phaser.Physics.Arcade.Sprite) {
       const goals = new Map<string, { x: number; y: number }>();
       const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow').sort((a, b) => a.id.localeCompare(b.id));
