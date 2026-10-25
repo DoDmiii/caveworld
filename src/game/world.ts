@@ -898,7 +898,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (t) following.forEach((a, i) => goals.set(a.id, flankSlot(i + 1, following.length + 1, t, ALLY_REACH - 4, time, 1.7)));
       for (const a of following) {
         let g = this.allyGear.get(a.id);
-        if (!g) { g = { img: this.add.image(0, 0, companionWeapon(a.id) === 'spear' ? 'spear' : 'axe').setScale(0.5), next: 0, swingUntil: 0 }; this.allyGear.set(a.id, g); }
+        if (!g) { g = { img: this.add.image(0, 0, companionWeapon(a.id) === 'spear' ? 'spear-proj' : 'folk-axe').setScale(0.5), next: 0, swingUntil: 0 }; this.allyGear.set(a.id, g); }
         const left = t ? t.x < a.sprite.x : a.facing >= 3 && a.facing <= 5, sw = time < g.swingUntil ? 1.2 : 0;
         g.img.setVisible(!!t).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
       }
