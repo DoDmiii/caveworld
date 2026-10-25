@@ -61,3 +61,23 @@ describe('joint combat targeting', () => {
     expect(pickAllyTarget([{ id: 'a', x: ALLY_ENGAGE_RANGE + 1, y: 0, hostile: true, alive: true }, { id: 'b', x: 5, y: 0, hostile: true, alive: false }], player)).toBeUndefined();
   });
 });
+import { hitAlly, newAllyHealth, tickAllyHealth, pickVictim, ALLY_HP } from '@/game/companions';
+describe('companion health', () => {
+  it('is knocked out at 0 HP, not killed, and stands up after 9 s with 20 HP', () => {
+    const down = hitAlly({ hp: 10, downUntil: 0 }, 12, 1000);
+    expect(down).toEqual({ hp: 0, downUntil: 10000 });
+    expect(hitAlly(down, 12, 2000)).toBe(down);
+    expect(tickAllyHealth(down, 9999, 16, false)).toBe(down);
+    expect(tickAllyHealth(down, 10000, 16, false)).toEqual({ hp: 20, downUntil: 0 });
+  });
+  it('heals 1 HP/s in the field and 5 HP/s by the fire', () => {
+    expect(tickAllyHealth({ hp: 20, downUntil: 0 }, 0, 1000, false).hp).toBe(21);
+    expect(tickAllyHealth({ hp: 20, downUntil: 0 }, 0, 1000, true).hp).toBe(25);
+    expect(tickAllyHealth(newAllyHealth(), 0, 1000, true).hp).toBe(ALLY_HP);
+  });
+  it('enemies hit the closest standing target', () => {
+    expect(pickVictim({ x: 0, y: 0 }, { x: 15, y: 0 }, [{ id: 'a', x: 8, y: 0 }], 19)).toBe('a');
+    expect(pickVictim({ x: 0, y: 0 }, { x: 8, y: 0 }, [{ id: 'a', x: 15, y: 0 }], 19)).toBe('player');
+    expect(pickVictim({ x: 0, y: 0 }, { x: 50, y: 0 }, [], 19)).toBeUndefined();
+  });
+});
