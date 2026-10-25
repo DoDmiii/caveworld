@@ -1,7 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
-import { canRecruit, MAX_COMPANIONS, pickAllyTarget, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, type CompanionOrder, type Foe } from './companions';
+import { canRecruit, MAX_COMPANIONS, pickAllyTarget, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter } from './combat';
@@ -119,6 +119,26 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
     allyFocus: string | undefined;
+    allyHp = new Map<string, AllyHealth>();
+    allyHealth(id: string) { let h = this.allyHp.get(id); if (!h) { h = newAllyHealth(); this.allyHp.set(id, h); } return h; }
+    /** Standing followers that enemies may strike. */
+    standingAllies() { return this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).map(a => ({ id: a.id, x: a.sprite.x, y: a.sprite.y })); }
+    /** Apply an enemy hit to a companion; returns true when it landed on an ally. */
+    hitCompanion(id: string, dmg: number, fx: number, fy: number, time: number) {
+      const a = this.companionActors().find(o => o.id === id); if (!a) return;
+      const h = hitAlly(this.allyHealth(id), dmg, time); this.allyHp.set(id, h);
+      this.bleed(a.sprite.x, a.sprite.y, fx, fy, 6); a.sprite.setTintFill(0xffffff); this.time.delayedCall(90, () => a.sprite.clearTint());
+      if (allyDowned(h)) { a.sprite.setVelocity(0, 0); a.sprite.anims.stop(); a.sprite.setAngle(90); this.companionMovement.reset(id); this.message = 'Ein Begleiter wurde niedergeschlagen!'; this.messageUntil = time + 1800; }
+    }
+    tickAllies(time: number, delta: number, paused: boolean) {
+      for (const a of this.companionActors()) {
+        const before = this.allyHealth(a.id); if (paused) { if (allyDowned(before)) before.downUntil += Math.min(delta, 100); continue; }
+        const nearFire = Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y - FIRE_DY) < 120;
+        const h = tickAllyHealth(before, time, delta, nearFire); this.allyHp.set(a.id, h);
+        if (allyDowned(before) && !allyDowned(h)) { a.sprite.setAngle(0); this.message = 'Dein Begleiter steht wieder auf'; this.messageUntil = time + 1500; }
+        if (allyDowned(h)) { a.sprite.setVelocity(0, 0); a.sprite.setAngle(90); }
+      }
+    }
     allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
@@ -552,7 +572,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const body = (o as Phaser.Physics.Arcade.Sprite).body;
         return body ? [{ x: body.x, y: body.y, width: body.width, height: body.height }] : [];
       });
-      this.companionMovement.tick(this.companionActors(), this.companionOrders, p, this.lastFacing, time,
+      this.tickAllies(time, delta, input.paused || this.dead || this.sleeping);
+      this.companionMovement.tick(this.companionActors().filter(a => !allyDowned(this.allyHealth(a.id))), this.companionOrders, p, this.lastFacing, time,
         input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && this.stamina > 1 && !this.carried,
         this.crouching, blocks, this.allyEngage(time, p));
       this.allyStrikes(time);
@@ -824,17 +845,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
           const lunging = idx === lungeIndex(n, time);
           // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
-          const goal = lunging ? { x: p.x, y: p.y } : flankSlot(idx, n, p, 34, time, f.seed);
+          const near = this.standingAllies().filter(a => Math.hypot(a.x - s2.x, a.y - s2.y) < d - 10).sort((a, b) => Math.hypot(a.x - s2.x, a.y - s2.y) - Math.hypot(b.x - s2.x, b.y - s2.y))[0];
+          const goal = lunging ? (near ?? { x: p.x, y: p.y }) : flankSlot(idx, n, p, 34, time, f.seed);
           const sep = separation(s2, armedFolk.filter(o => o !== f).map(o => o.sprite), 26);
           let gx = goal.x - s2.x + sep.x * 40, gy = goal.y - s2.y + sep.y * 40;
           const gl = Math.hypot(gx, gy);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-          if (gl > 4 && inRange && !(lunging && d <= 15)) {
+          if (gl > 4 && inRange && !(lunging && (near ? Math.hypot(near.x - s2.x, near.y - s2.y) : d) <= 15)) {
             const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
             s2.setVelocity(gx * spd, gy * spd); s2.play(`${f.t.tex}-walk-${f.facing}`, true);
           } else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
-          if (lunging && d <= 19 && time > this.lastDamage + 900) {
+          const vic = lunging ? pickVictim(s2, p, this.standingAllies(), 19) : undefined;
+          if (vic && vic !== 'player' && time > ((m as { allyHitAt?: number }).allyHitAt ?? 0)) {
+            (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 220;
+            this.hitCompanion(vic, f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
+          } else if (vic === 'player' && time > this.lastDamage + 900) {
             this.health = Math.max(0, this.health - (f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
             (m as { swingUntil?: number }).swingUntil = time + 220;
             this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
@@ -891,7 +917,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyTarget: (Foe & { ref: Creature | Folk }) | undefined;
     allyEngage(time: number, p: Phaser.Physics.Arcade.Sprite) {
       const goals = new Map<string, { x: number; y: number }>();
-      const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow').sort((a, b) => a.id.localeCompare(b.id));
+      const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).sort((a, b) => a.id.localeCompare(b.id));
       const t = this.dead || this.sleeping || this.carried ? undefined : pickAllyTarget(this.allyFoes(), p, this.allyFocus) as (Foe & { ref: Creature | Folk }) | undefined;
       if (!t) this.allyFocus = undefined;
       this.allyTarget = t;
@@ -902,13 +928,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const left = t ? t.x < a.sprite.x : a.facing >= 3 && a.facing <= 5, sw = time < g.swingUntil ? 1.2 : 0;
         g.img.setVisible(!!t).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
       }
-      for (const [id, g] of this.allyGear) if (this.companionOrders.get(id)?.mode !== 'follow') g.img.setVisible(false);
+      for (const [id, g] of this.allyGear) if (this.companionOrders.get(id)?.mode !== 'follow' || allyDowned(this.allyHealth(id))) g.img.setVisible(false);
       return goals;
     }
     allyStrikes(time: number) {
       const t = this.allyTarget; if (!t || input.paused) return;
       for (const a of this.companionActors()) {
-        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow') continue;
+        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow' || allyDowned(this.allyHealth(a.id))) continue;
         const dx = t.ref.sprite.x - a.sprite.x, dy = t.ref.sprite.y - a.sprite.y, d = Math.hypot(dx, dy);
         if (d > ALLY_REACH + 6 || time < g.next) continue;
         g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
@@ -1092,7 +1118,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             c.facing = facing;
             const ak = `anim-${c.kind}-attack-${facing}`;
             if (this.anims.exists(ak)) s.play(ak, true); else s.play(`${c.kind}-walk-${facing}`, true);
-            if (time > this.lastDamage + 900) {
+            const vic = pickVictim(s, p, this.standingAllies(), reachOf(c.kind));
+            if (vic && vic !== 'player') this.hitCompanion(vic, c.kind === 'tiger' ? 14 : SNOW[c.kind].damage * 1.4, dx / Math.max(1, dist), dy / Math.max(1, dist), time);
+            else if (time > this.lastDamage + 900) {
               this.health = Math.max(0, this.health - (c.kind === 'tiger' ? 10 : SNOW[c.kind].damage));
               this.hitFlash = time + 200;
               this.bleed(p.x, p.y, dx / Math.max(1, dist), dy / Math.max(1, dist), 7);
