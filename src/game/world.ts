@@ -1,7 +1,7 @@
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
-import { canRecruit, MAX_COMPANIONS, type CompanionOrder } from './companions';
+import { canRecruit, MAX_COMPANIONS, pickAllyTarget, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter } from './combat';
@@ -118,6 +118,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
+    allyFocus: string | undefined;
+    allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
@@ -552,7 +554,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       this.companionMovement.tick(this.companionActors(), this.companionOrders, p, this.lastFacing, time,
         input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && this.stamina > 1 && !this.carried,
-        this.crouching, blocks);
+        this.crouching, blocks, this.allyEngage(time, p));
+      this.allyStrikes(time);
       this.tribal(time);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
@@ -877,6 +880,48 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         .sort((a, b) => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) - Math.hypot(b.sprite.x - p.x, b.sprite.y - p.y))[0];
       if (!this.carried && ally && (!best || Math.hypot(ally.sprite.x - p.x, ally.sprite.y - p.y) <= bd)) this.talk = this.allyContext(ally);
     }
+    /** Live foes as engine-free records; creature ids are their index, folk ids their captive id. */
+    allyFoes(): (Foe & { ref: Creature | Folk })[] {
+      return [
+        ...this.creatures.map((c, i) => ({ id: 'c' + i, x: c.sprite.x, y: c.sprite.y, alive: c.state !== 'dead' && c.sprite.active, hostile: c.state === 'chase' || c.state === 'attack', ref: c as Creature | Folk })),
+        ...this.folk.map(f => ({ id: 'f' + f.c.id, x: f.sprite.x, y: f.sprite.y, alive: f.c.state === 'free' && f.combat.phase === 'ready',
+          hostile: (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now, ref: f as Creature | Folk })),
+      ];
+    }
+    allyTarget: (Foe & { ref: Creature | Folk }) | undefined;
+    allyEngage(time: number, p: Phaser.Physics.Arcade.Sprite) {
+      const goals = new Map<string, { x: number; y: number }>();
+      const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow').sort((a, b) => a.id.localeCompare(b.id));
+      const t = this.dead || this.sleeping || this.carried ? undefined : pickAllyTarget(this.allyFoes(), p, this.allyFocus) as (Foe & { ref: Creature | Folk }) | undefined;
+      if (!t) this.allyFocus = undefined;
+      this.allyTarget = t;
+      if (t) following.forEach((a, i) => goals.set(a.id, flankSlot(i + 1, following.length + 1, t, ALLY_REACH - 4, time, 1.7)));
+      for (const a of following) {
+        let g = this.allyGear.get(a.id);
+        if (!g) { g = { img: this.add.image(0, 0, companionWeapon(a.id) === 'spear' ? 'spear-proj' : 'folk-axe').setScale(0.5), next: 0, swingUntil: 0 }; this.allyGear.set(a.id, g); }
+        const left = t ? t.x < a.sprite.x : a.facing >= 3 && a.facing <= 5, sw = time < g.swingUntil ? 1.2 : 0;
+        g.img.setVisible(!!t).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
+      }
+      for (const [id, g] of this.allyGear) if (this.companionOrders.get(id)?.mode !== 'follow') g.img.setVisible(false);
+      return goals;
+    }
+    allyStrikes(time: number) {
+      const t = this.allyTarget; if (!t || input.paused) return;
+      for (const a of this.companionActors()) {
+        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow') continue;
+        const dx = t.ref.sprite.x - a.sprite.x, dy = t.ref.sprite.y - a.sprite.y, d = Math.hypot(dx, dy);
+        if (d > ALLY_REACH + 6 || time < g.next) continue;
+        g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
+        const fx = dx / Math.max(1, d), fy = dy / Math.max(1, d);
+        const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8; a.face(dir);
+        if ('kind' in t.ref) { if (t.ref.state !== 'dead') this.hurt(t.ref, ALLY_DAMAGE, fx, fy, time); }
+        else {
+          const f = t.ref; if (f.combat.phase !== 'ready' || f.c.state !== 'free') continue;
+          f.combat = hitFighter(f.combat, ALLY_DAMAGE, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, 8);
+          if (f.combat.phase === 'downed') { poseFolk(f); this.message = 'Dein Jagdtrupp hat einen Gegner niedergeschlagen'; this.messageUntil = time + 1800; }
+        }
+      }
+    }
     followingCount() { return [...this.companionOrders.values()].filter(o => o.mode === 'follow').length; }
     companionActors(): CompanionActor[] {
       return [
@@ -1002,6 +1047,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
+          this.allyFocus = 'c' + this.creatures.indexOf(c);
           this.hurt(c, hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10, fx, fy, time);
         }
         for (const f of this.folk) {
@@ -1009,6 +1055,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
+          this.allyFocus='f'+f.c.id;
           f.combat=hitFighter(f.combat,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10,time);
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,10);
