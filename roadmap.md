@@ -18,3 +18,5 @@
 - [ ] Bring gazelle herd closer to camp; fix mobile loading hang.
 - [x] Nordic villagers in Frostheim/Gipfelwacht/Eisfurt; capture (hit → surrender → E bind → E carry → E drop, joins tribe in camp), saved
 - [x] Tribal behaviour: interaction wheel (T), relationships, alarm, guards attack, saved.
+- [x] Gemeinsamer Kampf mit Begleitern (Zielwahl, Umkreisen, Treffer)
+- [ ] Begleiter-Lebenspunkte/Knockdown (Gegner greifen bisher nur den Spieler an)
