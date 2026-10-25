@@ -46,3 +46,18 @@ describe('hunting party', () => {
     expect(Math.hypot((path.at(-1)?.x ?? 0) - 950, (path.at(-1)?.y ?? 0) - 710)).toBeLessThan(24);
   });
 });
+import { pickAllyTarget, ALLY_ENGAGE_RANGE } from '@/game/companions';
+describe('joint combat targeting', () => {
+  const player = { x: 0, y: 0 };
+  it('prefers the foe the player is fighting', () => {
+    const t = pickAllyTarget([{ id: 'a', x: 20, y: 0, hostile: true, alive: true }, { id: 'b', x: 90, y: 0, hostile: false, alive: true }], player, 'b');
+    expect(t?.id).toBe('b');
+  });
+  it('otherwise attacks the nearest hostile foe', () => {
+    const t = pickAllyTarget([{ id: 'a', x: 120, y: 0, hostile: true, alive: true }, { id: 'b', x: 40, y: 0, hostile: true, alive: true }, { id: 'c', x: 10, y: 0, hostile: false, alive: true }], player);
+    expect(t?.id).toBe('b');
+  });
+  it('ignores dead foes and foes beyond the leash range', () => {
+    expect(pickAllyTarget([{ id: 'a', x: ALLY_ENGAGE_RANGE + 1, y: 0, hostile: true, alive: true }, { id: 'b', x: 5, y: 0, hostile: true, alive: false }], player)).toBeUndefined();
+  });
+});
