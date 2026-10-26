@@ -17,6 +17,14 @@ export type InteractionSubject = { state: CaptiveState; capturable: boolean; rel
 export const INTERACTION_RANGE = 36;
 export const villageKey = (name: string) => name.toLowerCase();
 
+/** Anti-exploit: social actions on the same person need a cooldown, otherwise gifts/trades can be spammed. */
+export const SOCIAL_COOLDOWN_MS = 5 * 60 * 1000;
+export type SocialAction = 'greet' | 'gift' | 'trade' | 'interrogate' | 'ransom';
+export const SOCIAL_ACTIONS: SocialAction[] = ['greet', 'gift', 'trade', 'interrogate', 'ransom'];
+export const isSocialAction = (id: InteractionId): id is SocialAction => (SOCIAL_ACTIONS as InteractionId[]).includes(id);
+/** True when the action may run again; `last` is the timestamp of the previous use (0 = never). */
+export const socialReady = (last: number, now: number) => last <= 0 || now - last >= SOCIAL_COOLDOWN_MS;
+
 export function resolveInteraction(id: InteractionId, s: InteractionSubject): Outcome {
   const g = { ...s.goods };
   const base: Outcome = { rel: 0, goods: g, state: s.state, alarm: false, carry: false, message: '' };

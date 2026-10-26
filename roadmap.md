@@ -20,3 +20,5 @@
 - [x] Tribal behaviour: interaction wheel (T), relationships, alarm, guards attack, saved.
 - [x] Gemeinsamer Kampf mit Begleitern (Zielwahl, Umkreisen, Treffer)
 - [x] Begleiter-Lebenspunkte/Knockdown, Gegner greifen auch Begleiter an, Heilung am Feuer
+- [x] Exploit-Schutz: 5-Min-Abklingzeit für Grüßen/Geschenk/Handel/Verhör/Lösegeld pro Person; „Essen geben“ heilt Begleiter wirklich
+- [ ] Lager-Infrastruktur: Vorratskiste am Feuer (Grafik vom Nutzer in Arbeit)

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveInteraction } from '@/game/tribal';
+import { resolveInteraction, socialReady, isSocialAction, SOCIAL_COOLDOWN_MS } from '@/game/tribal';
 import { decideReaction } from '@/game/behavior';
 import { EMPTY_RELATIONSHIPS, raiseAlarm, isAlarmActive, changeVillageRelationship, getVillageRelationship } from '@/game/relationships';
 
@@ -38,5 +38,14 @@ describe('tribal interactions', () => {
   it('bei aktivem Alarm greifen Wachen an', () => {
     const d = decideReaction({ relationship: 0, armed: false, crouching: false, carryingCaptive: false, night: false, witnessedCrime: false, insideVillage: true, alarmActive: true, role: 'guard' });
     expect(d.shouldAttack).toBe(true);
+  });
+  it('soziale Aktionen haben eine Abklingzeit von 5 Minuten', () => {
+    expect(socialReady(0, 1000)).toBe(true);
+    expect(socialReady(1000, 1000 + SOCIAL_COOLDOWN_MS - 1)).toBe(false);
+    expect(socialReady(1000, 1000 + SOCIAL_COOLDOWN_MS)).toBe(true);
+  });
+  it('nur Grüßen, Geschenk, Handel, Verhör und Lösegeld sind soziale Aktionen', () => {
+    for (const id of ['greet', 'gift', 'trade', 'interrogate', 'ransom'] as const) expect(isSocialAction(id)).toBe(true);
+    for (const id of ['attack', 'bind', 'carry', 'feed', 'follow'] as const) expect(isSocialAction(id)).toBe(false);
   });
 });
