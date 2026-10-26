@@ -26,6 +26,10 @@ import { InteractionWheel } from './InteractionWheel';
 import type { TalkTarget } from './world';
 import { loadSave, saveGame, clearSave, blockSaving, type UiSave } from './save';
 import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
+import { STORABLES, chestTotal, type Storable } from './storage';
+import chestIcon from '@/assets/camp/storage-chest.png.asset.json';
+const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
+const STORABLE_ICON: Record<Storable, string> = { wood: resWood.url, stone: resStone.url, flint: resFlint.url, fiber: resFiber.url, berries: '✦', meat: '🥩', cooked: '🍖' };
 
 const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',300,3000],['Dschungel der Afrikans',2450,3000]] as const;
 /** Paints the biome layout into a small image for the mini and world map. */
@@ -82,7 +86,7 @@ export default function GameView(){
  };
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active}});},[uiRestored,hotbar,equipped.hand,active]);
- useEffect(()=>{input.current.paused=paused||panel!==null||talk!==null;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel,talk]);
+ useEffect(()=>{input.current.paused=paused||panel!==null||talk!==null||!!status.chestOpen;input.current.x=0;input.current.y=0;setKnob({x:0,y:0});},[paused,panel,talk,status.chestOpen]);
  useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
@@ -112,6 +116,34 @@ export default function GameView(){
      {status.dead&&<div className="death-screen" role="alertdialog" aria-label="Du bist gestorben"><span className="eyebrow">DIE WILDNIS IST GNADENLOS</span><h2>Du bist gefallen</h2><p>{status.meat} Fleisch · {status.berries} Beeren gesammelt</p><Button className="resume-button" onClick={()=>input.current.respawn++}><Flame size={16}/> Am Lagerfeuer erwachen</Button></div>}
     <div className="touch-controls"><div className="joystick-area"><div className="joystick" role="group" aria-label="Bewegungsjoystick" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);move(e);}} onPointerMove={e=>{if(e.currentTarget.hasPointerCapture(e.pointerId))move(e);}} onPointerUp={release} onPointerCancel={release} onLostPointerCapture={release}><span className="joystick-arrow up">⌃</span><span className="joystick-arrow down">⌄</span><span className="joystick-arrow left">‹</span><span className="joystick-arrow right">›</span><span className="joystick-knob" style={{transform:`translate(${knob.x}px,${knob.y}px)`}}><span/></span></div><span className="control-caption">BEWEGEN</span></div><div className="action-area"><Button variant="ghost" className={`run-button ${sprinting?'is-active':''}`} aria-label="Sprinten" title="Sprinten" onPointerDown={e=>{e.currentTarget.setPointerCapture(e.pointerId);input.current.sprint=true;setSprinting(true);}} onPointerUp={()=>{input.current.sprint=false;setSprinting(false);}} onPointerCancel={()=>{input.current.sprint=false;setSprinting(false);}} onLostPointerCapture={()=>{input.current.sprint=false;setSprinting(false);}}><Footprints/></Button><Button variant="ghost" className="attack-button" aria-label="Angreifen" title="Angreifen" onClick={()=>input.current.attack++}><Sword/></Button><div className="gather-wrap"><Button variant="ghost" className="gather-button" aria-label="Sammeln" title="Sammeln, schlafen oder am Feuer ausruhen" onClick={()=>input.current.action++}><Hand/></Button><span className="control-caption">AKTION</span></div></div></div>
     {ready&&status.talk&&!talk&&!panel&&!paused&&<Button variant="outline" className="sleep-hint talk-hint" onClick={()=>setTalk(status.talk??null)}>{status.talk.name} · Interagieren</Button>}
+    {ready&&status.nearChest&&!status.chestOpen&&!talk&&!panel&&!paused&&<Button variant="outline" className="sleep-hint chest-hint" onClick={()=>{input.current.chestToggle=(input.current.chestToggle??0)+1;}}><img src={chestIcon.url} alt="" style={{width:20,height:20,imageRendering:'pixelated'}}/> Vorratskiste öffnen</Button>}
+    {status.chestOpen&&<div className="interaction-overlay" role="dialog" aria-modal="true" aria-label="Vorratskiste" onKeyDown={e=>{if(e.key==='Escape')input.current.chestToggle=(input.current.chestToggle??0)+1;}}>
+      <div className="interaction-panel chest-panel">
+        <div className="interaction-heading">
+          <div><div className="eyebrow">LAGER · {status.chest?chestTotal(status.chest):0} VORRÄTE</div><h2>Vorratskiste</h2></div>
+          <Button type="button" variant="ghost" size="icon" onClick={()=>{input.current.chestToggle=(input.current.chestToggle??0)+1;}} aria-label="Kiste schließen">✕</Button>
+        </div>
+        <div className="chest-rows">
+          {STORABLES.map(kind=>{
+            const have=kind==='berries'?status.berries:kind==='meat'?status.meat:kind==='cooked'?status.cooked:status[kind];
+            const stored=status.chest?.[kind]??0;
+            const icon=STORABLE_ICON[kind];
+            const transfer=(n:number)=>{input.current.chestTransfer={kind,n};};
+            return <div key={kind} className="chest-row">
+              <span className="chest-name">{icon.startsWith('/')?<img src={icon} alt=""/>:<i>{icon}</i>} {STORABLE_LABEL[kind]}</span>
+              <span className="chest-counts">Beutel {have} · Kiste {stored}</span>
+              <span className="chest-actions">
+                <Button size="sm" variant="outline" disabled={have<=0} onClick={()=>transfer(1)}>+1</Button>
+                <Button size="sm" variant="outline" disabled={have<=0} onClick={()=>transfer(Math.min(5,have))}>+5</Button>
+                <Button size="sm" variant="outline" disabled={stored<=0} onClick={()=>transfer(-1)}>−1</Button>
+                <Button size="sm" variant="outline" disabled={stored<=0} onClick={()=>transfer(-Math.min(5,stored))}>−5</Button>
+              </span>
+            </div>;
+          })}
+        </div>
+        <p className="chest-hintline">+ legt in die Kiste · − nimmt heraus</p>
+      </div>
+    </div>}
     {talk&&<InteractionWheel context={talk} onClose={()=>setTalk(null)} onChoose={id=>{input.current.interaction={id,target:talk.id};setTalk(null);}}/>}
     {ready&&<div className="hotbar" role="toolbar" aria-label="Schnellmenü">{[0,1,2,3].map(n=>{const id=n===0?'fists':hotbar[n-1];const it=id?ITEMS.find(i=>i.id===id):undefined;return <button key={n} className={`hot-slot ${active===n?'is-active':''}`} aria-label={it?.name??`Leerer Slot ${n}`} title={it?.name??'Im Rucksack belegen'} onClick={()=>it?selectSlot(n):setPanel('gear')}>{it?.icon?<img src={it.icon} alt=""/>:<span className="slot-sil">{it?(it.id==='fists'?'●':'✦'):''}</span>}<em>{n===0?'H':n}</em></button>;})}</div>}
     <div className="game-bottom"><button className="food-quick" title="Beeren essen (+15) · Taste 1" onClick={()=>{input.current.eat='berries';}}><span className="berry-icon">✦</span> {status.berries} <span className="resource-label">BEEREN</span></button><button className="food-quick" title="Rohes Fleisch essen (+20) · Taste 2" onClick={()=>{input.current.eat='meat';}}><span className="berry-icon">🥩</span> {status.meat} <span className="resource-label">ROH</span></button><button className="food-quick" title="Gebratenes Fleisch essen (+45, volle Ausdauer) · Taste 3" onClick={()=>{input.current.eat='cooked';}}><span className="berry-icon">🍖</span> {status.cooked} <span className="resource-label">GEBRATEN</span></button><span><span className="sun-icon">{isNight(status.minutes)?'☾':'☀'}</span> TAG {status.day} <span className="bottom-dot">·</span> {formatMinutes(status.minutes)}</span><Button variant="ghost" size="icon" aria-label="Vollbild" title="Vollbild" onClick={()=>{if(document.fullscreenElement)void document.exitFullscreen();else void document.querySelector('.game-frame')?.requestFullscreen?.();}}><Maximize/></Button></div>

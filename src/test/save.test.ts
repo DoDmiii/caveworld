@@ -7,6 +7,7 @@ const game: GameSave = {
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
   lootedHouses: ['Frostheim:0'],
   captives: [],
+  chest: { wood: 5, stone: 0, flint: 1, fiber: 0, berries: 2, meat: 0, cooked: 1 },
   relationships: { village: { frostheim: 15 }, personal: {}, alarmUntil: {} },
 };
 
@@ -54,6 +55,18 @@ describe('save', () => {
     const { lootedHouses: _l, ...old } = game;
     localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: old }));
     expect(loadSave()?.game?.lootedHouses).toEqual([]);
+  });
+
+  it('ältere Spielstände ohne Vorratskiste laden mit leerer Kiste', () => {
+    const { chest: _ch, ...old } = game;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: old }));
+    const g = loadSave()?.game;
+    expect(g?.chest).toEqual({ wood: 0, stone: 0, flint: 0, fiber: 0, berries: 0, meat: 0, cooked: 0 });
+  });
+
+  it('der Kisteninhalt überlebt das Speichern und Laden', () => {
+    expect(saveGame({ game })).toBe(true);
+    expect(loadSave()?.game?.chest).toEqual(game.chest);
   });
 
   it('unplausible Werte werden abgelehnt und als Backup behalten', () => {
