@@ -207,6 +207,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         minedRocks: this.minedRocks.map(([x, y]) => [x, y] as [number, number]),
         pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
         lootedHouses: [...this.lootedHouses],
+        chest: { ...this.chest },
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
@@ -225,6 +226,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
       this.lootedHouses = [...g.lootedHouses];
+      this.chest = { ...g.chest };
       this.rel = g.relationships;
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
@@ -476,6 +478,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       obstacle(CAMP.x,CAMP.y+FIRE_DY,'fire',20,8);
       // Sleeping place next to the campfire.
       this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
+      // Storage chest on the other side of the fire; small collider, reachable for E.
+      this.add.image(CHEST_POS.x,CHEST_POS.y,'storage-chest').setDepth(CHEST_POS.y+12);
+      obstacle(CHEST_POS.x,CHEST_POS.y+6,'storage-chest',16,6);
       for(const [x,y] of [[1128,700],[895,760],[1160,1170],[700,850],[1240,900],[760,1240],[480,1080],[1340,760],[980,1460]] as const) {
         const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});this.covers.push({x,y});
       }
