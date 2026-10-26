@@ -481,7 +481,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
       // Storage chest on the other side of the fire; small collider, reachable for E.
       this.add.image(CHEST_POS.x,CHEST_POS.y,'storage-chest').setDepth(CHEST_POS.y+12);
-      obstacle(CHEST_POS.x,CHEST_POS.y+6,'storage-chest',16,6);
+      // Collider-only sprite: the chest artwork is already drawn above.
+      obstacle(CHEST_POS.x,CHEST_POS.y+6,'storage-chest',16,6)?.setVisible(false);
       for(const [x,y] of [[1128,700],[895,760],[1160,1170],[700,850],[1240,900],[760,1240],[480,1080],[1340,760],[980,1460]] as const) {
         const sprite=this.add.image(x,y,'bush').setDepth(y+8);this.berries.push({x,y,picked:false,sprite});this.covers.push({x,y});
       }
