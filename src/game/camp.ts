@@ -6,11 +6,13 @@ import fence1 from '@/assets/camp/fence-1.png.asset.json';
 import fence2 from '@/assets/camp/fence-2.png.asset.json';
 import fence3 from '@/assets/camp/fence-3.png.asset.json';
 import fence4 from '@/assets/camp/fence-4.png.asset.json';
+import chest from '@/assets/camp/storage-chest.png.asset.json';
 
 /** Camp structure textures (key → url). */
 export const CAMP_TEXTURES: Record<string, string> = {
   'hut-0': hut0.url, 'hut-1': hut1.url, 'hut-2': hut2.url,
   'fence-0': fence0.url, 'fence-1': fence1.url, 'fence-2': fence2.url, 'fence-3': fence3.url, 'fence-4': fence4.url,
+  'storage-chest': chest.url,
 };
 
 export type Piece = { key: string; x: number; y: number; flip?: boolean; bw: number; bh: number };
