@@ -57,6 +57,7 @@ import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
 import { interact, drop, CARRY_SPEED } from './captives';
+import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
 import type { InteractionContext, InteractionId } from './interactions';
@@ -113,6 +114,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     messageUntil = 0;
     lastFacing = 2;
     nearBed = false;
+    chest: ChestGoods = { ...EMPTY_CHEST };
+    chestOpen = false;
+    lastChestToggle = 0;
     bed?: Phaser.GameObjects.Image;
     creatures: Creature[] = [];
     campers: Camper[] = [];
