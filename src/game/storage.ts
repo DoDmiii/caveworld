@@ -7,7 +7,7 @@ export const EMPTY_CHEST: ChestGoods = { wood: 0, stone: 0, flint: 0, fiber: 0, 
 
 /** Chest stands left of the campfire, mirroring the bed on the right. */
 export const CHEST_POS = { x: 954, y: 690 };
-export const CHEST_RANGE = 36;
+export const CHEST_RANGE = 46;
 
 /** Move `n` items of one kind from the player into the chest. Returns undefined when impossible. */
 export function deposit(chest: ChestGoods, player: ChestGoods, kind: Storable, n: number): { chest: ChestGoods; player: ChestGoods } | undefined {
