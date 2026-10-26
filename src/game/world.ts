@@ -626,6 +626,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.weapon!==this.weapon){this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';this.attacking=false;this.attackPending=false;}
       const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
       this.nearBed=Math.hypot(p.x-bedX,p.y-bedY)<34;
+      this.nearChest=Math.hypot(p.x-CHEST_POS.x,p.y-CHEST_POS.y)<CHEST_RANGE;
+      // HUD toggles the chest panel; the world pauses while it is open.
+      if((input.chestToggle??0)!==this.lastChestToggle){this.lastChestToggle=input.chestToggle??0;if(this.nearChest||this.chestOpen){this.chestOpen=!this.chestOpen;if(this.chestOpen){this.message='Vorratskiste geöffnet';this.messageUntil=time+1600;}}}
+      if(this.chestOpen&&!this.nearChest)this.chestOpen=false;
+      // Transfers between backpack and chest, applied through the engine-free storage rules.
+      if(input.chestTransfer&&this.chestOpen){
+        const {kind,n}=input.chestTransfer;input.chestTransfer=null;
+        const playerGoods:ChestGoods={wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,berries:this.count,meat:this.meat,cooked:this.cooked};
+        const r=n>0?deposit(this.chest,playerGoods,kind,n):withdraw(this.chest,playerGoods,kind,-n);
+        if(r){this.chest=r.chest;this.stock={wood:r.player.wood,stone:r.player.stone,flint:r.player.flint,fiber:r.player.fiber};this.count=r.player.berries;this.meat=r.player.meat;this.cooked=r.player.cooked;this.persist();}
+      }
       // Sleeping: lie on the bed, fade, restore vitals, wake up.
       if(input.sleep&&!this.sleeping&&this.nearBed){
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
@@ -738,6 +749,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           else{this.carried=captive;this.message='Auf den Schultern · bring sie ins Höhlenlager';}
           poseFolk(captive);
         }
+        else if(this.nearChest){this.chestOpen=!this.chestOpen;this.message=this.chestOpen?'Vorratskiste geöffnet':'Kiste geschlossen';}
         else if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);this.meat++;this.message='Fleisch aufgehoben · +1';}
