@@ -992,11 +992,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const m = this.folkMood.get(o.c.id); if (m) m.armedUntil = time + 25000;
       }
     }
+    /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
+    lastSocial = new Map<string, number>();
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
       const vk = villageKey(VILLAGES[f.t.village].name);
+      if (isSocialAction(id)) {
+        const last = this.lastSocial.get(`${f.c.id}:${id}`) ?? 0;
+        if (!socialReady(last, Date.now())) {
+          this.message = 'Dafür ist es noch zu früh · warte eine Weile'; this.messageUntil = time + 2000; return;
+        }
+      }
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+      if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
       if (o.rel && f.c.state !== 'camp') this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, f.c.id, o.rel, vk), vk, o.rel);
