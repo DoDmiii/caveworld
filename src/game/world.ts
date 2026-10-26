@@ -61,7 +61,7 @@ import { interact, drop, CARRY_SPEED } from './captives';
 import { decideReaction, type BehaviorDecision } from './behavior';
 import type { InteractionContext, InteractionId } from './interactions';
 import { EMPTY_RELATIONSHIPS, changeVillageRelationship, changePersonalRelationship, getPersonalRelationship, isAlarmActive, raiseAlarm, type RelationshipState } from './relationships';
-import { resolveInteraction, villageKey, INTERACTION_RANGE } from './tribal';
+import { resolveInteraction, villageKey, INTERACTION_RANGE, isSocialAction, socialReady, SOCIAL_COOLDOWN_MS } from './tribal';
 import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
@@ -975,7 +975,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
       } else if (id === 'feed') {
         const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
-        this.count = o.goods.berries; this.cooked = o.goods.cooked; this.message = o.message;
+        if (o.goods.berries === this.count && o.goods.cooked === this.cooked) { this.message = o.message; this.messageUntil = time + 2200; return true; }
+        this.count = o.goods.berries; this.cooked = o.goods.cooked;
+        // Feeding actually heals the ally: downed companions get back up, hurt ones recover.
+        const h = this.allyHealth(target);
+        this.allyHp.set(target, allyDowned(h) ? { hp: 25, downUntil: 0 } : { hp: Math.min(50, h.hp + 25), downUntil: 0 });
+        this.message = o.message;
       } else return true;
       this.messageUntil = time + 2200; this.persist(); return true;
     }
