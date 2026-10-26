@@ -23,7 +23,7 @@ export type SocialAction = 'greet' | 'gift' | 'trade' | 'interrogate' | 'ransom'
 export const SOCIAL_ACTIONS: SocialAction[] = ['greet', 'gift', 'trade', 'interrogate', 'ransom'];
 export const isSocialAction = (id: InteractionId): id is SocialAction => (SOCIAL_ACTIONS as InteractionId[]).includes(id);
 /** True when the action may run again; `last` is the timestamp of the previous use (0 = never). */
-export const socialReady = (last: number, now: number) => now - last >= SOCIAL_COOLDOWN_MS;
+export const socialReady = (last: number, now: number) => last <= 0 || now - last >= SOCIAL_COOLDOWN_MS;
 
 export function resolveInteraction(id: InteractionId, s: InteractionSubject): Outcome {
   const g = { ...s.goods };
