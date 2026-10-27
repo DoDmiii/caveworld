@@ -64,11 +64,12 @@ import type { InteractionContext, InteractionId } from './interactions';
 import { EMPTY_RELATIONSHIPS, changeVillageRelationship, changePersonalRelationship, getPersonalRelationship, isAlarmActive, raiseAlarm, type RelationshipState } from './relationships';
 import { resolveInteraction, villageKey, INTERACTION_RANGE, isSocialAction, socialReady, SOCIAL_COOLDOWN_MS } from './tribal';
 import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
+import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type TutorialState } from './tutorial';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number };
 export type TalkTarget = InteractionContext & { id: string; name: string };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
   slowUntil?: number;
@@ -118,6 +119,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     chest: ChestGoods = { ...EMPTY_CHEST };
     chestOpen = false;
     lastChestToggle = 0;
+    tutorial: TutorialState = newTutorial();
+    tutLast?: { x: number; y: number };
+    tut(ev: TutorialEvent, time: number) { const r = tutorialEvent(this.tutorial, ev); this.tutorial = r.state; if (r.completed) { this.message = this.tutorial.step >= TUTORIAL_DONE ? `Einführung geschafft · +${r.completed.xp} EP` : `Ziel erreicht: ${r.completed.title} · +${r.completed.xp} EP`; this.messageUntil = time + 2600; this.addXp(r.completed.xp); this.persist(); } }
     bed?: Phaser.GameObjects.Image;
     creatures: Creature[] = [];
     campers: Camper[] = [];
@@ -209,6 +213,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
         lootedHouses: [...this.lootedHouses],
         chest: { ...this.chest },
+        tutorial: { ...this.tutorial },
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
@@ -229,6 +234,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
       this.lootedHouses = [...g.lootedHouses];
       this.chest = { ...g.chest };
+      // Ältere Spielstände ohne Einführung: Spieler kennt das Spiel schon.
+      this.tutorial = g.tutorial ? { ...g.tutorial } : { step: TUTORIAL_DONE, progress: 0 };
       this.rel = g.relationships;
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
@@ -611,6 +618,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000;}
       else if(!input.paused){
         const dt=Math.min(delta,100)/1000;
+        if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120;
@@ -626,7 +634,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
       else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
       if(this.finisher){p.setVelocity(0,0);this.lastAttack=input.attack;this.lastAction=input.action;if(input.paused)p.anims.pause();else p.anims.resume();this.report(time,p);return;}
-      if(input.craft){const rc=RECIPES.find(x=>x.id===input.craft);const next=rc&&craft(rc,this.stock,levelFromXp(this.xp),this.owned);if(rc&&next){this.stock=next;this.owned=[...this.owned,rc.id];this.message=`${rc.name} hergestellt · +25 EP`;this.messageUntil=time+2400;this.addXp(XP.craft);}input.craft=null;}
+      if(input.craft){const rc=RECIPES.find(x=>x.id===input.craft);const next=rc&&craft(rc,this.stock,levelFromXp(this.xp),this.owned);if(rc&&next){this.stock=next;this.owned=[...this.owned,rc.id];this.message=`${rc.name} hergestellt · +25 EP`;this.messageUntil=time+2400;this.addXp(XP.craft);this.tut({kind:'craft'},time);}input.craft=null;}
       if(input.weapon!==this.weapon){this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';this.attacking=false;this.attackPending=false;}
       const bedX=this.bed?.x??0,bedY=this.bed?.y??0;
       this.nearBed=Math.hypot(p.x-bedX,p.y-bedY)<34;
@@ -769,7 +777,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             this.persist();
           } else this.message='Dieses Haus ist bereits durchsucht';
         }
-        else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';this.messageUntil=time+2400;if(this.addXp(XP.berry))return this.report(time,p);}
+        else if(berry){berry.picked=true;berry.sprite.setTint(0x849461);this.count++;this.message='Beeren gesammelt · +1';this.messageUntil=time+2400;this.tut({kind:'berry'},time);if(this.addXp(XP.berry))return this.report(time,p);}
         else if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70){const r=roast(this.pantry());if(r){this.setPantry(r);this.message='Fleisch gebraten · [3] essen';this.messageUntil=time+2400;if(this.addXp(XP.roast))return this.report(time,p);}else{this.stamina=100;this.message='Am Feuer ausgeruht';}}
         else if(p.y<CAMP.y-20&&Math.abs(p.x-CAMP.x)<60)this.message='Die Sippenhöhle – hier bist du sicher';
         else this.message='Hier gibt es nichts zu sammeln';
@@ -997,6 +1005,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (id === 'follow' && !canRecruit(true, this.followingCount(), this.companionOrders.get(target)?.mode === 'follow')) return true;
         this.companionOrders.set(target, { id: target, mode: id, x: actor.sprite.x, y: actor.sprite.y });
         actor.sprite.setVelocity(0, 0); this.companionMovement.reset(target);
+        if (id === 'follow') this.tut({ kind: 'recruit' }, time);
         this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
       } else if (id === 'feed') {
         const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
@@ -1249,7 +1258,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial}});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

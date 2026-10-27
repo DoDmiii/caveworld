@@ -23,3 +23,4 @@
 - Keep fighter health, knockdown recovery and finisher eligibility in combat.ts; save fighter outcomes separately from captive states so defeated guards cannot respawn or become captives on reload.
 - Import uploaded Steinkeil and finisher frames through wedge.ts, preserving pixels on a shared player canvas; Phaser resolves finisher impact from the animation frame rather than a timer.
 - Keep companion orders and formation rules engine-free in companions.ts, and obstacle navigation in companion-movement.ts using PathFinding.js; override camper/folk wandering only for ordered allies and persist orders separately from captive/fighter states to preserve identities and friendly-fire protection.
+- Keep tutorial step rules engine-free in tutorial.ts; world.ts only emits events and saves progress, so steps can change without touching the engine.
