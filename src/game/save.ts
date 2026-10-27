@@ -35,6 +35,7 @@ const GameSchema = z.object({
   // Vorratskiste am Lagerfeuer; Default, damit ältere Spielstände weiter laden.
   chest: z.object({ wood: count, stone: count, flint: count, fiber: count, berries: count, meat: count, cooked: count }).default({ wood: 0, stone: 0, flint: 0, fiber: 0, berries: 0, meat: 0, cooked: 0 }),
   companions: z.array(z.object({ id: z.string().max(40), mode: z.enum(['follow', 'wait', 'return']), x: coord, y: coord })).max(50).optional(),
+  allies: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(50), downMs: z.number().min(0).max(60000) })).max(50).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(60), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7) })).max(50).optional(),
   relationships: z.object({
     village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),

@@ -215,6 +215,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
         fighters: this.folk.filter(f => f.combat.hp !== 60 || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
+        allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
       };
     }
@@ -251,6 +252,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         actor.sprite.setPosition(order.x, order.y);
         this.companionOrders.set(order.id, { ...order });
       }
+      for (const a of g.allies ?? []) this.allyHp.set(a.id, a.downMs > 0 ? { hp: 0, downUntil: this.time.now + Math.max(1, a.downMs) } : { hp: a.hp, downUntil: 0 });
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;

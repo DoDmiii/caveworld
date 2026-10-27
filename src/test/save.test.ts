@@ -19,6 +19,11 @@ describe('save', () => {
     expect(saveGame({ game: next })).toBe(true);
     expect(loadSave()?.game?.companions).toEqual(next.companions);
   });
+  it('retains injured and downed companion health', () => {
+    const allies = [{ id: 'ally-0', hp: 18, downMs: 0 }, { id: 'ally-1', hp: 0, downMs: 4000 }];
+    expect(saveGame({ game: { ...game, allies } })).toBe(true);
+    expect(loadSave()?.game?.allies).toEqual(allies);
+  });
   it('retains the Steinkeil and finished enemies across reload', () => {
     const next = { ...game, owned: ['axe', 'wedge'] as GameSave['owned'], fighters: [{ id: 'nordic-m2-f', hp: 0, phase: 'dead' as const, x: 200, y: -700, facing: 2 }] };
     expect(saveGame({ game: next })).toBe(true);
