@@ -29,6 +29,7 @@ export function newTutorial(): TutorialState { return { step: 0, progress: 0 }; 
 export function tutorialEvent(s: TutorialState, ev: TutorialEvent): { state: TutorialState; completed?: TutorialStep } {
   if (s.step >= TUTORIAL_DONE || STEP_EVENT[s.step] !== ev.kind) return { state: s };
   const step = TUTORIAL_STEPS[s.step];
+  if (!step) return { state: s };
   const progress = Math.min(step.goal, s.progress + (ev.kind === 'move' ? ev.dist : 1));
   if (progress < step.goal) return { state: { step: s.step, progress } };
   return { state: { step: s.step + 1, progress: 0 }, completed: step };
