@@ -28,3 +28,6 @@
 - [x] Schwächen: Orka/Bruk mehr Hunger, Tamo zögert, Torvik/Kuruk kämpfen nicht, Skorra folgt ab 60 Vertrauen, Nuka nascht; Ymra +25 % Tausch
 - [x] Offen: Ilvars nächtliche Flucht, Uras Kälteempfindlichkeit, Kuruk langsamer/kurze Strecken
 - [x] Lebensanzeige für den Jagdtrupp im HUD
+- [x] Rivalität Schritt 2: Warnstufen, Grenzpatrouillen der Wachen, Sprechblasen
+- [ ] Rivalität Schritt 1: Sippenstreit & Lagergespräche
+- [ ] Rivalität Schritt 3: Vertrauensstufen für Gefangene freispielen

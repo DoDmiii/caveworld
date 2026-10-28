@@ -26,3 +26,4 @@
 - Keep tutorial step rules engine-free in tutorial.ts; world.ts only emits events and saves progress, so steps can change without touching the engine.
 - Keep NPC biographies and stable identity mappings in an engine-free profiles module, with mutable trust and skills in the existing local game save; render uploaded atlas portraits separately in the HUD so profiles never change ethnicity or activate gameplay bonuses implicitly.
 - Keep profile gameplay bonuses in the engine-free bonuses module; world.ts only asks it for the current party's modifiers, so values can change without touching the engine.
+- Keep village warning levels, patrol routes and bark lines engine-free in patrols.ts; world.ts only moves guards and shows bubbles.
