@@ -24,3 +24,15 @@ describe('profile bonuses', () => {
     expect(total).toBe(7);
   });
 });
+import { refusesFight, partyHungerFactor, followRefusal, nukaSnack } from '@/game/bonuses';
+describe('profile quirks', () => {
+  it('Torvik and Kuruk never fight', () => { expect(refusesFight('torvik', 'gazelle', 1)).toBe(true); expect(refusesFight('kuruk', undefined, 1)).toBe(true); });
+  it('Tamo avoids mammoth, bear and wolves and backs off below 50 % health', () => {
+    expect(refusesFight('tamo', 'bear', 1)).toBe(true);
+    expect(refusesFight('tamo', 'gazelle', 1)).toBe(false);
+    expect(refusesFight('tamo', 'gazelle', 0.49)).toBe(true);
+  });
+  it('Orka eats 25 % and Bruk 20 % more', () => { expect(partyHungerFactor(['orka'])).toBe(1.25); expect(partyHungerFactor(['orka', 'bruk'])).toBeCloseTo(1.5); });
+  it('Skorra follows only from 60 trust', () => { expect(followRefusal('skorra', 59)).not.toBeNull(); expect(followRefusal('skorra', 60)).toBeNull(); });
+  it('Nuka eats one berry a day', () => { expect(nukaSnack(5, true)).toBe(4); expect(nukaSnack(0, true)).toBe(0); expect(nukaSnack(5, false)).toBe(5); });
+});
