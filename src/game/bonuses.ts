@@ -32,3 +32,25 @@ export function bonusYield(base: number, pct: number, carry: number): { amount: 
 }
 
 export const BRUK_EXTRA_HP = 20;
+
+// ---------- Schwächen (quirks) ----------
+const BIG_GAME = ['mammoth', 'bear', 'wolf'];
+/** Torvik and Kuruk never fight; Tamo hesitates at big game/packs and backs off below 50 % health. */
+export function refusesFight(profileId: string, targetKind: string | undefined, hpRatio: number): boolean {
+  if (profileId === 'torvik' || profileId === 'kuruk') return true;
+  if (profileId === 'tamo') return hpRatio < 0.5 || (!!targetKind && BIG_GAME.includes(targetKind));
+  return false;
+}
+/** Orka eats 25 % more, Bruk 20 % more – the hunting party lives off your supplies. */
+export function partyHungerFactor(following: readonly string[]): number {
+  return (following.includes('orka') ? 1.25 : 1) * (following.includes('bruk') ? 1.2 : 1);
+}
+/** Skorra only follows orders from 60 trust. */
+export function followRefusal(profileId: string, trust: number): string | null {
+  return profileId === 'skorra' && trust < 60 ? 'Skorra folgt keinem Befehl, den sie nicht versteht · Vertrauen ab 60 nötig' : null;
+}
+/** Nuka snacks one berry per new day from your supply. */
+export function nukaSnack(berries: number, nukaInTribe: boolean): number {
+  return nukaInTribe && berries > 0 ? berries - 1 : berries;
+}
+export const YMRA_TRADE_BONUS = 0.25;

@@ -59,7 +59,7 @@ import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } fr
 import { interact, drop, CARRY_SPEED } from './captives';
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 import { getProfile, profileState, PROFILE_IDS, type ProfileStates } from './profiles';
-import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, type PartyBonuses } from './bonuses';
+import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight, partyHungerFactor, followRefusal, nukaSnack, YMRA_TRADE_BONUS, type PartyBonuses } from './bonuses';
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
@@ -134,11 +134,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyHp = new Map<string, AllyHealth>();
     allyMaxHp(id: string) { return PROFILE_IDS[id] === 'bruk' ? 50 + BRUK_EXTRA_HP : 50; }
     allyHealth(id: string) { let h = this.allyHp.get(id); if (!h) { h = newAllyHealth(this.allyMaxHp(id)); this.allyHp.set(id, h); } return h; }
-    meatCarry = 0; berryCarry = 0;
+    meatCarry = 0; berryCarry = 0; tradeCarry = 0; snackDay = -1;
+    followingPids() { return this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).map(a => PROFILE_IDS[a.id] ?? a.id); }
+    tribePids() { return [...this.campers.map((_, i) => PROFILE_IDS[`ally-${i}`] ?? ''), ...this.folk.filter(f => f.c.state === 'camp').map(f => PROFILE_IDS[f.c.id] ?? f.c.id)]; }
+    shirks(id: string, t: { ref: Creature | Folk } | undefined) { const h = this.allyHealth(id); return refusesFight(PROFILE_IDS[id] ?? id, t && 'kind' in t.ref ? t.ref.kind : undefined, h.hp / this.allyMaxHp(id)); }
     /** Profile bonuses of the people currently following or living in camp. */
     party(): PartyBonuses {
-      const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).map(a => PROFILE_IDS[a.id] ?? a.id);
-      const tribe = [...this.campers.map((_, i) => PROFILE_IDS[`ally-${i}`] ?? ''), ...this.folk.filter(f => f.c.state === 'camp').map(f => PROFILE_IDS[f.c.id] ?? f.c.id)];
+      const following = this.followingPids(), tribe = this.tribePids();
       const trust = Object.fromEntries(Object.entries(PROFILE_IDS).map(([actor, pid]) => [pid, this.profiles[actor]?.trust ?? 0]));
       return partyBonuses(following, tribe, trust);
     }
@@ -643,7 +645,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.clock=advanceClock(this.clock,dt);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
-        this.hunger=tickHunger(this.hunger,dt);
+        this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids()));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
         {const before=this.warmth;const after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay))*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1):after;}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));
@@ -975,12 +977,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const t = this.dead || this.sleeping || this.carried ? undefined : pickAllyTarget(this.allyFoes(), p, this.allyFocus) as (Foe & { ref: Creature | Folk }) | undefined;
       if (!t) this.allyFocus = undefined;
       this.allyTarget = t;
-      if (t) following.forEach((a, i) => goals.set(a.id, flankSlot(i + 1, following.length + 1, t, ALLY_REACH - 4, time, 1.7)));
+      if (t) { const fighters = following.filter(a => !this.shirks(a.id, t)); fighters.forEach((a, i) => goals.set(a.id, flankSlot(i + 1, fighters.length + 1, t, ALLY_REACH - 4, time, 1.7))); }
       for (const a of following) {
         let g = this.allyGear.get(a.id);
         if (!g) { g = { img: this.add.image(0, 0, companionWeapon(a.id) === 'spear' ? 'spear-proj' : 'folk-axe').setScale(0.5), next: 0, swingUntil: 0 }; this.allyGear.set(a.id, g); }
         const left = t ? t.x < a.sprite.x : a.facing >= 3 && a.facing <= 5, sw = time < g.swingUntil ? 1.2 : 0;
-        g.img.setVisible(!!t).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
+        g.img.setVisible(!!t && !this.shirks(a.id, t)).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
       }
       for (const [id, g] of this.allyGear) if (this.companionOrders.get(id)?.mode !== 'follow' || allyDowned(this.allyHealth(id))) g.img.setVisible(false);
       return goals;
@@ -988,7 +990,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyStrikes(time: number) {
       const t = this.allyTarget; if (!t || input.paused) return;
       for (const a of this.companionActors()) {
-        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow' || allyDowned(this.allyHealth(a.id))) continue;
+        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow' || allyDowned(this.allyHealth(a.id)) || this.shirks(a.id, t)) continue;
         const dx = t.ref.sprite.x - a.sprite.x, dy = t.ref.sprite.y - a.sprite.y, d = Math.hypot(dx, dy);
         if (d > ALLY_REACH + 6 || time < g.next) continue;
         g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
@@ -1025,6 +1027,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (!option || option.disabled) return true;
       if (id === 'follow' || id === 'wait' || id === 'return') {
         if (id === 'follow' && !canRecruit(true, this.followingCount(), this.companionOrders.get(target)?.mode === 'follow')) return true;
+        { const no = id === 'follow' ? followRefusal(PROFILE_IDS[target] ?? target, this.profiles[target]?.trust ?? 0) : null; if (no) { this.message = no; this.messageUntil = time + 2600; return true; } }
         this.companionOrders.set(target, { id: target, mode: id, x: actor.sprite.x, y: actor.sprite.y });
         actor.sprite.setVelocity(0, 0); this.companionMovement.reset(target);
         if (id === 'follow') this.tut({ kind: 'recruit' }, time);
@@ -1063,6 +1066,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
+      if (id === 'trade' && o.goods.cooked > this.cooked && this.tribePids().includes('ymra')) { const y = bonusYield(o.goods.cooked - this.cooked, YMRA_TRADE_BONUS, this.tradeCarry); this.tradeCarry = y.carry; if (y.amount > o.goods.cooked - this.cooked) o.message += ' · Ymra handelt 1 extra heraus'; o.goods.cooked = this.cooked + y.amount; }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
       if (o.rel && f.c.state !== 'camp') this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, f.c.id, o.rel, vk), vk, o.rel);
       if (o.alarm) this.rel = raiseAlarm(this.rel, vk, Date.now());
