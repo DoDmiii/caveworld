@@ -1145,7 +1145,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
         if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
         const m = this.folkMood.get(o.c.id); if (m) m.armedUntil = time + 25000;
+        if (o !== f) this.bark(o.c.id, o.sprite, 'attack', time);
       }
+      this.bark(f.c.id, f.sprite, f.t.captive ? 'flee' : 'alarm', time, true);
     }
     /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
     lastSocial = new Map<string, number>();
