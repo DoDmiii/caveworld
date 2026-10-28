@@ -63,6 +63,8 @@ import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
+import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
+import { getVillageRelationship } from './relationships';
 import type { InteractionContext, InteractionId } from './interactions';
 import { EMPTY_RELATIONSHIPS, changeVillageRelationship, changePersonalRelationship, getPersonalRelationship, isAlarmActive, raiseAlarm, type RelationshipState } from './relationships';
 import { resolveInteraction, villageKey, INTERACTION_RANGE, isSocialAction, socialReady, SOCIAL_COOLDOWN_MS } from './tribal';
@@ -212,6 +214,51 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
     folk: Folk[] = [];
+    barks = new Map<string, { text: Phaser.GameObjects.Text; until: number; next: number; sprite: Phaser.GameObjects.Components.Transform }>();
+    patrolStep = new Map<string, number>();
+    villageLevel = new Map<string, WarningLevel>();
+    /** Short speech bubble above a person; respects a per-person cooldown. */
+    bark(id: string, sprite: Phaser.GameObjects.Components.Transform, kind: BarkKind, time: number, force = false) {
+      let b = this.barks.get(id);
+      if (b && !force && time < b.next) return;
+      if (!b) { b = { text: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '8px', color: '#1c1712', backgroundColor: '#f4ead2', padding: { x: 3, y: 2 } }).setOrigin(0.5, 1).setResolution(4), until: 0, next: 0, sprite }; this.barks.set(id, b); }
+      b.sprite = sprite; b.text.setText(pickBark(kind, time / 997 + id.length)).setVisible(true);
+      b.until = time + BARK_MS; b.next = time + BARK_COOLDOWN_MS;
+    }
+    /** Guards of tense villages walk a ring outside the fence; hostile ones attack on sight. Returns ids it moved. */
+    tickPatrols(time: number, stopped: boolean): Set<string> {
+      const ids = new Set<string>(), p = this.player, now = Date.now();
+      for (const b of this.barks.values()) {
+        const on = time < b.until; b.text.setVisible(on);
+        if (on) b.text.setPosition(b.sprite.x, b.sprite.y - 24).setDepth(b.sprite.y + 3000);
+      }
+      VILLAGES.forEach(v => {
+        const vk = villageKey(v.name), lvl = warningLevel(getVillageRelationship(this.rel, vk), isAlarmActive(this.rel, vk, now));
+        const prev = this.villageLevel.get(vk);
+        if (prev !== undefined && prev !== lvl && p && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 500) {
+          this.message = `${v.name}: ${WARNING_NAME[lvl]}${patrolsActive(lvl) ? ' · Wachen patrouillieren' : ''}`; this.messageUntil = time + 2400;
+        }
+        this.villageLevel.set(vk, lvl);
+      });
+      if (!p) return ids;
+      this.folk.forEach((f, i) => {
+        if (f.t.captive || f.c.state !== 'free' || f.combat.phase !== 'ready') return;
+        const v = VILLAGES[f.t.village], vk = villageKey(v.name), lvl = this.villageLevel.get(vk) ?? 0, m = this.folkMood.get(f.c.id);
+        if (!patrolsActive(lvl) || (m?.armedUntil ?? 0) > time) return;
+        ids.add(f.c.id);
+        const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
+        if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
+        if (patrolAttacks(lvl, d) && m) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true); return; }
+        if (d < 140) this.bark(f.c.id, s, lvl >= 3 ? 'spotted' : 'warn', time);
+        const route = patrolRoute(v, i), step = this.patrolStep.get(f.c.id) ?? 0, wp = route[step % route.length]!;
+        const dx = wp.x - s.x, dy = wp.y - s.y, dl = Math.hypot(dx, dy), body = s.body as Phaser.Physics.Arcade.Body;
+        if (dl < 10 || (!body.blocked.none && time > f.until)) { this.patrolStep.set(f.c.id, step + 1); f.until = time + 800; if (Math.random() < 0.15) this.bark(f.c.id, s, 'patrol', time); return; }
+        s.setVelocity(dx / dl * 30, dy / dl * 30);
+        f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+        s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
+      });
+      return ids;
+    }
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
     profiles: ProfileStates = {};
     profileView(id: string, portrait: string): ProfileView | undefined {
@@ -652,6 +699,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p=this.player;if(!p)return;
       const controlled = new Set(this.companionOrders.keys()); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
+      for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       this.tickIlvar(time, input.paused || this.dead || this.health <= 0);
       const blocks: Block[] = (this.obstacles?.getChildren() ?? []).flatMap(o => {
@@ -940,7 +988,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (armed && !stop) {
           const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
           if (!m.weapon) m.weapon = this.add.image(0, 0, f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(0.45);
-          const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4;
+          const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
           const lunging = idx === lungeIndex(n, time);
           // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
@@ -975,7 +1023,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (f.c.state !== 'free' || d > 160) { m.dec = undefined; m.icon.setVisible(false); continue; }
         if (time > m.next) {
           m.next = time + 400;
+          const before = m.dec?.state;
           m.dec = decideReaction({ relationship: getPersonalRelationship(this.rel, f.c.id, vk), armed: this.held !== 'none', crouching: this.crouching, carryingCaptive: !!this.carried, night: isNight(clockOf(this.clock).minutesOfDay), witnessedCrime: false, insideVillage: inside, alarmActive: isAlarmActive(this.rel, vk, now), role: f.t.captive ? 'villager' : 'guard' });
+          if (m.dec.state !== before && d < 110) {
+            const k: BarkKind | undefined = m.dec.state === 'friendly' ? 'greet' : m.dec.state === 'suspicious' ? 'warn' : m.dec.state === 'noticed' ? 'spotted' : m.dec.state === 'fleeing' ? 'flee' : m.dec.state === 'hostile' ? 'alarm' : undefined;
+            if (k) this.bark(f.c.id, s, k, time);
+          }
           if (m.dec.shouldRaiseAlarm) { this.rel = raiseAlarm(this.rel, vk, now); this.message = `${v.name} schlägt Alarm!`; this.messageUntil = time + 1800; }
         }
         const dec = m.dec; if (!dec) continue;
