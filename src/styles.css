@@ -382,3 +382,19 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .profile-section ol {padding-left:20px;margin:12px 0 0;}
 .profile-section li {margin-bottom:8px;}
 @media(max-width:380px){.interaction-panel{padding:12px;}.profile-skill{font-size:11px;gap:5px;}.skill-pips{gap:2px;}.skill-pips i{width:6px;height:7px;}}
+
+/* Jagdtrupp-Lebensanzeige */
+.squad-hud {position:absolute;top:92px;left:22px;display:flex;flex-direction:column;gap:5px;pointer-events:none;z-index:5;}
+.squad-member {display:flex;align-items:center;gap:6px;padding:3px 7px 3px 3px;background:var(--glass);border:1px solid var(--glass-border);border-radius:5px;width:132px;}
+.squad-member.is-down {opacity:.7;}
+.squad-portrait {width:24px;height:24px;overflow:hidden;flex-shrink:0;}
+.squad-portrait img {height:24px;width:auto;max-width:none;image-rendering:pixelated;transform:translateX(-48px);}
+.squad-info {flex:1;min-width:0;}
+.squad-name {display:flex;justify-content:space-between;font-size:9px;letter-spacing:.06em;color:var(--foreground);}
+.squad-name em {font-style:normal;opacity:.75;}
+.squad-member.is-down .squad-name em {color:var(--destructive);opacity:1;}
+.squad-track {height:4px;margin-top:2px;background:color-mix(in oklab,var(--foreground) 15%,transparent);border-radius:2px;overflow:hidden;}
+.squad-track i {display:block;height:100%;background:oklch(0.68 0.17 145);transition:width .3s;}
+.squad-track i.mid {background:oklch(0.78 0.16 85);}
+.squad-track i.low {background:var(--destructive);}
+@media (max-width:520px){.squad-hud{top:80px;left:17px;}.squad-member{width:118px;}}
