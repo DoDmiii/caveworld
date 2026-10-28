@@ -26,4 +26,5 @@
 - [x] NPC-Steckbriefe Schritt 1: Dokument einbinden, Profile im Interaktionsrad anzeigen, Vertrauen/Fähigkeiten speichern und im Spiel prüfen.
 - [x] NPC-Steckbriefe Schritt 2: Boni von Tamo, Nuka, Skorra, Torvik (folgend) sowie Orka, Ura, Kuruk (im Lager), Bruk +20 LP
 - [x] Schwächen: Orka/Bruk mehr Hunger, Tamo zögert, Torvik/Kuruk kämpfen nicht, Skorra folgt ab 60 Vertrauen, Nuka nascht; Ymra +25 % Tausch
-- [ ] Offen: Ilvars nächtliche Flucht, Uras Kälteempfindlichkeit, Kuruk langsamer/kurze Strecken
+- [x] Offen: Ilvars nächtliche Flucht, Uras Kälteempfindlichkeit, Kuruk langsamer/kurze Strecken
+- [x] Lebensanzeige für den Jagdtrupp im HUD

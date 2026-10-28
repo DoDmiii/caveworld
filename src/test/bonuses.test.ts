@@ -36,3 +36,16 @@ describe('profile quirks', () => {
   it('Skorra follows only from 60 trust', () => { expect(followRefusal('skorra', 59)).not.toBeNull(); expect(followRefusal('skorra', 60)).toBeNull(); });
   it('Nuka eats one berry a day', () => { expect(nukaSnack(5, true)).toBe(4); expect(nukaSnack(0, true)).toBe(0); expect(nukaSnack(5, false)).toBe(5); });
 });
+
+import { companionPace, leashExceeded, uraColdDamage, triesToFlee } from '@/game/bonuses';
+describe('eigenständige Schwächen', () => {
+  it('Kuruk läuft 20 % langsamer', () => { expect(companionPace('kuruk')).toBe(0.8); expect(companionPace('bruk')).toBe(1); });
+  it('Kuruk kehrt ab 450 vom Lager um', () => { expect(leashExceeded('kuruk', 451)).toBe(true); expect(leashExceeded('kuruk', 449)).toBe(false); expect(leashExceeded('tamo', 900)).toBe(false); });
+  it('Ura friert im Schnee ohne Fell', () => { expect(uraColdDamage('ura', 'nordics', false)).toBe(1); expect(uraColdDamage('ura', 'nordics', true)).toBe(0); expect(uraColdDamage('ura', 'valley', false)).toBe(0); });
+  it('Ilvar flieht nachts unter 40 Vertrauen einmal pro Nacht', () => {
+    expect(triesToFlee('ilvar', 39, true, false)).toBe(true);
+    expect(triesToFlee('ilvar', 40, true, false)).toBe(false);
+    expect(triesToFlee('ilvar', 10, false, false)).toBe(false);
+    expect(triesToFlee('ilvar', 10, true, true)).toBe(false);
+  });
+});
