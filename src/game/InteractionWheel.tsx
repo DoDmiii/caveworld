@@ -17,7 +17,7 @@ export interface InteractionWheelProps {
   onChoose: (id: InteractionId) => void;
   onClose: () => void;
   name?: string;
-  profile?: ProfileView;
+  profile?: ProfileView | undefined;
 }
 
 /** HUD overlay only. The parent must pause gameplay while it is open. */

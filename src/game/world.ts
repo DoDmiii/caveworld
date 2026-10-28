@@ -70,7 +70,7 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number };
-export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView };
+export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
