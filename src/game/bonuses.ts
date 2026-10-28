@@ -54,3 +54,18 @@ export function nukaSnack(berries: number, nukaInTribe: boolean): number {
   return nukaInTribe && berries > 0 ? berries - 1 : berries;
 }
 export const YMRA_TRADE_BONUS = 0.25;
+
+// ---------- Eigenständige Schwächen ----------
+/** Kuruk walks 20 % slower than the young hunters. */
+export const companionPace = (profileId: string) => profileId === 'kuruk' ? 0.8 : 1;
+/** Kuruk turns back home once the party is this far from the camp fire. */
+export const KURUK_LEASH = 450;
+export const leashExceeded = (profileId: string, distFromCamp: number) => profileId === 'kuruk' && distFromCamp > KURUK_LEASH;
+/** Ura freezes in the snow: HP lost per second unless you wear fur clothing. */
+export const URA_COLD_HP_PER_S = 1;
+export const uraColdDamage = (profileId: string, biome: string, hasFur: boolean) => profileId === 'ura' && biome === 'nordics' && !hasFur ? URA_COLD_HP_PER_S : 0;
+/** Ilvar tries to flee at night while his trust is below 40, at most once per night. */
+export const ILVAR_FLEE_TRUST = 40;
+export const ILVAR_ESCAPE_DIST = 500;
+export const triesToFlee = (profileId: string, trust: number, night: boolean, alreadyTriedToday: boolean) =>
+  profileId === 'ilvar' && night && trust < ILVAR_FLEE_TRUST && !alreadyTriedToday;
