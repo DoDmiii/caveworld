@@ -5,7 +5,7 @@ import { companionSpeed, formationSlot, type CompanionOrder } from './companions
 import { MAP } from './biomes';
 
 export type Block = Pt & { width: number; height: number };
-export type CompanionActor = { id: string; sprite: Phaser.Physics.Arcade.Sprite; texture: string; home: Pt; facing: number; face: (direction: number) => void };
+export type CompanionActor = { id: string; sprite: Phaser.Physics.Arcade.Sprite; texture: string; home: Pt; facing: number; face: (direction: number) => void; pace?: number };
 type Route = { points: Pt[]; next: number; goal: Pt };
 const finder = new PF.AStarFinder({ allowDiagonal: true, dontCrossCorners: true });
 
@@ -80,7 +80,7 @@ export class CompanionMovement {
       let dx = next.x - s.x + sep.x * 12, dy = next.y - s.y + sep.y * 12;
       const len = Math.hypot(dx, dy); if (len < 1) { idle(); continue; }
       dx /= len; dy /= len;
-      const speed = fight ? 96 : order.mode === 'follow' ? companionSpeed(sprinting, crouching, distance) : 65;
+      const speed = fight ? 96 : order.mode === 'follow' ? companionSpeed(sprinting, crouching, distance) * (actor.pace ?? 1) : 65 * (actor.pace ?? 1);
       s.setVelocity(dx * speed, dy * speed);
       const direction = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
       actor.face(direction); s.play(`${actor.texture}-walk-${direction}`, true); s.anims.timeScale = crouching ? 0.6 : sprinting ? 1.4 : 1;
