@@ -58,6 +58,8 @@ import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
 import { interact, drop, CARRY_SPEED } from './captives';
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
+import { getProfile, profileState, type ProfileStates } from './profiles';
+import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
 import type { InteractionContext, InteractionId } from './interactions';
@@ -68,7 +70,7 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number };
-export type TalkTarget = InteractionContext & { id: string; name: string };
+export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -157,6 +159,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lootedHouses: string[] = [];
     folk: Folk[] = [];
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
+    profiles: ProfileStates = {};
+    profileView(id: string, portrait: string): ProfileView | undefined {
+      const biography = getProfile(id); if (!biography) return undefined;
+      let state = this.profiles[id];
+      if (!state) { state = profileState(biography); this.profiles[id] = state; }
+      return { biography, state: profileState(biography, state), portrait };
+    }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
     talk: TalkTarget | null = null;
     carried: Folk | undefined = undefined;
@@ -214,6 +223,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         lootedHouses: [...this.lootedHouses],
         chest: { ...this.chest },
         tutorial: { ...this.tutorial },
+        profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
@@ -237,6 +247,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Ältere Spielstände ohne Einführung: Spieler kennt das Spiel schon.
       this.tutorial = g.tutorial ? { ...g.tutorial } : { step: TUTORIAL_DONE, progress: 0 };
       this.rel = g.relationships;
+      this.profiles = Object.fromEntries(Object.entries(g.profiles ?? {}).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }]));
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
       for (const s of g.stumps) {
@@ -928,7 +939,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (best && !this.carried) {
         const f = best, st = f.c.state, vk = villageKey(VILLAGES[f.t.village].name);
         this.talk = {
-          id: f.c.id, name: st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${VILLAGES[f.t.village].name}`,
+          id: f.c.id, name: getProfile(f.c.id)?.name ?? (st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${VILLAGES[f.t.village].name}`), profile: this.profileView(f.c.id, f.t.url),
           target: st === 'camp' ? 'ally' : st === 'surrender' || st === 'bound' ? 'captive' : f.t.captive ? 'villager' : 'guard',
           targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
@@ -991,7 +1002,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       ];
     }
     allyContext(a: CompanionActor): TalkTarget {
-      return { id: a.id, name: 'Stammesmitglied', target: 'ally', targetRole: 'villager', relationship: 100,
+      const portrait = this.campers.find(c => c.template.id === a.id)?.template.url ?? this.folk.find(f => f.c.id === a.id)?.t.url;
+      return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, target: 'ally', targetRole: 'villager', relationship: 100,
         hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
         targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount() };
     }
