@@ -138,7 +138,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Profile bonuses of the people currently following or living in camp. */
     party(): PartyBonuses {
       const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).map(a => PROFILE_IDS[a.id] ?? a.id);
-      const tribe = [...this.campers.map((c: { id?: string }, i: number) => PROFILE_IDS[c.id ?? `ally-${i}`] ?? ''), ...this.folk.filter(f => f.c.state === 'camp').map(f => PROFILE_IDS[f.c.id] ?? f.c.id)];
+      const tribe = [...this.campers.map((_, i) => PROFILE_IDS[`ally-${i}`] ?? ''), ...this.folk.filter(f => f.c.state === 'camp').map(f => PROFILE_IDS[f.c.id] ?? f.c.id)];
       const trust = Object.fromEntries(Object.entries(PROFILE_IDS).map(([actor, pid]) => [pid, this.profiles[actor]?.trust ?? 0]));
       return partyBonuses(following, tribe, trust);
     }
@@ -644,7 +644,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
         this.hunger=tickHunger(this.hunger,dt);
-        {const before=this.warmth;const after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay))*(biomeAt(p.x,p.y)==='snow'?bonus.snowCold:1):after;}
+        {const before=this.warmth;const after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay),nearFire:nearWarmth,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay))*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1):after;}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));
         if(time>=this.messageUntil){
