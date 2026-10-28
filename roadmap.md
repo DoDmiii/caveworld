@@ -23,4 +23,4 @@
 - [x] Exploit-Schutz: 5-Min-Abklingzeit für Grüßen/Geschenk/Handel/Verhör/Lösegeld pro Person; „Essen geben“ heilt Begleiter wirklich
 - [x] Lager-Infrastruktur: Vorratskiste am Feuer (Ein-/Auslagern, persistent, live verifiziert)
 - [x] Einführung „Die ersten fünf Minuten“: 5 Ziele (Laufen, Beeren, Feuer, Herstellen, Jagdtrupp), EP-Belohnung, gespeichert
-- [ ] NPC-Steckbriefe: Namen, Fähigkeiten, Beziehungen (wartet auf Details vom Nutzer)
+- [x] NPC-Steckbriefe Schritt 1: Dokument einbinden, Profile im Interaktionsrad anzeigen, Vertrauen/Fähigkeiten speichern und im Spiel prüfen.

@@ -14,6 +14,23 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains per-person trust and five skill levels across reloads', () => {
+    const profiles = { 'nordic-m0': { trust: 76, skills: { hunt: 3, tough: 3, gather: 1, watch: 5, fire: 1 } } };
+    expect(saveGame({ game: { ...game, profiles } })).toBe(true);
+    expect(loadSave()?.game?.profiles).toEqual(profiles);
+  });
+  it('loads older saves without NPC profiles without changing existing game data', () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game }));
+    expect(loadSave()?.game).toEqual(game);
+  });
+  it('rejects trust outside 0–100', () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: { ...game, profiles: { 'nordic-m0': { trust: 101, skills: { hunt: 3, tough: 3, gather: 1, watch: 5, fire: 1 } } } } }));
+    expect(loadSave()).toBeNull();
+  });
+  it('rejects skills outside levels 1–5', () => {
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: { ...game, profiles: { 'nordic-m0': { trust: 50, skills: { hunt: 6, tough: 3, gather: 1, watch: 5, fire: 1 } } } } }));
+    expect(loadSave()).toBeNull();
+  });
   it('retains following and waiting companions with their positions', () => {
     const next: GameSave = { ...game, companions: [{ id: 'ally-0', mode: 'follow', x: 950, y: 850 }, { id: 'ally-1', mode: 'wait', x: 900, y: 900 }] };
     expect(saveGame({ game: next })).toBe(true);
