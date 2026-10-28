@@ -37,6 +37,10 @@ const GameSchema = z.object({
   tutorial: z.object({ step: z.number().int().min(0).max(20), progress: z.number().min(0).max(10_000) }).optional(),
   companions: z.array(z.object({ id: z.string().max(40), mode: z.enum(['follow', 'wait', 'return']), x: coord, y: coord })).max(50).optional(),
   allies: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(50), downMs: z.number().min(0).max(60000) })).max(50).optional(),
+  profiles: z.record(z.string().max(40), z.object({
+    trust: z.number().int().min(-100).max(100),
+    skills: z.object({ hunt: z.number().int().min(1).max(5), tough: z.number().int().min(1).max(5), gather: z.number().int().min(1).max(5), watch: z.number().int().min(1).max(5), fire: z.number().int().min(1).max(5) }),
+  })).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(60), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7) })).max(50).optional(),
   relationships: z.object({
     village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
