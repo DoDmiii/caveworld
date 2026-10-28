@@ -40,18 +40,18 @@ export const ALLY_RECOVER_HP = 20;
 export const ALLY_REGEN_PER_S = 1;
 export const ALLY_FIRE_REGEN_PER_S = 5;
 export type AllyHealth = { hp: number; downUntil: number };
-export const newAllyHealth = (): AllyHealth => ({ hp: ALLY_HP, downUntil: 0 });
+export const newAllyHealth = (max = ALLY_HP): AllyHealth => ({ hp: max, downUntil: 0 });
 export const allyDowned = (h: AllyHealth) => h.downUntil > 0;
 export function hitAlly(h: AllyHealth, damage: number, now: number): AllyHealth {
   if (allyDowned(h) || damage <= 0) return h;
   const hp = Math.max(0, h.hp - damage);
   return hp === 0 ? { hp: 0, downUntil: now + ALLY_DOWN_MS } : { hp, downUntil: 0 };
 }
-export function tickAllyHealth(h: AllyHealth, now: number, dtMs: number, nearFire: boolean): AllyHealth {
+export function tickAllyHealth(h: AllyHealth, now: number, dtMs: number, nearFire: boolean, max = ALLY_HP): AllyHealth {
   if (allyDowned(h)) return now >= h.downUntil ? { hp: ALLY_RECOVER_HP, downUntil: 0 } : h;
-  if (h.hp >= ALLY_HP) return h;
+  if (h.hp >= max) return h;
   const rate = nearFire ? ALLY_FIRE_REGEN_PER_S : ALLY_REGEN_PER_S;
-  return { hp: Math.min(ALLY_HP, h.hp + rate * dtMs / 1000), downUntil: 0 };
+  return { hp: Math.min(max, h.hp + rate * dtMs / 1000), downUntil: 0 };
 }
 /** Attackers strike whichever standing target is closest; an ally only draws the hit when nearer than the player. */
 export function pickVictim(attacker: Pt, player: Pt, allies: (Pt & { id: string })[], reach: number): string | 'player' | undefined {

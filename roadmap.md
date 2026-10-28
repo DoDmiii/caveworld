@@ -24,3 +24,4 @@
 - [x] Lager-Infrastruktur: Vorratskiste am Feuer (Ein-/Auslagern, persistent, live verifiziert)
 - [x] Einführung „Die ersten fünf Minuten“: 5 Ziele (Laufen, Beeren, Feuer, Herstellen, Jagdtrupp), EP-Belohnung, gespeichert
 - [x] NPC-Steckbriefe Schritt 1: Dokument einbinden, Profile im Interaktionsrad anzeigen, Vertrauen/Fähigkeiten speichern und im Spiel prüfen.
+- [x] NPC-Steckbriefe Schritt 2: Boni von Tamo, Nuka, Skorra, Torvik (folgend) sowie Orka, Ura, Kuruk (im Lager), Bruk +20 LP
