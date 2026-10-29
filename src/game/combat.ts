@@ -2,11 +2,11 @@
 
 export type Pt = { x: number; y: number };
 
-export type Fighter = { hp: number; phase: 'ready' | 'downed' | 'dead'; downUntil: number };
+export type Fighter = { hp: number; phase: 'ready' | 'downed' | 'dead'; downUntil: number; max?: number };
 export const KNOCKDOWN_MS = 7000;
 export const FINISHER_REACH = 30;
 export const FIGHTER_HP = 60;
-export const newFighter = (): Fighter => ({ hp: FIGHTER_HP, phase: 'ready', downUntil: 0 });
+export const newFighter = (max = FIGHTER_HP): Fighter => ({ hp: max, phase: 'ready', downUntil: 0, max });
 export function hitFighter(f: Fighter, damage: number, now: number): Fighter {
   if (f.phase !== 'ready' || damage <= 0) return f;
   const hp = Math.max(1, f.hp - damage);
