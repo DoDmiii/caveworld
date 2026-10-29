@@ -20,7 +20,7 @@ export interface InteractionWheelProps {
   onClose: () => void;
   name?: string;
   profile?: ProfileView | undefined;
-  dialogues?: CampDialogue[];
+  dialogues?: CampDialogue[] | undefined;
   onDialogueChoice?: (dialogue: string, choice: string) => void;
 }
 
