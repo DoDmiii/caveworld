@@ -8,6 +8,7 @@ import { VILLAGES } from './biomes';
 import { isCampDestination } from './tribe';
 import type { Captive } from './captives';
 import { newFighter, type Fighter } from './combat';
+import { CHAMPION_HP, CHAMPION_SCALE } from './raid';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
 // Only blond Nordic atlases (w0, w1, w3, m0, m2) may spawn in Nordic villages.
@@ -28,9 +29,14 @@ const T = [
   { id: 'nordic-m0-e', tex: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 2, dx: -60, dy: -30 },
   { id: 'nordic-w0-e', tex: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 2, dx: 50, dy: 40 },
   { id: 'nordic-m2-e', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 2, dx: 0, dy: -80 },
+  // Champions: extra blond warriors, one per village; only a finisher kills them.
+  { id: 'champion-0', tex: 'nordic-m0', url: m0.url, walk: 6, captive: false, village: 0, dx: 0, dy: -20, champion: true },
+  { id: 'champion-1', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 1, dx: 0, dy: -20, champion: true },
+  { id: 'champion-2', tex: 'nordic-m0', url: m0.url, walk: 6, captive: false, village: 2, dx: 0, dy: -20, champion: true },
 ] as const;
 export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: VILLAGES[t.village].x + t.dx, y: VILLAGES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
+export const isChampion = (t: FolkTemplate) => 'champion' in t;
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
@@ -51,8 +57,9 @@ export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade
       scene.anims.create({ key: `${t.tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(t.tex, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
     }
     const sprite = scene.physics.add.sprite(t.x, t.y, t.tex, 2).setSize(10, 7).setOffset(11, 23).setDepth(t.y).setPushable(false);
+    if (isChampion(t)) sprite.setScale(CHAMPION_SCALE).setTint(0xffe6c0);
     scene.physics.add.collider(sprite, obstacles);
-    return { sprite, t, combat: newFighter(), c: { id: t.id, state: 'free', x: t.x, y: t.y }, facing: 2, next: scene.time.now + 800 + i * 300, until: 0, tx: t.x, ty: t.y, seed: 977 + i * 151 };
+    return { sprite, t, combat: newFighter(isChampion(t) ? CHAMPION_HP : undefined), c: { id: t.id, state: 'free', x: t.x, y: t.y }, facing: 2, next: scene.time.now + 800 + i * 300, until: 0, tx: t.x, ty: t.y, seed: 977 + i * 151 };
   });
 }
 
