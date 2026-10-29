@@ -463,12 +463,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let error=placementError(b.kind,gx,gy,this.structures,blockers);
       if(!error&&!canAfford(def.cost,this.stock))error='Zu wenig Material';
       b.error=error;
-      const key=structTex({kind:b.kind,dir:b.dir,id:`b${this.structures.length}`});
+      const sid=`s${gx}_${gy}`;const key=structTex({kind:b.kind,dir:b.dir,id:sid});
       if(!this.ghost)this.ghost=this.add.image(gx,gy,key);
       this.ghost.setTexture(key).setPosition(gx,gy).setVisible(true).setAlpha(.6).setTint(error?0xff6060:0x80ff90).setDepth(gy+40);
       if(cmd?.op==='place'){
         if(error){say(error);return;}
-        const s:Placed={id:`b${Date.now().toString(36)}${this.structures.length}`,kind:b.kind,x:gx,y:gy,dir:def.rotates?b.dir:0,meat:[]};
+        const s:Placed={id:sid,kind:b.kind,x:gx,y:gy,dir:def.rotates?b.dir:0,meat:[]};
         this.stock=pay(def.cost,this.stock);this.structures=[...this.structures,s];this.spawnStructure(s);say(`${def.name} gebaut`);this.persist();
       }
     }
