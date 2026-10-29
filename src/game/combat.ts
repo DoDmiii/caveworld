@@ -2,7 +2,7 @@
 
 export type Pt = { x: number; y: number };
 
-export type Fighter = { hp: number; phase: 'ready' | 'downed' | 'dead'; downUntil: number; max?: number };
+export type Fighter = { hp: number; phase: 'ready' | 'downed' | 'dead'; downUntil: number; max?: number | undefined };
 export const KNOCKDOWN_MS = 7000;
 export const FINISHER_REACH = 30;
 export const FIGHTER_HP = 60;
