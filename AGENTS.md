@@ -29,3 +29,4 @@
 - Keep village warning levels, patrol routes and bark lines engine-free in patrols.ts; world.ts only moves guards and shows bubbles.
 - Keep camp dialogue choices, pair bonds and per-game-day resolution rules engine-free in camp-dialogue.ts; world.ts validates nearby camp participants and persists outcomes separately from player trust so camp rivalries cannot unlock captive bonuses implicitly.
 - Keep personal trust milestones and conversations in engine-free trust modules, with one-time rewards and game-clock counters saved separately from camp bonds; world events must validate participants and consumed goods to prevent repeated rewards.
+- Keep player-built structure rules (costs, build zones, overlap checks, drying) engine-free in building.ts; world.ts only shows the ghost, spawns sprites and saves placed structures in the game save.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eat, roast } from '../game/food';
 
-const base = { health: 50, stamina: 30, hunger: 50, berries: 1, meat: 1, cooked: 1 };
+const base = { health: 50, stamina: 30, hunger: 50, berries: 1, meat: 1, cooked: 1, jerky: 1 };
 describe('healing food', () => {
   it('berries heal 15', () => expect(eat(base, 'berries')?.health).toBe(65));
   it('raw meat heals 20', () => expect(eat(base, 'meat')?.health).toBe(70));

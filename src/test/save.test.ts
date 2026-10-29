@@ -5,7 +5,7 @@ const game: GameSave = {
   x: 1000, y: 610, health: 80, stamina: 60, hunger: 55, warmth: 70, clock: 1500, berries: 2, meat: 1, cooked: 0,
   stock: { wood: 3, stone: 1, flint: 0, fiber: 1 }, xp: 120, owned: ['axe', 'club'],
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
-  lootedHouses: ['Frostheim:0'],
+  lootedHouses: ['Frostheim:0'], jerky: 0, structures: [],
   captives: [],
   chest: { wood: 5, stone: 0, flint: 1, fiber: 0, berries: 2, meat: 0, cooked: 1 },
   relationships: { village: { frostheim: 15 }, personal: {}, alarmUntil: {} },

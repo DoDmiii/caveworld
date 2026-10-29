@@ -1,11 +1,12 @@
-export type Food = 'berries' | 'meat' | 'cooked';
-export type Pantry = { health: number; stamina: number; hunger: number; berries: number; meat: number; cooked: number };
+export type Food = 'berries' | 'meat' | 'cooked' | 'jerky';
+export type Pantry = { health: number; stamina: number; hunger: number; berries: number; meat: number; cooked: number; jerky: number };
 
 /** heal = Leben, stamina = Ausdauer, feed = Sättigung (Hungerleiste). */
 export const FOOD: Record<Food, { name: string; heal: number; stamina: number; feed: number }> = {
   berries: { name: 'Beeren', heal: 15, stamina: 0, feed: 10 },
   meat: { name: 'Rohes Fleisch', heal: 20, stamina: 0, feed: 20 },
   cooked: { name: 'Gebratenes Fleisch', heal: 45, stamina: 100, feed: 40 },
+  jerky: { name: 'Dörrfleisch', heal: 30, stamina: 50, feed: 45 },
 };
 
 /** Eats one portion; returns undefined when nothing is left or it would have no effect. */
