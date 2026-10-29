@@ -50,3 +50,16 @@ describe('knockdowns and Steinkeil finishers', () => {
     expect(recoverFighter(downed, 7100)).toEqual({ hp: 30, phase: 'ready', downUntil: 0 });
   });
 });
+
+import { hitWarrior, isLethalWeapon } from '@/game/combat';
+describe('warriors fight to the death', () => {
+  it('axe kill at 0 HP is final', () => {
+    expect(hitWarrior({ hp: 10, phase: 'ready', downUntil: 0 }, 18, 0, isLethalWeapon('axe')).phase).toBe('dead');
+  });
+  it('fists only knock a warrior down so he can be bound', () => {
+    expect(hitWarrior({ hp: 10, phase: 'ready', downUntil: 0 }, 18, 0, isLethalWeapon('none')).phase).toBe('downed');
+  });
+  it('warriors keep fighting below 15 HP', () => {
+    expect(hitWarrior({ hp: 30, phase: 'ready', downUntil: 0 }, 20, 0, true)).toMatchObject({ phase: 'ready', hp: 10 });
+  });
+});

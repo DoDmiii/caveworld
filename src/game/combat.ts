@@ -8,6 +8,14 @@ export const FINISHER_REACH = 30;
 export const FIGHTER_HP = 60;
 const keepMax = (f: Fighter) => (f.max ? { max: f.max } : {});
 export const newFighter = (max = FIGHTER_HP): Fighter => ({ hp: max, phase: 'ready', downUntil: 0, ...(max !== FIGHTER_HP ? { max } : {}) });
+/** Warriors fight to the death: lethal weapons (axe, spear, wedge) kill them at 0 HP, blunt ones only knock them down. */
+export const isLethalWeapon = (w: string) => w === 'axe' || w === 'spear' || w === 'wedge';
+export function hitWarrior(f: Fighter, damage: number, now: number, lethal: boolean): Fighter {
+  if (f.phase !== 'ready' || damage <= 0) return f;
+  const hp = f.hp - damage;
+  if (hp > 0) return { ...f, hp };
+  return lethal ? { hp: 0, phase: 'dead', downUntil: 0, ...keepMax(f) } : { hp: 1, phase: 'downed', downUntil: now + KNOCKDOWN_MS, ...keepMax(f) };
+}
 export function hitFighter(f: Fighter, damage: number, now: number): Fighter {
   if (f.phase !== 'ready' || damage <= 0) return f;
   const hp = Math.max(1, f.hp - damage);

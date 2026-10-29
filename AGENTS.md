@@ -31,3 +31,4 @@
 - Keep personal trust milestones and conversations in engine-free trust modules, with one-time rewards and game-clock counters saved separately from camp bonds; world events must validate participants and consumed goods to prevent repeated rewards.
 - Keep player-built structure rules (costs, build zones, overlap checks, drying) engine-free in building.ts; world.ts only shows the ghost, spawns sprites and saves placed structures in the game save.
 - Keep village raid rules (champion stats, only-finisher deaths, respawn timing, autonomous ally target spreading) engine-free in raid.ts; champions are extra Nordic folk templates and the raid respawn clock is saved separately from fighter outcomes.
+- Nordic men share the packed warrior atlas (idle, walk, surrender, bound, 9-frame axe attack, death) and fight via hitWarrior in combat.ts; women never arm and panic instead, so role rules live in one place.
