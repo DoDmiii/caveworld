@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { getAvailableInteractions, type InteractionContext, type InteractionId, type Risk } from './interactions';
 import { useEffect, useRef, useState } from 'react';
 import { ProfileDetails, type ProfileView } from './ProfileDetails';
+import { relationName } from './profiles';
+import type { CampDialogue } from './camp-dialogue';
 
 const ICONS = {
   hand: Hand, gift: Gift, 'arrows-left-right': ArrowLeftRight, 'shield-alert': ShieldAlert,
@@ -18,11 +20,13 @@ export interface InteractionWheelProps {
   onClose: () => void;
   name?: string;
   profile?: ProfileView | undefined;
+  dialogues?: CampDialogue[];
+  onDialogueChoice?: (dialogue: string, choice: string) => void;
 }
 
 /** HUD overlay only. The parent must pause gameplay while it is open. */
-export function InteractionWheel({ context, onChoose, onClose, name, profile }: InteractionWheelProps) {
-  const [view, setView] = useState<'actions' | 'profile'>('actions');
+export function InteractionWheel({ context, onChoose, onClose, name, profile, dialogues = [], onDialogueChoice }: InteractionWheelProps) {
+  const [view, setView] = useState<'actions' | 'profile' | 'dialogue'>('actions');
   const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const previous = document.activeElement;
@@ -48,8 +52,11 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile }: 
       {profile && <div className="profile-tabs" role="tablist" aria-label="Personenansicht">
         <Button variant="ghost" role="tab" id="npc-actions-tab" aria-controls="npc-actions-panel" aria-selected={view === 'actions'} onClick={() => setView('actions')}>Interaktionen</Button>
         <Button variant="ghost" role="tab" id="npc-profile-tab" aria-controls="npc-profile-panel" aria-selected={view === 'profile'} onClick={() => setView('profile')}>Steckbrief</Button>
+         {dialogues.length > 0 && <Button variant="ghost" role="tab" id="npc-dialogue-tab" aria-controls="npc-dialogue-panel" aria-selected={view === 'dialogue'} onClick={() => setView('dialogue')}>Gespräche</Button>}
       </div>}
-      {view === 'profile' && profile ? <ProfileDetails profile={profile}/> : <div className="interaction-options" role="tabpanel" id="npc-actions-panel" aria-labelledby="npc-actions-tab">
+      {view === 'dialogue' ? <div role="tabpanel" id="npc-dialogue-panel" aria-labelledby="npc-dialogue-tab" className="camp-dialogues">
+        {dialogues.map(d => <section key={d.id} className="camp-conversation"><h3>{d.title}</h3>{d.lines.map((line, i) => <p key={i}><strong>{relationName(line.speaker)}</strong><span>„{line.text}“</span></p>)}<div className="camp-choices">{d.choices.map(c => <Button key={c.id} variant="outline" onClick={() => onDialogueChoice?.(d.id, c.id)}>{c.label}</Button>)}</div></section>)}
+      </div> : view === 'profile' && profile ? <ProfileDetails profile={profile}/> : <div className="interaction-options" role="tabpanel" id="npc-actions-panel" aria-labelledby="npc-actions-tab">
         {options.map(option => {
           const Icon = ICONS[option.icon as keyof typeof ICONS];
           return <Button key={option.id} type="button" variant="outline" className="interaction-option" disabled={option.disabled} title={option.disabledReason ?? option.description} onClick={() => onChoose(option.id)}>

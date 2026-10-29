@@ -27,3 +27,4 @@
 - Keep NPC biographies and stable identity mappings in an engine-free profiles module, with mutable trust and skills in the existing local game save; render uploaded atlas portraits separately in the HUD so profiles never change ethnicity or activate gameplay bonuses implicitly.
 - Keep profile gameplay bonuses in the engine-free bonuses module; world.ts only asks it for the current party's modifiers, so values can change without touching the engine.
 - Keep village warning levels, patrol routes and bark lines engine-free in patrols.ts; world.ts only moves guards and shows bubbles.
+- Keep camp dialogue choices, pair bonds and per-game-day resolution rules engine-free in camp-dialogue.ts; world.ts validates nearby camp participants and persists outcomes separately from player trust so camp rivalries cannot unlock captive bonuses implicitly.
