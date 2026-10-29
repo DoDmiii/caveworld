@@ -1281,7 +1281,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.allyBarkAt) return; this.allyBarkAt = time + 2500;
       const champ = !('kind' in t.ref) && isChampion(t.ref.t);
       const lines = champ ? ['Den Großen nehme ich!', 'Zusammen bringen wir ihn zu Fall!', 'Für unseren Stamm!'] : ['Ich übernehme den da!', 'Hinter dir!', 'Los, drauf!', 'Ich decke dich!'];
-      const txt = this.add.text(a.sprite.x, a.sprite.y - 20, lines[Math.floor(Math.random() * lines.length)], { fontFamily: 'monospace', fontSize: '9px', color: '#fff3c4', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3).setDepth(a.sprite.y + 3000);
+      const txt = this.add.text(a.sprite.x, a.sprite.y - 20, lines[Math.floor(Math.random() * lines.length)] ?? "", { fontFamily: 'monospace', fontSize: '9px', color: '#fff3c4', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3).setDepth(a.sprite.y + 3000);
       this.tweens.add({ targets: txt, y: txt.y - 10, alpha: 0, delay: 1200, duration: 600, onComplete: () => txt.destroy() });
     }
     allyStrikes(time: number) {
@@ -1311,7 +1311,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           f.sprite.setPosition(f.t.x, f.t.y); poseFolk(f); if (isChampion(f.t)) f.sprite.setTint(0xffe6c0);
         }
         this.raid = clearRespawn(this.raid, v);
-        this.message = `${VILLAGES[v].name} hat sich neu bewaffnet · ${CHAMPION_NAMES[v]} führt die Wachen an`; this.messageUntil = time + 4000; this.persist();
+        this.message = `${VILLAGES[v]?.name} hat sich neu bewaffnet · ${CHAMPION_NAMES[v]} führt die Wachen an`; this.messageUntil = time + 4000; this.persist();
       }
     }
     bossStatus(p: { x: number; y: number }) {
