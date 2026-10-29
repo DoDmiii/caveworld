@@ -41,6 +41,7 @@ export const isWarrior = (t: FolkTemplate) => t.tex === 'nordic-warrior';
 export const ATTACK_START = 72, DEATH_START = 144;
 const deathDir = (facing: number) => [0, 1, 1, 2, 2, 3, 3, 0][facing] ?? 1;
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
+export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
 export type Folk = {
