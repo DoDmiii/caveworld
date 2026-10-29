@@ -4,7 +4,7 @@ import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FOR
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
-import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter } from './combat';
+import { flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -55,7 +55,7 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
-import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, isChampion, type Folk } from './nordic-folk';
+import { preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, boundFrame, isChampion, type Folk } from './nordic-folk';
 import { assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED } from './captives';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
@@ -1169,7 +1169,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (!armed) m.weapon?.setVisible(false);
         if (armed && !stop) {
           const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
-          if (!m.weapon) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.55 : 0.45);
+          if (!m.weapon && !isWarrior(f.t)) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.55 : 0.45);
           const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
           const lunging = isChampion(f.t) || idx === lungeIndex(n, time);
@@ -1180,27 +1180,39 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const sep = separation(s2, armedFolk.filter(o => o !== f).map(o => o.sprite), 26);
           let gx = goal.x - s2.x + sep.x * 40, gy = goal.y - s2.y + sep.y * 40;
           const gl = Math.hypot(gx, gy);
+          const attackingNow = time < ((m as { swingUntil?: number }).swingUntil ?? 0) && isWarrior(f.t);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
           if (gl > 4 && inRange && !(lunging && (near ? Math.hypot(near.x - s2.x, near.y - s2.y) : d) <= 15)) {
             const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
-            s2.setVelocity(gx * spd, gy * spd); s2.play(`${f.t.tex}-walk-${f.facing}`, true);
-          } else { s2.setVelocity(0, 0); s2.anims.stop(); s2.setFrame(f.facing); }
+            s2.setVelocity(gx * spd, gy * spd); if (!attackingNow) s2.play(`${f.t.tex}-walk-${f.facing}`, true);
+          } else { s2.setVelocity(0, 0); if (!attackingNow) { s2.anims.stop(); s2.setFrame(f.facing); } }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
           const vic = lunging ? pickVictim(s2, p, this.standingAllies(), 19) : undefined;
           if (vic && vic !== 'player' && time > ((m as { allyHitAt?: number }).allyHitAt ?? 0)) {
-            (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 220;
+            (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
             this.hitCompanion(vic, isChampion(f.t) ? CHAMPION_ALLY_DAMAGE : f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
           } else if (vic === 'player' && time > this.lastDamage + 900) {
             this.health = Math.max(0, this.health - (isChampion(f.t) ? CHAMPION_DAMAGE : f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
-            (m as { swingUntil?: number }).swingUntil = time + 220;
+            (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
             this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
             this.message = isChampion(f.t) ? `${CHAMPION_NAMES[f.t.village]} trifft dich hart!` : f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
           }
           const sw = time < swing ? 1.2 : 0;
-          m.weapon.setVisible(true).setFlipX(left).setPosition(s2.x + (left ? -7 : 7), s2.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(s2.y + 1);
+          m.weapon?.setVisible(true).setFlipX(left).setPosition(s2.x + (left ? -7 : 7), s2.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(s2.y + 1);
           m.icon.setText('⚔').setPosition(s2.x, s2.y - 14).setDepth(s2.y + 2000).setVisible(true);
           s2.setDepth(s2.y);
           if (d > 260 || !inRange && d > 120) { m.armedUntil = 0; (m as { roared?: boolean }).roared = false; }
+          continue;
+        }
+        const panicUntil = (m as { panicUntil?: number }).panicUntil ?? 0;
+        if (f.c.state === 'free' && !isWarrior(f.t) && panicUntil > time && !stop) {
+          const ax = s.x - p.x, ay = s.y - p.y, al = Math.max(1, Math.hypot(ax, ay));
+          const hx = v.x - s.x, hy = v.y - s.y, far = Math.hypot(hx, hy) > v.r * 1.2;
+          const vx = far ? hx : ax / al * 100 + Math.sin(time / 300 + f.seed) * 30, vy = far ? hy : ay / al * 100 + Math.cos(time / 300 + f.seed) * 30, vl = Math.max(1, Math.hypot(vx, vy));
+          if (d < 200) { s.setVelocity(vx / vl * 78, vy / vl * 78); f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); }
+          else { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(surrenderFrameOf(f)); }
+          m.icon.setText('!!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true); s.setDepth(s.y);
+          if (time > m.next) { m.next = time + 1500 + (f.seed % 900); if (d < 200) this.bark(f.c.id, s, 'flee', time); }
           continue;
         }
         if (f.c.state !== 'free' || d > 160) { m.dec = undefined; m.icon.setVisible(false); continue; }
@@ -1297,7 +1309,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if ('kind' in t.ref) { if (t.ref.state !== 'dead') this.hurt(t.ref, ALLY_DAMAGE, fx, fy, time); }
         else {
           const f = t.ref; if (f.combat.phase !== 'ready' || f.c.state !== 'free') continue;
-          f.combat = hitFighter(f.combat, ALLY_DAMAGE, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, 8);
+          f.combat = isWarrior(f.t) && !isChampion(f.t) ? hitWarrior(f.combat, ALLY_DAMAGE, time, true) : hitFighter(f.combat, ALLY_DAMAGE, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, f.combat.phase === 'dead' ? 28 : 14);
+          if (f.combat.phase === 'dead') { dieFolk(f); this.message = 'Dein Trupp hat einen Krieger erschlagen'; this.messageUntil = time + 2200; this.persist(); }
           if (f.combat.phase === 'downed') { poseFolk(f); this.message = isChampion(f.t) ? `Dein Trupp hat ${CHAMPION_NAMES[f.t.village]} niedergerungen · jetzt der Finisher!` : 'Dein Jagdtrupp hat einen Gegner niedergeschlagen'; this.messageUntil = time + 2200; }
         }
       }
@@ -1366,10 +1379,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const o of this.folk) {
         if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
         if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
-        const m = this.folkMood.get(o.c.id); if (m) m.armedUntil = time + 25000;
+        const m = this.folkMood.get(o.c.id);
+        if (!isWarrior(o.t)) { if (m) (m as { panicUntil?: number }).panicUntil = time + 20000; if (o !== f) this.bark(o.c.id, o.sprite, 'flee', time); continue; }
+        if (m) m.armedUntil = time + 25000;
         if (o !== f) this.bark(o.c.id, o.sprite, 'attack', time);
       }
-      this.bark(f.c.id, f.sprite, f.t.captive ? 'flee' : 'alarm', time, true);
+      this.bark(f.c.id, f.sprite, isWarrior(f.t) ? 'alarm' : 'flee', time, true);
     }
     /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
     lastSocial = new Map<string, number>();
@@ -1410,10 +1425,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
-      f.combat=finishFighter(f.combat);poseFolk(f);this.armFolk(f,this.time.now);
+      f.combat=finishFighter(f.combat);dieFolk(f);this.armFolk(f,this.time.now);
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${VILLAGES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
-      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),18);
+      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),40);
       const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
@@ -1428,11 +1443,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const tx = x + Math.cos(a) * sp, ty = y + Math.sin(a) * sp * 0.6 + 2;
         this.tweens.add({ targets: drop, x: tx, y: { from: y - 6, to: ty }, duration: 220 + Math.random() * 160, ease: 'Quad.easeOut', onComplete: () => {
           drop.setDepth(MAP.y - 197).setAlpha(0.85);
-          this.tweens.add({ targets: drop, alpha: 0, delay: 9000, duration: 4000, onComplete: () => drop.destroy() });
+          this.tweens.add({ targets: drop, alpha: 0, delay: 240000, duration: 30000, onComplete: () => drop.destroy() });
         } });
       }
-      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 5 + n * 0.5, 3 + n * 0.25, 0x6e0b0b, 0.7).setDepth(MAP.y - 198);
-      this.tweens.add({ targets: pool, alpha: 0, delay: 12000, duration: 5000, onComplete: () => pool.destroy() });
+      const pool = this.add.ellipse(x + dx * 4, y + 3 + dy * 2, 6 + n * 0.7, 3 + n * 0.35, 0x6e0b0b, 0.75).setDepth(MAP.y - 198);
+      this.tweens.add({ targets: pool, alpha: 0, delay: 360000, duration: 60000, onComplete: () => pool.destroy() });
     }
     hurt(c: Creature, dmg: number, fx: number, fy: number, time: number) {
       if (c.kind !== 'mammoth' || dmg > 0) this.bleed(c.sprite.x, c.sprite.y, fx, fy, c.kind === 'gazelle' ? 6 : 9);
@@ -1480,10 +1495,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
           this.allyFocus='f'+f.c.id;
-          f.combat=hitFighter(f.combat,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10,time);
+          {const dmg=hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10;f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);}
           this.armFolk(f,time);
-          this.bleed(f.sprite.x,f.sprite.y,fx,fy,10);
-          if(f.combat.phase==='downed'){poseFolk(f);this.message=isChampion(f.t)?`${CHAMPION_NAMES[f.t.village]} geht zu Boden · nur ein Finisher mit dem Steinkeil beendet es!`:f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Wache niedergeschlagen · Steinkeil: Finisher';}
+          this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
+          if(f.combat.phase==='dead'){dieFolk(f);this.message='Krieger erschlagen';this.persist();}
+          else if(f.combat.phase==='downed'){poseFolk(f);this.message=isChampion(f.t)?`${CHAMPION_NAMES[f.t.village]} geht zu Boden · nur ein Finisher mit dem Steinkeil beendet es!`:f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Krieger niedergeschlagen · Steinkeil: Finisher';}
           else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>{f.sprite.clearTint();if(isChampion(f.t))f.sprite.setTint(0xffe6c0);});this.message=isChampion(f.t)?`Treffer! ${CHAMPION_NAMES[f.t.village]} brüllt vor Wut`:'Treffer! Das Dorf greift an!';}
           this.messageUntil=time+2000;
           const vk=villageKey(VILLAGES[f.t.village].name);
