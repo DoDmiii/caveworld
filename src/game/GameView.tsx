@@ -193,6 +193,11 @@ export default function GameView(){
      </>:<>
       <h2>Eine kurze Rast.</h2>
       <p>Deine Wildnis wartet auf dich. Dein Fortschritt wird automatisch gespeichert.</p>
+      <details className="controls-overview" style={{textAlign:'left',maxHeight:'40vh',overflowY:'auto',fontSize:12,lineHeight:1.5}}><summary style={{cursor:'pointer',fontWeight:700}}>Steuerung</summary>
+       <table style={{width:'100%',borderCollapse:'collapse'}}><tbody>{([
+        ['WASD / Pfeile · Joystick','Laufen'],['Shift','Sprinten'],['C / Strg','Ducken / Verstecken'],['Q / Linksklick','Schlagen / Angreifen'],['F / Rechtsklick','Ziel anvisieren'],['R','Speer werfen · im Baumodus drehen'],['E','Interagieren (Sprechen, Kiste, Gestell)'],['Tab','Inventar & Ausrüstung'],['B','Baumenü öffnen'],['Leertaste','Bau platzieren'],['X','Eigenen Bau abbauen'],['1 / 2 / 3 / 4','Beeren / Fleisch / Gebratenes / Dörrfleisch essen'],
+       ] as const).map(([k,d])=><tr key={k}><td style={{padding:'2px 8px 2px 0',fontWeight:700,whiteSpace:'nowrap'}}>{k}</td><td>{d}</td></tr>)}</tbody></table>
+       <p style={{marginTop:6,opacity:.8}}>Am Handy: Joystick links, Aktionsknöpfe rechts.</p></details>
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);}}><Play size={16}/> Weiter erkunden</Button>
       <Button variant="outline" onClick={()=>{input.current.save++;}}><Save size={16}/> Jetzt speichern</Button>
       <Button variant="ghost" onClick={()=>{if(window.confirm('Neues Spiel beginnen? Dein Spielstand wird gelöscht.')){blockSaving();clearSave();window.location.reload();}}}>Neues Spiel</Button>
