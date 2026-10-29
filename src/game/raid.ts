@@ -2,7 +2,7 @@
 import type { Pt } from './combat';
 
 /** Champions are extra characters, one per Nordic village. They can only die through a finisher. */
-export const CHAMPION_HP = 180;
+export const CHAMPION_HP = 90;
 export const CHAMPION_DAMAGE = 13;
 export const CHAMPION_ALLY_DAMAGE = 15;
 export const CHAMPION_SCALE = 1.35;
