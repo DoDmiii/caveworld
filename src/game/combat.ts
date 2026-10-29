@@ -10,16 +10,16 @@ export const newFighter = (max = FIGHTER_HP): Fighter => ({ hp: max, phase: 'rea
 export function hitFighter(f: Fighter, damage: number, now: number): Fighter {
   if (f.phase !== 'ready' || damage <= 0) return f;
   const hp = Math.max(1, f.hp - damage);
-  return hp <= 15 ? { hp, phase: 'downed', downUntil: now + KNOCKDOWN_MS } : { ...f, hp };
+  return hp <= 15 ? { hp, phase: 'downed', downUntil: now + KNOCKDOWN_MS, max: f.max } : { ...f, hp };
 }
 export function recoverFighter(f: Fighter, now: number): Fighter {
-  return f.phase === 'downed' && now >= f.downUntil ? { hp: 30, phase: 'ready', downUntil: 0 } : f;
+  return f.phase === 'downed' && now >= f.downUntil ? { hp: Math.round((f.max ?? FIGHTER_HP) / 2), phase: 'ready', downUntil: 0, max: f.max } : f;
 }
 export function canFinish(f: Fighter, distance: number, wedge: boolean, allied: boolean): boolean {
   return !allied && wedge && f.phase === 'downed' && distance <= FINISHER_REACH;
 }
 export function finishFighter(f: Fighter): Fighter {
-  return f.phase === 'downed' ? { hp: 0, phase: 'dead', downUntil: 0 } : f;
+  return f.phase === 'downed' ? { hp: 0, phase: 'dead', downUntil: 0, max: f.max } : f;
 }
 
 /** Ring position for attacker `i` of `n` around the player; slots slowly rotate so enemies circle. */
