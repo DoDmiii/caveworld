@@ -16,8 +16,8 @@ export const STRUCTURES: Record<StructureKind, StructureDef> = {
 export const CAMP_BUILD_RADIUS = 200;
 export const MAX_STRUCTURES = 60;
 export const RACK_SLOTS = 3;
-/** Game minutes until one strip of meat is dry. */
-export const DRY_MINUTES = 120;
+/** Game minutes until one strip of meat is dry: half an in-game day. */
+export const DRY_MINUTES = 720;
 export const SHELTER_RANGE = 34;
 
 export type Placed = { id: string; kind: StructureKind; x: number; y: number; dir: number; meat: number[] };
@@ -52,6 +52,8 @@ export function hangMeat(rack: Placed, clock: number): Placed | undefined {
   if (rack.kind !== 'rack' || rack.meat.length >= RACK_SLOTS) return undefined;
   return { ...rack, meat: [...rack.meat, clock] };
 }
+/** Drying progress of one strip, 0..1. */
+export const dryProgress = (hungAt: number, clock: number) => Math.min(1, Math.max(0, (clock - hungAt) / DRY_MINUTES));
 export const dryCount = (rack: Placed, clock: number) => rack.meat.filter(t => clock - t >= DRY_MINUTES).length;
 /** Takes every finished strip off the rack. */
 export function collectJerky(rack: Placed, clock: number): { rack: Placed; jerky: number } {
