@@ -92,7 +92,7 @@ export function poseFolk(f: Folk) {
     s.setFrame(DEATH_START + deathDir(f.facing) * 7 + 6).setDepth(s.y - 4);
     corpseBlood(f); return;
   }
-  if (f.combat.phase === 'dead') corpseBlood(f);
+  if (f.combat.phase === 'dead') corpseBlood(f); else (f as Folk & { pool?: Phaser.GameObjects.Ellipse }).pool?.destroy();
   if (f.combat.phase !== 'ready') {
     // Use this inhabitant's own lying pose; templates without it fall sideways, never borrow another ethnicity.
     const frame = boundFrame(f.t, 0);
