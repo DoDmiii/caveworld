@@ -1169,7 +1169,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (!armed) m.weapon?.setVisible(false);
         if (armed && !stop) {
           const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
-          if (!m.weapon) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.7 : 0.45);
+          if (!m.weapon) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.55 : 0.45);
           const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
           const lunging = isChampion(f.t) || idx === lungeIndex(n, time);
