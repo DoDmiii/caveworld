@@ -59,6 +59,7 @@ import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } fr
 import { interact, drop, CARRY_SPEED } from './captives';
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 import { getProfile, profileState, PROFILE_IDS, type ProfileStates } from './profiles';
+import { emptyCampSocial, availableCampDialogues, resolveCampDialogue, pairBond, bondLabel, type CampSocial, type CampDialogue } from './camp-dialogue';
 import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight, partyHungerFactor, followRefusal, nukaSnack, YMRA_TRADE_BONUS, companionPace, leashExceeded, uraColdDamage, triesToFlee, ILVAR_ESCAPE_DIST, type PartyBonuses } from './bonuses';
 import type { ProfileView } from './ProfileDetails';
 
@@ -72,8 +73,8 @@ import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tick
 import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type TutorialState } from './tutorial';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number };
-export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined };
+export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number };
+export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
 export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[] };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
@@ -218,11 +219,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     patrolStep = new Map<string, number>();
     villageLevel = new Map<string, WarningLevel>();
     /** Short speech bubble above a person; respects a per-person cooldown. */
-    bark(id: string, sprite: Phaser.GameObjects.Components.Transform, kind: BarkKind, time: number, force = false) {
+    bark(id: string, sprite: Phaser.GameObjects.Components.Transform, kind: BarkKind, time: number, force = false, line?: string) {
       let b = this.barks.get(id);
       if (b && !force && time < b.next) return;
       if (!b) { b = { text: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '8px', color: '#1c1712', backgroundColor: '#f4ead2', padding: { x: 3, y: 2 } }).setOrigin(0.5, 1).setResolution(4), until: 0, next: 0, sprite }; this.barks.set(id, b); }
-      b.sprite = sprite; b.text.setText(pickBark(kind, time / 997 + id.length)).setVisible(true);
+      b.sprite = sprite; b.text.setText(line ?? pickBark(kind, time / 997 + id.length)).setVisible(true);
       b.until = time + BARK_MS; b.next = time + BARK_COOLDOWN_MS;
     }
     /** Guards of tense villages walk a ring outside the fence; hostile ones attack on sight. Returns ids it moved. */
@@ -261,11 +262,39 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
     profiles: ProfileStates = {};
+    campSocial: CampSocial = emptyCampSocial();
+    nextCampChat = 0;
+    campPeople() {
+      return this.companionActors().filter(a => Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y - FIRE_DY) < 220 && !allyDowned(this.allyHealth(a.id)));
+    }
+    campTopics(id: string) {
+      const p = this.player;
+      if (!p || Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) > 220) return [];
+      return availableCampDialogues(this.campSocial, PROFILE_IDS[id] ?? id, this.campPeople().map(a => PROFILE_IDS[a.id] ?? a.id), clockOf(this.clock).day);
+    }
+    tickCampChat(time: number) {
+      const request = input.dialogueChoice; input.dialogueChoice = null;
+      if (request && !this.dead && !this.sleeping && this.health > 0) {
+        const actor = this.campPeople().find(a => a.id === request.target), p = this.player;
+        if (actor && p && Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) <= INTERACTION_RANGE && this.campTopics(actor.id).some(d => d.id === request.dialogue)) {
+          const result = resolveCampDialogue(this.campSocial, request.dialogue, request.choice, PROFILE_IDS[actor.id] ?? actor.id, this.campPeople().map(a => PROFILE_IDS[a.id] ?? a.id), clockOf(this.clock).day);
+          if (result) { this.campSocial = result.state; this.message = result.reply; this.messageUntil = time + 6500; this.persist(); }
+        }
+      }
+      if (input.paused || this.dead || this.sleeping || this.health <= 0 || time < this.nextCampChat || time < this.messageUntil) return;
+      const p = this.player; if (!p || Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) > 220 || this.allyFoes().some(f => f.alive && f.hostile && Math.hypot(f.x - p.x, f.y - p.y) < 250)) return;
+      const actors = this.campPeople();
+      const topic = actors.flatMap(a => this.campTopics(a.id))[0]; if (!topic) return;
+      const line = topic.lines[Math.floor(time / 12000) % topic.lines.length]; if (!line) return;
+      const actor = actors.find(a => (PROFILE_IDS[a.id] ?? a.id) === line.speaker); if (!actor) return;
+      this.bark(actor.id, actor.sprite, 'greet', time, false, line.text);
+      this.nextCampChat = time + 12000;
+    }
     profileView(id: string, portrait: string): ProfileView | undefined {
       const biography = getProfile(id); if (!biography) return undefined;
       let state = this.profiles[id];
       if (!state) { state = profileState(biography); this.profiles[id] = state; }
-      return { biography, state: profileState(biography, state), portrait };
+      return { biography, state: profileState(biography, state), portrait, bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
     }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
     talk: TalkTarget | null = null;
@@ -324,6 +353,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         lootedHouses: [...this.lootedHouses],
         chest: { ...this.chest },
         tutorial: { ...this.tutorial },
+        campSocial: { bonds: { ...this.campSocial.bonds }, resolved: { ...this.campSocial.resolved } },
         profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
@@ -348,6 +378,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Ältere Spielstände ohne Einführung: Spieler kennt das Spiel schon.
       this.tutorial = g.tutorial ? { ...g.tutorial } : { step: TUTORIAL_DONE, progress: 0 };
       this.rel = g.relationships;
+      this.campSocial = g.campSocial ?? emptyCampSocial();
       this.profiles = Object.fromEntries(Object.entries(g.profiles ?? {}).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }]));
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
@@ -712,6 +743,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.crouching, blocks, this.allyEngage(time, p));
       this.allyStrikes(time);
       this.tribal(time);
+      this.tickCampChat(time);
       const k=this.keys; let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
@@ -1111,7 +1143,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     allyContext(a: CompanionActor): TalkTarget {
       const portrait = this.campers.find(c => c.template.id === a.id)?.template.url ?? this.folk.find(f => f.c.id === a.id)?.t.url;
-      return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, target: 'ally', targetRole: 'villager', relationship: 100,
+      return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, dialogues: this.campTopics(a.id), target: 'ally', targetRole: 'villager', relationship: 100,
         hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
         targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount() };
     }

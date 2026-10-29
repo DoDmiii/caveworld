@@ -29,5 +29,5 @@
 - [x] Offen: Ilvars nächtliche Flucht, Uras Kälteempfindlichkeit, Kuruk langsamer/kurze Strecken
 - [x] Lebensanzeige für den Jagdtrupp im HUD
 - [x] Rivalität Schritt 2: Warnstufen, Grenzpatrouillen der Wachen, Sprechblasen
-- [ ] Rivalität Schritt 1: Sippenstreit & Lagergespräche
+- [x] Rivalität Schritt 1: Sippenstreit & Lagergespräche mit Gesprächsentscheidungen und gespeicherten Beziehungen; Tamo/Nuka im Spiel und nach Neuladen verifiziert.
 - [ ] Rivalität Schritt 3: Vertrauensstufen für Gefangene freispielen

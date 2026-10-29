@@ -353,6 +353,12 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .tutorial-card .eyebrow {font-size:7px;letter-spacing:.12em;color:var(--primary);}
 .tutorial-card strong {font-size:12px;color:var(--primary);}
 .profile-tabs {display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}
+.camp-conversation + .camp-conversation {border-top:1px solid var(--border);margin-top:20px;padding-top:16px;}
+.camp-conversation h3 {font-size:16px;color:var(--primary);margin:0 0 14px;}
+.camp-conversation p {display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.6;margin:12px 0;overflow-wrap:anywhere;}
+.camp-conversation p span {color:var(--muted-foreground);}
+.camp-choices {display:grid;gap:8px;margin-top:18px;}
+.camp-choices button {height:auto;min-height:42px;white-space:normal;text-align:left;justify-content:flex-start;line-height:1.5;padding:10px 12px;}
 .profile-tabs button {flex:1;border-radius:4px 4px 0 0;color:var(--muted-foreground);}
 .profile-tabs button[aria-selected=true] {color:var(--primary);background:var(--secondary);border-bottom:2px solid var(--primary);}
 .profile-intro {display:flex;align-items:center;gap:16px;}

@@ -41,6 +41,10 @@ const GameSchema = z.object({
     trust: z.number().int().min(0).max(100),
     skills: z.object({ hunt: z.number().int().min(1).max(5), tough: z.number().int().min(1).max(5), gather: z.number().int().min(1).max(5), watch: z.number().int().min(1).max(5), fire: z.number().int().min(1).max(5) }),
   })).optional(),
+  campSocial: z.object({
+    bonds: z.record(z.string().max(80), z.number().int().min(-100).max(100)),
+    resolved: z.record(z.string().max(80), z.number().int().min(1).max(10000)),
+  }).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(60), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7) })).max(50).optional(),
   relationships: z.object({
     village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),

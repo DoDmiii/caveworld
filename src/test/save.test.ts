@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('speichert Sippenbeziehungen und abgeschlossene Lagergespräche', () => {
+    const campSocial = { bonds: { 'nuka:tamo': -5 }, resolved: { 'hunters-gatherers': 1 } };
+    expect(saveGame({ game: { ...game, campSocial } })).toBe(true);
+    expect(loadSave()?.game?.campSocial).toEqual(campSocial);
+  });
   it('retains per-person trust and five skill levels across reloads', () => {
     const profiles = { 'nordic-m0': { trust: 76, skills: { hunt: 3, tough: 3, gather: 1, watch: 5, fire: 1 } } };
     expect(saveGame({ game: { ...game, profiles } })).toBe(true);
