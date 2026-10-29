@@ -25,7 +25,7 @@ describe('building', () => {
     expect(canAfford(STRUCTURES.rack.cost, after)).toBe(false);
     expect(refund(STRUCTURES.rack.cost, after)).toEqual(s);
   });
-  it('Gestell hält 3 Streifen, trocken nach 120 Spielminuten', () => {
+  it('Gestell hält 3 Streifen, trocken nach einem halben Spieltag (720 Min.)', () => {
     let r = rack();
     for (let i = 0; i < RACK_SLOTS; i++) r = hangMeat(r, 100)!;
     expect(hangMeat(r, 100)).toBeUndefined();
@@ -47,5 +47,13 @@ describe('building', () => {
     expect(saveGame({ game })).toBe(true);
     expect(loadSave()?.game?.structures).toEqual(game.structures);
     expect(loadSave()?.game?.jerky).toBe(2);
+  });
+});
+describe('Trocknungsanzeige', () => {
+  it('halber Tag = 720 Minuten, Fortschritt 0..1', async () => {
+    const { dryProgress, DRY_MINUTES } = await import('@/game/building');
+    expect(DRY_MINUTES).toBe(720);
+    expect(dryProgress(0, 360)).toBe(0.5);
+    expect(dryProgress(0, 2000)).toBe(1);
   });
 });

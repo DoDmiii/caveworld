@@ -57,7 +57,7 @@ import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
 import { interact, drop, CARRY_SPEED } from './captives';
-import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
+import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
 import rack0 from '@/assets/build/rack-0.png.asset.json';
 import rack1 from '@/assets/build/rack-1.png.asset.json';
 import rack2 from '@/assets/build/rack-2.png.asset.json';
@@ -159,6 +159,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     ghost?: Phaser.GameObjects.Image;
     building: BuildStatus | null = null;
     nearRack: Placed | null = null;
+    dryGfx?: Phaser.GameObjects.Graphics;
+    /** Draws a segmented drying bar above every rack holding meat (one segment per slot). */
+    drawDryBars(){const g=this.dryGfx??=this.add.graphics();g.clear();for(const s of this.structures){if(s.kind!=='rack'||!s.meat.length)continue;const w=24,h=3,x=s.x-w/2,y=s.y-34;g.setDepth(s.y+1000);g.fillStyle(0x1a120b,0.85).fillRect(x-1,y-1,w+2,h+2);const sw=(w-(RACK_SLOTS-1))/RACK_SLOTS;s.meat.forEach((t,i)=>{const f=dryProgress(t,this.clock);g.fillStyle(f>=1?0x7fd04a:0xd9873a,1).fillRect(x+i*(sw+1),y,sw*f,h);});}}
     makeObstacle?: (x:number,y:number,key:string,bw:number,bh:number)=>Phaser.Physics.Arcade.Sprite|undefined;
     spawnStructure(s:Placed){const key=structTex(s);const o=s.kind==='barricade'?this.makeObstacle?.(s.x,s.y,key,26,8):s.kind==='shelter'?this.makeObstacle?.(s.x,s.y,key,40,8):this.makeObstacle?.(s.x,s.y,key,22,6);if(o)this.structSprites.set(s.id,o as unknown as Phaser.GameObjects.Image);}
     tutorial: TutorialState = newTutorial();
@@ -987,7 +990,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.carryImg.setTexture(this.carried.t.tex,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
       }
       const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':k?.['FOUR']&&Phaser.Input.Keyboard.JustDown(k['FOUR'])?'jerky':null;
-      this.tickBuild(input,p,time);
+      this.tickBuild(input,p,time);this.drawDryBars();
       const food=input.eat??eatKey;input.eat=null;
       if(food&&!this.dead&&!this.sleeping){const r=eat(this.pantry(),food);
         if(r){this.setPantry(r);this.healPulse++;this.message=`${FOOD[food].name} gegessen · +${FOOD[food].heal} Leben`;}
