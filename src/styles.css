@@ -418,3 +418,8 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .build-actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12px;}
 .build-state{flex:1;color:oklch(0.82 0.12 145);}
 .build-state.is-bad{color:oklch(0.72 0.17 25);}
+
+.boss-bar { position: absolute; top: 76px; left: 50%; transform: translateX(-50%); width: min(78%, 320px); z-index: 6; pointer-events: none; text-align: center; }
+.boss-name { font-family: monospace; font-size: 11px; color: var(--primary-foreground, #f5e6c8); text-shadow: 0 1px 0 #000, 0 0 3px #000; letter-spacing: 0.04em; margin-bottom: 2px; }
+.boss-track { height: 7px; border: 2px solid hsl(20 40% 12%); background: hsl(20 30% 8% / 0.85); }
+.boss-fill { height: 100%; background: linear-gradient(90deg, hsl(0 70% 38%), hsl(12 80% 50%)); transition: width 0.15s; }
