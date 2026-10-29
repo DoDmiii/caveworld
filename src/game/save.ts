@@ -3,6 +3,7 @@
 import { z } from 'zod';
 import { START_MINUTES } from './survival';
 import { ITEM_IDS } from './progress';
+import { STRUCTURE_KINDS } from './building';
 
 export const SAVE_KEY = 'caveworld:save';
 export const SAVE_VERSION = 1;
@@ -23,6 +24,7 @@ const GameSchema = z.object({
   berries: count,
   meat: count,
   cooked: count,
+  jerky: count.default(0),
   stock: z.object({ wood: count, stone: count, flint: count, fiber: count }),
   xp: count,
   owned: z.array(z.enum(ITEM_IDS)).max(20),
@@ -34,6 +36,7 @@ const GameSchema = z.object({
   captives: z.array(z.object({ id: z.string().max(40), state: z.enum(['surrender', 'bound', 'camp']), x: coord, y: coord })).max(50).default([]),
   // Vorratskiste am Lagerfeuer; Default, damit ältere Spielstände weiter laden.
   chest: z.object({ wood: count, stone: count, flint: count, fiber: count, berries: count, meat: count, cooked: count }).default({ wood: 0, stone: 0, flint: 0, fiber: 0, berries: 0, meat: 0, cooked: 0 }),
+  structures: z.array(z.object({ id: z.string().max(40), kind: z.enum(STRUCTURE_KINDS), x: coord, y: coord, dir: z.number().int().min(0).max(7), meat: z.array(z.number().min(0)).max(3) })).max(60).default([]),
   tutorial: z.object({ step: z.number().int().min(0).max(20), progress: z.number().min(0).max(10_000) }).optional(),
   companions: z.array(z.object({ id: z.string().max(40), mode: z.enum(['follow', 'wait', 'return']), x: coord, y: coord })).max(50).optional(),
   allies: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(50), downMs: z.number().min(0).max(60000) })).max(50).optional(),
