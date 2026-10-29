@@ -55,7 +55,8 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
-import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } from './nordic-folk';
+import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, isChampion, type Folk } from './nordic-folk';
+import { assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED } from './captives';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
@@ -103,7 +104,7 @@ import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain
 
 export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather };
+export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -443,7 +444,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
-        fighters: this.folk.filter(f => f.combat.hp !== 60 || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
+        raid: { ...this.raid },
+        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
@@ -507,7 +509,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
-      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0 }; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
+      this.raid = { ...(g.raid ?? {}) };
+      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
         const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
         if (order.mode === 'follow' && this.followingCount() >= MAX_COMPANIONS) continue;
@@ -907,6 +910,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const dt=Math.min(delta,100)/1000;
         if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
+        this.tickRaid(time);
         this.tickTrust(dt * 2);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
@@ -1165,10 +1169,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (!armed) m.weapon?.setVisible(false);
         if (armed && !stop) {
           const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
-          if (!m.weapon) m.weapon = this.add.image(0, 0, f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(0.45);
+          if (!m.weapon) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.7 : 0.45);
           const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
-          const lunging = idx === lungeIndex(n, time);
+          const lunging = isChampion(f.t) || idx === lungeIndex(n, time);
+          if (isChampion(f.t) && !(m as { roared?: boolean }).roared) { (m as { roared?: boolean }).roared = true; this.message = `${CHAMPION_NAMES[f.t.village]}, Champion von ${v.name}, stellt sich dir!`; this.messageUntil = time + 3000; this.cameras.main.shake(250, 0.006); }
           // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
           const near = this.standingAllies().filter(a => Math.hypot(a.x - s2.x, a.y - s2.y) < d - 10).sort((a, b) => Math.hypot(a.x - s2.x, a.y - s2.y) - Math.hypot(b.x - s2.x, b.y - s2.y))[0];
           const goal = lunging ? (near ?? { x: p.x, y: p.y }) : flankSlot(idx, n, p, 34, time, f.seed);
@@ -1184,18 +1189,18 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const vic = lunging ? pickVictim(s2, p, this.standingAllies(), 19) : undefined;
           if (vic && vic !== 'player' && time > ((m as { allyHitAt?: number }).allyHitAt ?? 0)) {
             (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 220;
-            this.hitCompanion(vic, f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
+            this.hitCompanion(vic, isChampion(f.t) ? CHAMPION_ALLY_DAMAGE : f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
           } else if (vic === 'player' && time > this.lastDamage + 900) {
-            this.health = Math.max(0, this.health - (f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
+            this.health = Math.max(0, this.health - (isChampion(f.t) ? CHAMPION_DAMAGE : f.t.captive ? 5 : 7)); this.hitFlash = time + 200; this.lastDamage = time;
             (m as { swingUntil?: number }).swingUntil = time + 220;
             this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
-            this.message = f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
+            this.message = isChampion(f.t) ? `${CHAMPION_NAMES[f.t.village]} trifft dich hart!` : f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
           }
           const sw = time < swing ? 1.2 : 0;
           m.weapon.setVisible(true).setFlipX(left).setPosition(s2.x + (left ? -7 : 7), s2.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(s2.y + 1);
           m.icon.setText('⚔').setPosition(s2.x, s2.y - 14).setDepth(s2.y + 2000).setVisible(true);
           s2.setDepth(s2.y);
-          if (d > 260 || !inRange && d > 120) m.armedUntil = 0;
+          if (d > 260 || !inRange && d > 120) { m.armedUntil = 0; (m as { roared?: boolean }).roared = false; }
           continue;
         }
         if (f.c.state !== 'free' || d > 160) { m.dec = undefined; m.icon.setVisible(false); continue; }
@@ -1244,27 +1249,46 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           hostile: (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now, ref: f as Creature | Folk })),
       ];
     }
-    allyTarget: (Foe & { ref: Creature | Folk }) | undefined;
+    allyTargets = new Map<string, Foe & { ref: Creature | Folk }>();
     allyEngage(time: number, p: Phaser.Physics.Arcade.Sprite) {
       const goals = new Map<string, { x: number; y: number }>();
       const following = this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow' && !allyDowned(this.allyHealth(a.id))).sort((a, b) => a.id.localeCompare(b.id));
-      const t = this.dead || this.sleeping || this.carried ? undefined : pickAllyTarget(this.allyFoes(), p, this.allyFocus) as (Foe & { ref: Creature | Folk }) | undefined;
-      if (!t) this.allyFocus = undefined;
-      this.allyTarget = t;
-      if (t) { const fighters = following.filter(a => !this.shirks(a.id, t)); fighters.forEach((a, i) => goals.set(a.id, flankSlot(i + 1, fighters.length + 1, t, ALLY_REACH - 4, time, 1.7))); }
+      const foes = this.dead || this.sleeping || this.carried ? [] : this.allyFoes().map(f => ({ ...f, champion: !('kind' in f.ref) && isChampion(f.ref.t) }));
+      const willing = following.filter(a => foes.some(f => !this.shirks(a.id, f)));
+      const assigned = assignAllyTargets(willing.map(a => ({ id: a.id, x: a.sprite.x, y: a.sprite.y })), foes, p, this.allyFocus);
+      for (const [id, t] of assigned) if (this.shirks(id, t)) assigned.delete(id);
+      if (!assigned.size && !foes.some(f => f.id === this.allyFocus && f.alive)) this.allyFocus = undefined;
+      for (const [id, t] of assigned) if (this.allyTargets.get(id)?.id !== t.id && Math.random() < 0.5) { const a = following.find(o => o.id === id); if (a) this.allyBark(a, t, time); }
+      this.allyTargets = assigned;
+      const per = new Map<string, number>();
+      for (const a of following) {
+        const t = assigned.get(a.id); if (!t) continue;
+        const i = per.get(t.id) ?? 0; per.set(t.id, i + 1);
+        goals.set(a.id, flankSlot(i + 1, 3, t, ALLY_REACH - 4, time, 1.7 + i));
+      }
       for (const a of following) {
         let g = this.allyGear.get(a.id);
         if (!g) { g = { img: this.add.image(0, 0, companionWeapon(a.id) === 'spear' ? 'spear-proj' : 'folk-axe').setScale(0.5), next: 0, swingUntil: 0 }; this.allyGear.set(a.id, g); }
+        const t = assigned.get(a.id);
         const left = t ? t.x < a.sprite.x : a.facing >= 3 && a.facing <= 5, sw = time < g.swingUntil ? 1.2 : 0;
-        g.img.setVisible(!!t && !this.shirks(a.id, t)).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
+        g.img.setVisible(!!t).setFlipX(left).setPosition(a.sprite.x + (left ? -7 : 7), a.sprite.y - 2).setRotation((left ? -1 : 1) * (0.5 + sw)).setDepth(a.sprite.y + 1);
       }
       for (const [id, g] of this.allyGear) if (this.companionOrders.get(id)?.mode !== 'follow' || allyDowned(this.allyHealth(id))) g.img.setVisible(false);
       return goals;
     }
+    allyBarkAt = 0;
+    allyBark(a: CompanionActor, t: Foe & { ref: Creature | Folk }, time: number) {
+      if (time < this.allyBarkAt) return; this.allyBarkAt = time + 2500;
+      const champ = !('kind' in t.ref) && isChampion(t.ref.t);
+      const lines = champ ? ['Den Großen nehme ich!', 'Zusammen bringen wir ihn zu Fall!', 'Für unseren Stamm!'] : ['Ich übernehme den da!', 'Hinter dir!', 'Los, drauf!', 'Ich decke dich!'];
+      const txt = this.add.text(a.sprite.x, a.sprite.y - 20, lines[Math.floor(Math.random() * lines.length)], { fontFamily: 'monospace', fontSize: '9px', color: '#fff3c4', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3).setDepth(a.sprite.y + 3000);
+      this.tweens.add({ targets: txt, y: txt.y - 10, alpha: 0, delay: 1200, duration: 600, onComplete: () => txt.destroy() });
+    }
     allyStrikes(time: number) {
-      const t = this.allyTarget; if (!t || input.paused) return;
+      if (input.paused) return;
       for (const a of this.companionActors()) {
-        const g = this.allyGear.get(a.id); if (!g || this.companionOrders.get(a.id)?.mode !== 'follow' || allyDowned(this.allyHealth(a.id)) || this.shirks(a.id, t)) continue;
+        const t = this.allyTargets.get(a.id);
+        const g = this.allyGear.get(a.id); if (!t || !g || this.companionOrders.get(a.id)?.mode !== 'follow' || allyDowned(this.allyHealth(a.id))) continue;
         const dx = t.ref.sprite.x - a.sprite.x, dy = t.ref.sprite.y - a.sprite.y, d = Math.hypot(dx, dy);
         if (d > ALLY_REACH + 6 || time < g.next) continue;
         g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
@@ -1274,9 +1298,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else {
           const f = t.ref; if (f.combat.phase !== 'ready' || f.c.state !== 'free') continue;
           f.combat = hitFighter(f.combat, ALLY_DAMAGE, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, 8);
-          if (f.combat.phase === 'downed') { poseFolk(f); this.message = 'Dein Jagdtrupp hat einen Gegner niedergeschlagen'; this.messageUntil = time + 1800; }
+          if (f.combat.phase === 'downed') { poseFolk(f); this.message = isChampion(f.t) ? `Dein Trupp hat ${CHAMPION_NAMES[f.t.village]} niedergerungen · jetzt der Finisher!` : 'Dein Jagdtrupp hat einen Gegner niedergeschlagen'; this.messageUntil = time + 2200; }
         }
       }
+    }
+    raid: RaidState = {};
+    tickRaid(time: number) {
+      for (const v of villagesToRespawn(this.raid, this.clock)) {
+        for (const f of this.folk) {
+          if (f.t.village !== v || f.t.captive || f.combat.phase !== 'dead') continue;
+          f.combat = newFighter(isChampion(f.t) ? CHAMPION_HP : undefined); f.c = { id: f.c.id, state: 'free', x: f.t.x, y: f.t.y };
+          f.sprite.setPosition(f.t.x, f.t.y); poseFolk(f); if (isChampion(f.t)) f.sprite.setTint(0xffe6c0);
+        }
+        this.raid = clearRespawn(this.raid, v);
+        this.message = `${VILLAGES[v].name} hat sich neu bewaffnet · ${CHAMPION_NAMES[v]} führt die Wachen an`; this.messageUntil = time + 4000; this.persist();
+      }
+    }
+    bossStatus(p: { x: number; y: number }) {
+      const c = this.folk.find(f => isChampion(f.t) && f.combat.phase !== 'dead' && f.c.state === 'free' && Math.hypot(f.sprite.x - p.x, f.sprite.y - p.y) < 220 && ((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now || f.combat.phase === 'downed'));
+      return c ? { name: `${CHAMPION_NAMES[c.t.village]} · ${VILLAGES[c.t.village].name}`, hp: Math.round(c.combat.hp), max: CHAMPION_HP, down: c.combat.phase === 'downed' } : null;
     }
     followingCount() { return [...this.companionOrders.values()].filter(o => o.mode === 'follow').length; }
     companionActors(): CompanionActor[] {
@@ -1371,6 +1411,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
       f.combat=finishFighter(f.combat);poseFolk(f);this.armFolk(f,this.time.now);
+      if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${VILLAGES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),18);
       const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
@@ -1442,8 +1483,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           f.combat=hitFighter(f.combat,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10,time);
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,10);
-          if(f.combat.phase==='downed'){poseFolk(f);this.message=f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Wache niedergeschlagen · Steinkeil: Finisher';}
-          else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>f.sprite.clearTint());this.message='Treffer! Das Dorf greift an!';}
+          if(f.combat.phase==='downed'){poseFolk(f);this.message=isChampion(f.t)?`${CHAMPION_NAMES[f.t.village]} geht zu Boden · nur ein Finisher mit dem Steinkeil beendet es!`:f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Wache niedergeschlagen · Steinkeil: Finisher';}
+          else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>{f.sprite.clearTint();if(isChampion(f.t))f.sprite.setTint(0xffe6c0);});this.message=isChampion(f.t)?`Treffer! ${CHAMPION_NAMES[f.t.village]} brüllt vor Wut`:'Treffer! Das Dorf greift an!';}
           this.messageUntil=time+2000;
           const vk=villageKey(VILLAGES[f.t.village].name);
           this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-15);
@@ -1567,7 +1608,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearOwnBuild:!!this.ownBuildNear(p),weather:this.weatherNow(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearOwnBuild:!!this.ownBuildNear(p),weather:this.weatherNow(p),boss:this.bossStatus(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
