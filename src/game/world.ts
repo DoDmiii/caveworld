@@ -449,7 +449,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     ownBuildNear(p:{x:number;y:number}){let best:Placed|undefined;let bd=30;for(const s of this.structures){const d=Math.hypot(s.x-p.x,s.y-p.y);if(d<bd){bd=d;best=s;}}return best;}
     /** Build mode: ghost in front of the player, rotate, place or take down own structures. */
     tickBuild(input:GameInput,p:Phaser.Physics.Arcade.Sprite,time:number){
-      this.nearRack=this.structures.find(s=>s.kind==='rack'&&Math.hypot(s.x-p.x,s.y-p.y)<30)??null;
+      this.nearRack=this.structures.find(s=>s.kind==='rack'&&Math.hypot(s.x-p.x,s.y-p.y)<38)??null;
       const cmd=input.build;input.build=null;
       const say=(m:string)=>{this.message=m;this.messageUntil=time+2200;};
       if(cmd?.op==='select')this.building={kind:cmd.kind,dir:this.building?.dir??2,error:null};
