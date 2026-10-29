@@ -59,7 +59,7 @@ import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } fr
 import { interact, drop, CARRY_SPEED } from './captives';
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 import { getProfile, profileState, PROFILE_IDS, type ProfileStates } from './profiles';
-import { advanceTrust, newTrustProgress, trustSteps, TRUST_STEPS, type TrustBook, type TrustEvent } from './trust';
+import { advanceTrust, trustSteps, TRUST_STEPS, type TrustBook, type TrustEvent } from './trust';
 import { personalDialogues } from './trust-dialogue';
 import { emptyCampSocial, availableCampDialogues, resolveCampDialogue, pairBond, bondLabel, type CampSocial, type CampDialogue } from './camp-dialogue';
 import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight, partyHungerFactor, followRefusal, nukaSnack, YMRA_TRADE_BONUS, companionPace, leashExceeded, uraColdDamage, triesToFlee, ILVAR_ESCAPE_DIST, type PartyBonuses } from './bonuses';
@@ -1310,7 +1310,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         c.sprite.destroy();
         if (this.target === c) this.target = undefined;
         const meat = this.add.image(mx, my, 'meat').setDepth(my);
-        this.meatPickups.push({ x: mx, y: my, sprite: meat, skorra: skorra?.id });
+        this.meatPickups.push({ x: mx, y: my, sprite: meat, ...(skorra ? { skorra: skorra.id } : {}) });
         this.message = `${NAME[c.kind]} erlegt · Fleisch zurückgelassen`;
         this.messageUntil = time + 2600;
         this.addXp(XP[c.kind]);
