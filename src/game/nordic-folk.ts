@@ -15,7 +15,7 @@ const T = [
   { id: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 0, dx: -40, dy: 10 },
   { id: 'nordic-m0', url: m0.url, walk: 6, captive: true, village: 0, dx: 50, dy: -20 },
   { id: 'nordic-w1', url: w1.url, walk: 6, captive: true, village: 0, dx: 10, dy: 50 },
-  { id: 'nordic-m2-f', tex: 'nordic-m2', url: m2.url, walk: 6, captive: false, village: 0, dx: 0, dy: -90 },
+  { id: 'nordic-m2-f', tex: 'nordic-m2', url: m2.url, walk: 6, captive: true, village: 0, dx: 0, dy: -90 },
   { id: 'nordic-w3', url: w3.url, walk: 6, captive: true, village: 2, dx: -20, dy: 20 },
   { id: 'nordic-m2', url: m2.url, walk: 6, captive: true, village: 2, dx: 30, dy: -10 },
   { id: 'nordic-w0-g', tex: 'nordic-w0', url: w0.url, walk: 6, captive: true, village: 1, dx: -60, dy: 30 },
