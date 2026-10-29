@@ -6,20 +6,21 @@ export type Fighter = { hp: number; phase: 'ready' | 'downed' | 'dead'; downUnti
 export const KNOCKDOWN_MS = 7000;
 export const FINISHER_REACH = 30;
 export const FIGHTER_HP = 60;
-export const newFighter = (max = FIGHTER_HP): Fighter => ({ hp: max, phase: 'ready', downUntil: 0, max });
+const keepMax = (f: Fighter) => (f.max ? { max: f.max } : {});
+export const newFighter = (max = FIGHTER_HP): Fighter => ({ hp: max, phase: 'ready', downUntil: 0, ...(max !== FIGHTER_HP ? { max } : {}) });
 export function hitFighter(f: Fighter, damage: number, now: number): Fighter {
   if (f.phase !== 'ready' || damage <= 0) return f;
   const hp = Math.max(1, f.hp - damage);
-  return hp <= 15 ? { hp, phase: 'downed', downUntil: now + KNOCKDOWN_MS, max: f.max } : { ...f, hp };
+  return hp <= 15 ? { hp, phase: 'downed', downUntil: now + KNOCKDOWN_MS , ...keepMax(f) } : { ...f, hp };
 }
 export function recoverFighter(f: Fighter, now: number): Fighter {
-  return f.phase === 'downed' && now >= f.downUntil ? { hp: Math.round((f.max ?? FIGHTER_HP) / 2), phase: 'ready', downUntil: 0, max: f.max } : f;
+  return f.phase === 'downed' && now >= f.downUntil ? { hp: Math.round((f.max ?? FIGHTER_HP) / 2), phase: 'ready', downUntil: 0 , ...keepMax(f) } : f;
 }
 export function canFinish(f: Fighter, distance: number, wedge: boolean, allied: boolean): boolean {
   return !allied && wedge && f.phase === 'downed' && distance <= FINISHER_REACH;
 }
 export function finishFighter(f: Fighter): Fighter {
-  return f.phase === 'downed' ? { hp: 0, phase: 'dead', downUntil: 0, max: f.max } : f;
+  return f.phase === 'downed' ? { hp: 0, phase: 'dead', downUntil: 0 , ...keepMax(f) } : f;
 }
 
 /** Ring position for attacker `i` of `n` around the player; slots slowly rotate so enemies circle. */
