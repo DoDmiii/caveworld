@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('speichert persönliche Vertrauensbedingungen und Nachtwache ohne erneute Belohnung', () => {
+    const trustProgress = { 'nordic-m0': { done: ['weapon'], since: 504, peacefulSince: 504, trades: 0, watch: 120 } };
+    expect(saveGame({ game: { ...game, trustProgress } })).toBe(true);
+    expect(loadSave()?.game?.trustProgress).toEqual(trustProgress);
+  });
   it('speichert Sippenbeziehungen und abgeschlossene Lagergespräche', () => {
     const campSocial = { bonds: { 'nuka:tamo': -5 }, resolved: { 'hunters-gatherers': 1 } };
     expect(saveGame({ game: { ...game, campSocial } })).toBe(true);

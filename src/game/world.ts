@@ -59,6 +59,8 @@ import { preloadFolk, createFolk, tickFolk, poseFolk, boundFrame, type Folk } fr
 import { interact, drop, CARRY_SPEED } from './captives';
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 import { getProfile, profileState, PROFILE_IDS, type ProfileStates } from './profiles';
+import { advanceTrust, trustSteps, TRUST_STEPS, type TrustBook, type TrustEvent } from './trust';
+import { personalDialogues } from './trust-dialogue';
 import { emptyCampSocial, availableCampDialogues, resolveCampDialogue, pairBond, bondLabel, type CampSocial, type CampDialogue } from './camp-dialogue';
 import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight, partyHungerFactor, followRefusal, nukaSnack, YMRA_TRADE_BONUS, companionPace, leashExceeded, uraColdDamage, triesToFlee, ILVAR_ESCAPE_DIST, type PartyBonuses } from './bonuses';
 import type { ProfileView } from './ProfileDetails';
@@ -208,7 +210,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
     }
     allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
-    meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image; skorra?: string }[] = [];
     meat = 0;
     trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
@@ -262,6 +264,47 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     rel: RelationshipState = EMPTY_RELATIONSHIPS;
     profiles: ProfileStates = {};
+    trustProgress: TrustBook = {};
+    trustEvent(id: string, event: TrustEvent, options: { peace?: boolean; minutes?: number } = {}) {
+      const biography = getProfile(id); if (!biography || !TRUST_STEPS[biography.id]) return;
+      const before = this.profiles[id] ?? profileState(biography);
+      const next = advanceTrust(biography.id, this.trustProgress[id], before.trust, event, this.clock, options);
+      this.trustProgress[id] = next.state; this.profiles[id] = { ...before, trust: next.trust };
+      if (next.gained) { this.message = `${biography.name} · Vertrauen ${next.gained > 0 ? '+' : ''}${next.gained} (${next.trust}/100)`; this.messageUntil = this.time.now + 3000; }
+    }
+    tickTrust(minutes: number) {
+      const p = this.player; if (!p || this.dead || this.health <= 0) return;
+      for (const f of this.folk.filter(f => f.c.state === 'camp')) {
+        const pid = PROFILE_IDS[f.c.id]; if (!pid || !TRUST_STEPS[pid]) continue;
+        if (!this.trustProgress[f.c.id]) this.trustEvent(f.c.id, 'joined');
+        const peace = pid === 'ilvar' ? getVillageRelationship(this.rel, 'frostheim') >= 0 && this.folk.some(t => t.c.id === 'nordic-w0' && t.c.state === 'free' && t.combat.hp === 60 && t.combat.phase === 'ready') : getVillageRelationship(this.rel, 'eisfurt') >= 10;
+        this.trustEvent(f.c.id, 'day', { peace });
+        if (!this.sleeping && isNight(clockOf(this.clock).minutesOfDay) && Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) < 120 && Math.hypot(f.sprite.x - p.x, f.sprite.y - p.y) < 120 && !allyDowned(this.allyHealth(f.c.id)) && !this.allyFoes().some(t => t.hostile && t.alive && Math.hypot(t.x - p.x, t.y - p.y) < 250)) this.trustEvent(f.c.id, 'watch', { minutes });
+      }
+    }
+    personalTopics(id: string) {
+      const actor = this.companionActors().find(a => a.id === id), pid = PROFILE_IDS[id];
+      if (!actor || !pid || !TRUST_STEPS[pid]) return [];
+      return personalDialogues(pid, this.profiles[id]?.trust ?? 0, this.trustProgress[id]);
+    }
+    personalChoice(id: string, choice: string, time: number) {
+      const actor = this.companionActors().find(a => a.id === id), p = this.player, pid = PROFILE_IDS[id];
+      if (!actor || !p || !pid || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return;
+      if (!this.personalTopics(id).some(d => d.choices.some(c => c.id === choice))) return;
+      this.message = 'Deine Taten zählen mehr als Versprechen.'; this.messageUntil = time + 3000;
+      if (choice === 'listen') this.message = trustSteps(pid, this.trustProgress[id]).filter(s => !s.done).map(s => s.label).join(' · ') || 'Du hast mein Vertrauen.';
+      if (choice === 'meal') { if (this.cooked < 1) this.message = 'Du hast kein gebratenes Fleisch dabei.'; else { this.cooked--; this.trustEvent(id, 'meal'); } }
+      if (choice === 'weapon') { if (!this.owned.includes('spear') || !this.hasSpear || this.spear || this.spearOnGround) this.message = 'Du brauchst einen verfügbaren Speer.'; else { this.owned = this.owned.filter(i => i !== 'spear'); this.weapon = 'none'; input.weapon = 'none'; this.trustEvent(id, 'weapon'); } }
+      if (choice === 'hunt') { if (this.followingCount() >= MAX_COMPANIONS && this.companionOrders.get(id)?.mode !== 'follow') this.message = 'Dein Jagdtrupp ist voll.'; else { this.companionOrders.set(id, { id, mode: 'follow', x: actor.sprite.x, y: actor.sprite.y }); this.companionMovement.reset(id); this.message = 'Skorra: „Eine Jagd. Dann sehen wir weiter.“'; } }
+      if (choice === 'heal') {
+        const wounded = this.campPeople().find(a => this.allyHealth(a.id).hp < this.allyMaxHp(a.id)) ?? (this.allyHealth(id).hp < this.allyMaxHp(id) ? actor : undefined);
+        if (!this.owned.includes('bandage') || (!wounded && this.health >= 100)) this.message = 'Du brauchst einen Heilwickel und einen Verwundeten am Feuer.';
+        else if (!this.campPeople().some(a => a.id === id) || Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) > 120) this.message = 'Versorgt den Verwundeten gemeinsam am Feuer.';
+        else { if (wounded) { this.allyHp.set(wounded.id, { hp: Math.min(this.allyMaxHp(wounded.id), this.allyHealth(wounded.id).hp + 25), downUntil: 0 }); wounded.sprite.setAngle(0); } else this.health = Math.min(100, this.health + 25); this.trustEvent(id, 'heal'); }
+      }
+      if (choice === 'mercy') this.trustEvent(id, 'mercy');
+      this.persist();
+    }
     campSocial: CampSocial = emptyCampSocial();
     nextCampChat = 0;
     campPeople() {
@@ -275,10 +318,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     tickCampChat(time: number) {
       const request = input.dialogueChoice; input.dialogueChoice = null;
       if (request && !this.dead && !this.sleeping && this.health > 0) {
+        if (request.dialogue === `trust-${PROFILE_IDS[request.target]}`) { this.personalChoice(request.target, request.choice, time); return; }
         const actor = this.campPeople().find(a => a.id === request.target), p = this.player;
         if (actor && p && Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) <= INTERACTION_RANGE && this.campTopics(actor.id).some(d => d.id === request.dialogue)) {
           const result = resolveCampDialogue(this.campSocial, request.dialogue, request.choice, PROFILE_IDS[actor.id] ?? actor.id, this.campPeople().map(a => PROFILE_IDS[a.id] ?? a.id), clockOf(this.clock).day);
-          if (result) { this.campSocial = result.state; this.message = result.reply; this.messageUntil = time + 6500; this.persist(); }
+          if (result) { this.campSocial = result.state; this.message = result.reply; this.messageUntil = time + 6500; if (request.dialogue === 'fire-stories' && request.choice === 'share' && isNight(clockOf(this.clock).minutesOfDay)) { const torvik = this.campPeople().find(a => PROFILE_IDS[a.id] === 'torvik'); if (torvik) this.trustEvent(torvik.id, 'stories'); } this.persist(); }
         }
       }
       if (input.paused || this.dead || this.sleeping || this.health <= 0 || time < this.nextCampChat || time < this.messageUntil) return;
@@ -294,7 +338,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const biography = getProfile(id); if (!biography) return undefined;
       let state = this.profiles[id];
       if (!state) { state = profileState(biography); this.profiles[id] = state; }
-      return { biography, state: profileState(biography, state), portrait, bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
+      return { biography, state: profileState(biography, state), portrait, trustSteps: trustSteps(biography.id, this.trustProgress[id]), bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
     }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
     talk: TalkTarget | null = null;
@@ -354,6 +398,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         chest: { ...this.chest },
         tutorial: { ...this.tutorial },
         campSocial: { bonds: { ...this.campSocial.bonds }, resolved: { ...this.campSocial.resolved } },
+        trustProgress: this.trustProgress,
         profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
         captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
@@ -379,6 +424,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tutorial = g.tutorial ? { ...g.tutorial } : { step: TUTORIAL_DONE, progress: 0 };
       this.rel = g.relationships;
       this.campSocial = g.campSocial ?? emptyCampSocial();
+      this.trustProgress = g.trustProgress ?? {};
       this.profiles = Object.fromEntries(Object.entries(g.profiles ?? {}).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }]));
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
       // Bereits gefällte Bäume wieder entfernen; der Stumpf bleibt für das Nachwachsen nach dem Schlafen.
@@ -761,11 +807,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.finisher=undefined;this.attackPending=false;this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
         this.report(time,p);return;
       }
-      if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000;}
+      if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000; this.tickTrust(0);}
       else if(!input.paused){
         const dt=Math.min(delta,100)/1000;
         if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
+        this.tickTrust(dt * 2);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
         this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids()));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
@@ -899,6 +946,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const f=this.carried;const inCamp=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-50)<130;
           f.c=drop(f.c,p.x,p.y+6,inCamp);this.carried=undefined;this.carryImg?.setVisible(false);poseFolk(f);
           this.message=inCamp?'Willkommen im Stamm! Die Gefangene gehört jetzt zu euch':'Gefangene abgesetzt · [E] wieder aufheben';
+          if (inCamp) this.trustEvent(f.c.id, 'joined');
           this.persist();
         }
         else if(captive){
@@ -910,13 +958,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else if(this.nearChest){this.chestOpen=!this.chestOpen;this.message=this.chestOpen?'Vorratskiste geöffnet':'Kiste geschlossen';}
         else if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
-        else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);{const y=bonusYield(1,this.party().meat,this.meatCarry);this.meatCarry=y.carry;this.meat+=y.amount;this.message=`Fleisch aufgehoben · +${y.amount}`;}}
+        else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);{const y=bonusYield(1,this.party().meat,this.meatCarry);this.meatCarry=y.carry;this.meat+=y.amount;this.message=`Fleisch aufgehoben · +${y.amount}`; if (meat.skorra && this.standingAllies().some(a => a.id === meat.skorra && Math.hypot(a.x - p.x, a.y - p.y) < 160)) { this.meat--; this.trustEvent(meat.skorra, 'hunt'); this.persist(); }}}
         else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);{const n=pickupAmount(this.owned);for(let i=0;i<n;i++)this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +${n}`;}}
         else if(house){
           const next = lootHouse({ stock:this.stock, berries:this.count, meat:this.meat, cooked:this.cooked, owned:this.owned, lootedHouses:this.lootedHouses }, house.id);
           if(next){
             const weapon = next.owned.find(id => !this.owned.includes(id));
             this.stock=next.stock;this.count=next.berries;this.meat=next.meat;this.cooked=next.cooked;this.owned=next.owned;this.lootedHouses=next.lootedHouses;
+            for (const f of this.folk.filter(f => f.c.state === 'camp')) this.trustEvent(f.c.id, 'violence');
             this.villageSupplies.get(house.id)?.destroy();this.villageSupplies.delete(house.id);
             const name = weapon === 'spear' ? 'Steinspeer' : weapon === 'club' ? 'Holzkeule' : 'Steinaxt';
             this.message=`${house.village} · +4 Holz, +3 Stein, +2 Fasern, +1 Feuerstein · +3 Beeren, +1 Fleisch, +2 Gebratenes${weapon ? ` · ${name}` : ''}`;
@@ -1143,7 +1192,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     allyContext(a: CompanionActor): TalkTarget {
       const portrait = this.campers.find(c => c.template.id === a.id)?.template.url ?? this.folk.find(f => f.c.id === a.id)?.t.url;
-      return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, dialogues: this.campTopics(a.id), target: 'ally', targetRole: 'villager', relationship: 100,
+      return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, dialogues: [...this.campTopics(a.id), ...this.personalTopics(a.id)], target: 'ally', targetRole: 'villager', relationship: 100,
         hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
         targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount() };
     }
@@ -1161,18 +1210,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (id === 'follow') this.tut({ kind: 'recruit' }, time);
         this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
       } else if (id === 'feed') {
-        const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+        const shareCooked = PROFILE_IDS[target] === 'skorra' && this.cooked > 0;
+        const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: shareCooked ? 0 : this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+        if (shareCooked) o.goods.berries = this.count;
         if (o.goods.berries === this.count && o.goods.cooked === this.cooked) { this.message = o.message; this.messageUntil = time + 2200; return true; }
         this.count = o.goods.berries; this.cooked = o.goods.cooked;
         // Feeding actually heals the ally: downed companions get back up, hurt ones recover.
         const h = this.allyHealth(target);
         this.allyHp.set(target, allyDowned(h) ? { hp: 25, downUntil: 0 } : { hp: Math.min(50, h.hp + 25), downUntil: 0 });
         this.message = o.message;
+        if (shareCooked) this.trustEvent(target, 'meal');
       } else return true;
       this.messageUntil = time + 2200; this.persist(); return true;
     }
     /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
     armFolk(f: Folk, time: number) {
+      for (const ally of this.folk.filter(a => a.c.state === 'camp')) this.trustEvent(ally.c.id, 'violence');
       for (const o of this.folk) {
         if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
         if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
@@ -1196,7 +1249,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
-      if (id === 'trade' && o.goods.cooked > this.cooked && this.tribePids().includes('ymra')) { const y = bonusYield(o.goods.cooked - this.cooked, YMRA_TRADE_BONUS, this.tradeCarry); this.tradeCarry = y.carry; if (y.amount > o.goods.cooked - this.cooked) o.message += ' · Ymra handelt 1 extra heraus'; o.goods.cooked = this.cooked + y.amount; }
+      if (id === 'trade' && o.goods.cooked > this.cooked && this.tribePids().includes('ymra')) { const ymra = this.folk.find(f => PROFILE_IDS[f.c.id] === 'ymra' && f.c.state === 'camp'); if (ymra) this.trustEvent(ymra.c.id, 'trade'); if (ymra && (this.profiles[ymra.c.id]?.trust ?? 0) >= 60) { const y = bonusYield(o.goods.cooked - this.cooked, YMRA_TRADE_BONUS, this.tradeCarry); this.tradeCarry = y.carry; if (y.amount > o.goods.cooked - this.cooked) o.message += ' · Ymra handelt 1 extra heraus'; o.goods.cooked = this.cooked + y.amount; } }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
       if (o.rel && f.c.state !== 'camp') this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, f.c.id, o.rel, vk), vk, o.rel);
       if (o.alarm) this.rel = raiseAlarm(this.rel, vk, Date.now());
@@ -1221,6 +1274,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
       f.combat=finishFighter(f.combat);poseFolk(f);this.armFolk(f,this.time.now);
+      for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),18);
       const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
@@ -1249,12 +1303,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.time.delayedCall(140, () => { if (c.state !== 'dead') c.sprite.clearTint(); });
       (c.sprite.body as Phaser.Physics.Arcade.Body).setVelocity(fx * 90, fy * 90);
       if (c.hp <= 0) {
+        if (c.kind === 'wolf') for (const f of this.folk.filter(f => f.c.state === 'camp')) this.trustEvent(f.c.id, 'wolf');
+        const skorra = c.kind !== 'wolf' ? this.standingAllies().find(a => PROFILE_IDS[a.id] === 'skorra' && Math.hypot(a.x - c.sprite.x, a.y - c.sprite.y) < 160 && this.trustProgress[a.id]?.done.includes('meal') && !this.trustProgress[a.id]?.done.includes('hunt')) : undefined;
         c.state = 'dead';
         const mx = c.sprite.x, my = c.sprite.y;
         c.sprite.destroy();
         if (this.target === c) this.target = undefined;
         const meat = this.add.image(mx, my, 'meat').setDepth(my);
-        this.meatPickups.push({ x: mx, y: my, sprite: meat });
+        this.meatPickups.push({ x: mx, y: my, sprite: meat, ...(skorra ? { skorra: skorra.id } : {}) });
         this.message = `${NAME[c.kind]} erlegt · Fleisch zurückgelassen`;
         this.messageUntil = time + 2600;
         this.addXp(XP[c.kind]);
