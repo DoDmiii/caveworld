@@ -32,3 +32,5 @@
 - [x] Rivalität Schritt 1: Sippenstreit & Lagergespräche mit Gesprächsentscheidungen und gespeicherten Beziehungen; Tamo/Nuka im Spiel und nach Neuladen verifiziert.
 - [x] Rivalität Schritt 3: Persönliche Vertrauensbedingungen und Gespräche für Ilvar, Ymra, Torvik und Skorra; einmalige Belohnungen, gespeicherte Fortschritte, 172 Tests; Skorras Fleischteilen, Jagdeinladung und Vertrauen nach Neuladen live geprüft.
 - [x] Baumodus: Räuchergestell (nur Lager, trocknet Fleisch zu Dörrfleisch), Leder-Unterstand (halbe Kälte), Barrikade (blockiert); frei platzieren, drehen, abbauen; gespeichert
+- [x] Dorf-Raid: Champion pro Nordic-Dorf (nur per Finisher tötbar), eigenständig kämpfender Trupp, Wiederaufbau nach 3,5 Tagen
+- [ ] Eigene Champion-Grafik, sobald der Nutzer sie liefert
