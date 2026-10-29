@@ -30,4 +30,4 @@
 - [x] Lebensanzeige für den Jagdtrupp im HUD
 - [x] Rivalität Schritt 2: Warnstufen, Grenzpatrouillen der Wachen, Sprechblasen
 - [x] Rivalität Schritt 1: Sippenstreit & Lagergespräche mit Gesprächsentscheidungen und gespeicherten Beziehungen; Tamo/Nuka im Spiel und nach Neuladen verifiziert.
-- [ ] Rivalität Schritt 3: Vertrauensstufen für Gefangene freispielen
+- [ ] Rivalität Schritt 3: Persönliche Vertrauensbedingungen, Gespräche, Fortschritt und Speicherung für Ilvar, Ymra, Torvik und Skorra einbauen und prüfen.
