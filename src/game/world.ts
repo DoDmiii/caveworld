@@ -135,7 +135,7 @@ const FIRE_DY = 40;
 export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void, initial: GameSave | null = null) {
   class Wilderness extends Phaser.Scene {
     caves: CaveState = newCaves();
-    caveView?: ReturnType<typeof renderCave>;
+    caveView: ReturnType<typeof renderCave> | undefined;
     caveCollider?: Phaser.Physics.Arcade.Collider;
     caveHidden = new Map<Phaser.GameObjects.GameObject, boolean>();
     caveDisabled: Phaser.Physics.Arcade.Body[] = [];
@@ -212,7 +212,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
       if(input.paused||this.attacking){dx=0;dy=0;}
-      const moving=Math.hypot(dx,dy)>0.12,running=moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
+      const moving=Math.hypot(dx,dy)>0.12,running=!!(moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1);
       const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*(running?105:65),dy/len*(running?105:65));
       if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,false)*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
       if(input.craft){const r=RECIPES.find(r=>r.id===input.craft);const next=r&&craft(r,this.stock,levelFromXp(this.xp),this.owned);if(r&&next){this.stock=next;this.owned.push(r.id);this.addXp(XP.craft);this.message=`${r.name} hergestellt`;this.messageUntil=time+2000;}input.craft=null;}
