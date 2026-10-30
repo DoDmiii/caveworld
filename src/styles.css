@@ -143,6 +143,15 @@
   }
 }
 
+.cave-tools {position:absolute;z-index:32;top:210px;left:10px;display:flex;flex-direction:column;align-items:flex-start;gap:5px;max-width:calc(100% - 20px);font-size:11px;color:var(--foreground);}
+.cave-tools > span {background:var(--glass);border:1px solid var(--glass-border);padding:5px 8px;border-radius:4px;}
+.cave-tools button {background:var(--glass);font-size:11px;white-space:normal;height:auto;min-height:30px;max-width:100%;}
+.cave-ritual {position:absolute;z-index:33;left:10px;right:10px;bottom:190px;display:flex;flex-direction:column;gap:5px;align-items:center;color:var(--foreground);}
+.cave-ritual button {background:var(--glass);max-width:100%;white-space:normal;min-height:32px;height:auto;font-size:11px;}
+.cave-blessings {text-align:left;border-top:1px solid var(--border);padding-top:10px;}
+.cave-blessings p {font-size:12px;}
+@media (max-height:700px) {.cave-tools {top:180px;gap:3px;} .cave-tools button {min-height:26px;} .cave-ritual {bottom:155px;}}
+
 /* The wilderness palette belongs to the pixel artwork; interface colors use these roles. */
 :root {
   --background: oklch(.19 .013 135);

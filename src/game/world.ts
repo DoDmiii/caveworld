@@ -1,3 +1,5 @@
+import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTINGS, caveAt, caveWalkable, caveDeposits, newCaves, mineDeposit, paint, sharpen, caveDamageFactor, caveSprintFactor, caveColdFactor, type CaveState, type CaveId, type PaintingId } from './caves';
+import { renderCave } from './cave-render';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
@@ -102,9 +104,10 @@ import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tick
 import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type TutorialState } from './tutorial';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
-export type GameInput = { x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
+export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
+export type GameInput = { caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
-export type GameStatus = { x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
+export type GameStatus = { caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -131,6 +134,105 @@ const FIRE_DY = 40;
 
 export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void, initial: GameSave | null = null) {
   class Wilderness extends Phaser.Scene {
+    caves: CaveState = newCaves();
+    caveView: ReturnType<typeof renderCave> | undefined;
+    caveCollider?: Phaser.Physics.Arcade.Collider;
+    caveHidden = new Map<Phaser.GameObjects.GameObject, boolean>();
+    caveDisabled: Phaser.Physics.Arcade.Body[] = [];
+    cavePrompt: string | null = null;
+    caveOreHits = new Map<string, number>();
+    caveFollowers() { return this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow'); }
+    enterCave(id: CaveId, restore = false) {
+      const p = this.player; if (!p || this.carried || this.spear) return;
+      this.building = null; this.ghost?.setVisible(false); this.target = undefined; this.marker?.setVisible(false); this.talk = null;
+      const keep = new Set<Phaser.GameObjects.GameObject>([p, ...this.caveFollowers().map(a => a.sprite), ...(this.night ? [this.night] : [])]);
+      for (const o of this.children.list) {
+        if (keep.has(o)) continue;
+        if ('visible' in o && 'setVisible' in o) { const v = o as Phaser.GameObjects.Image; this.caveHidden.set(o, v.visible); v.setVisible(false); }
+        if ('body' in o) { const b = (o as Phaser.Physics.Arcade.Sprite).body; if (b && b.enable) { b.enable = false; this.caveDisabled.push(b as Phaser.Physics.Arcade.Body); } }
+      }
+      this.caves = { ...this.caves, current: id };
+      this.caveView = renderCave(this, id, this.caves);
+      this.caveCollider = this.physics.add.collider([p, ...this.caveFollowers().map(a => a.sprite)], this.caveView.walls);
+      this.physics.world.setBounds(0, 0, CAVE_SIZE, CAVE_SIZE);
+      this.cameras.main.setBounds(0, 0, CAVE_SIZE, CAVE_SIZE);
+      if (!restore) {
+        p.setPosition(CAVE_SPAWN.x, CAVE_SPAWN.y); this.lastFacing = 6;
+        this.caveFollowers().forEach((a, i) => { a.sprite.setPosition(288 + i * 28, 528); this.companionMovement.reset(a.id); });
+      }
+      p.setVelocity(0, 0); this.cameras.main.centerOn(p.x, p.y);
+      this.nearBed = false; this.nearChest = false; this.nearRack = null;
+      this.message = `${CAVES[id].name}${this.owned.includes('torch') ? '' : ' · Ohne Fackel ist es stockfinster'}`; this.messageUntil = this.time.now + 2500;
+      this.lastAction = input.action;
+      if (!restore) this.persist();
+    }
+    exitCave() {
+      const p = this.player, id = this.caves.current; if (!p || !id) return;
+      this.caveCollider?.destroy(); this.caveView?.destroy(); this.caveView = undefined;
+      for (const [o, visible] of this.caveHidden) if (o.active && 'setVisible' in o) (o as Phaser.GameObjects.Image).setVisible(visible);
+      for (const b of this.caveDisabled) b.enable = true;
+      this.caveHidden.clear(); this.caveDisabled = []; this.caves = { ...this.caves, current: null }; this.cavePrompt = null;
+      this.physics.world.setBounds(MAP.x, MAP.y, MAP.w, MAP.h); this.cameras.main.setBounds(MAP.x, MAP.y, MAP.w, MAP.h);
+      const c = CAVES[id]; p.setPosition(c.x, c.y + 56).setVelocity(0, 0); this.lastFacing = 2;
+      this.caveFollowers().forEach((a, i) => { a.sprite.setPosition(c.x - 28 + i * 28, c.y + 84); this.companionMovement.reset(a.id); });
+      this.cameras.main.centerOn(p.x, p.y); this.tutLast = { x: p.x, y: p.y }; this.persist();
+    }
+    caveWarm(p: {x:number;y:number}) { const id=this.caves.current; return !!id && (this.caves.builds[id] ?? []).some(b => b.kind==='fire' && Math.hypot(b.x-p.x,b.y-p.y)<100); }
+    caveAction(time: number) {
+      const p=this.player, id=this.caves.current; if (!p || !id) return;
+      if (Math.hypot(p.x-CAVE_EXIT.x,p.y-CAVE_EXIT.y)<36) { this.exitCave(); return; }
+      if (Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44) { this.message='Ritualwand · wähle eine Malerei'; this.messageUntil=time+2000; return; }
+      if (this.caveWarm(p) && this.meat>0) { const r=roast(this.pantry()); if(r){this.setPantry(r);this.message='Fleisch am Höhlenfeuer gebraten';this.messageUntil=time+2000;} }
+      else { this.message='Mineralien mit der Steinaxt abbauen'; this.messageUntil=time+1800; }
+    }
+    applyCaveCommand(time: number) {
+      const cmd=input.caveCommand; input.caveCommand=null;
+      const p=this.player,id=this.caves.current; if(!cmd||!p||!id||this.dead)return;
+      const nearWall=Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44;
+      if(cmd.op==='paint') { if(!nearWall)return; const next=paint(this.caves,cmd.id); if(!next)return; this.caves=next;this.message=`${PAINTINGS[cmd.id].name} · ${PAINTINGS[cmd.id].effect}`; }
+      else if(cmd.op==='sharpen') { const next=sharpen(this.caves);if(!next)return;this.caves=next;this.message='Obsidian-Klingen gefertigt · Speer und Keule sind geschärft'; }
+      else {
+        const cost=cmd.op==='fire'?{wood:4,stone:2}:{wood:3,fiber:4};
+        const x=Math.round(p.x+Math.cos(this.lastFacing*Math.PI/4)*36),y=Math.round(p.y+Math.sin(this.lastFacing*Math.PI/4)*36);
+        const builds=this.caves.builds[id]??[];
+        if(!canAfford(cost,this.stock)||builds.length>=20||!caveWalkable(x,y)||builds.some(b=>Math.hypot(b.x-x,b.y-y)<48)||Math.hypot(x-CAVE_EXIT.x,y-CAVE_EXIT.y)<45||Math.hypot(x-PAINT_WALL.x,y-PAINT_WALL.y)<60){this.message='Hier ist kein freier Bauplatz oder Material fehlt';this.messageUntil=time+2200;return;}
+        this.stock=pay(cost,this.stock);this.caves={...this.caves,builds:{...this.caves.builds,[id]:[...builds,{id:`${id}:${x}:${y}`,kind:cmd.op,x,y}]}};this.message=cmd.op==='fire'?'Höhlenfeuer errichtet':'Leder-Unterstand errichtet';
+      }
+      this.caveView?.refresh(this.caves);this.messageUntil=time+3000;this.persist();
+    }
+    updateCave(time: number, delta: number) {
+      const p=this.player,id=this.caves.current;if(!p||!id)return;
+      this.applyCaveCommand(time);
+      const k=this.keys,dt=Math.min(delta,100)/1000;
+      if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
+      else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
+      if(this.health<=0&&!this.dead){this.dead=true;p.play(`anim-death-${this.lastFacing}`);}
+      if(this.dead){p.setVelocity(0,0);if(input.respawn!==this.lastRespawn){this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.hunger=50;this.warmth=80;this.exitCave();p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();this.persist();}this.report(time,p);return;}
+      let dx=input.x,dy=input.y;
+      if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
+      if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
+      if(input.paused||this.attacking){dx=0;dy=0;}
+      const moving=Math.hypot(dx,dy)>0.12,running=!!(moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1);
+      const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*(running?105:65),dy/len*(running?105:65));
+      if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(this.owned,false)*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
+      if(input.craft){const r=RECIPES.find(r=>r.id===input.craft);const next=r&&craft(r,this.stock,levelFromXp(this.xp),this.owned);if(r&&next){this.stock=next;this.owned.push(r.id);this.addXp(XP.craft);this.message=`${r.name} hergestellt`;this.messageUntil=time+2000;}input.craft=null;}
+      if(input.weapon!==this.weapon)this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';
+      const attackKey=k?.['Q'];const attackNow=this.clickAttack||(attackKey&&Phaser.Input.Keyboard.JustDown(attackKey));this.clickAttack=false;
+      if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||attackNow)){this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);
+        const a=this.lastFacing*Math.PI/4;
+        const d=caveDeposits(id).find(d=>!this.caves.mined.includes(d.id)&&Math.hypot(d.x-p.x,d.y-p.y)<48&&((d.x-p.x)*Math.cos(a)+(d.y-p.y)*Math.sin(a))/Math.max(1,Math.hypot(d.x-p.x,d.y-p.y))>0.25);
+        if(d){if(this.held!=='axe'){this.message='Dafür brauchst du die Steinaxt';}else{const hits=(this.caveOreHits.get(d.id)??0)+1;this.caveOreHits.set(d.id,hits);if(hits>=3){const next=mineDeposit(this.caves,d.id);if(next){this.caves=next;this.caveView?.ore.get(d.id)?.destroy();this.addXp(15);this.message=`+${d.yield} ${d.kind==='obsidian'?'Obsidian':'Erd-Pigmente'} · +15 EP`;this.persist();}}else this.message='Die Mineralader bröckelt …';}this.messageUntil=time+2200;}
+      }else this.lastAttack=input.attack;
+      if(!this.attacking){if(moving){this.lastFacing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;p.play(`${this.held}-walk-${this.lastFacing}`,true);}else{p.anims.stop();p.setTexture(`${this.held}-idle-${this.lastFacing}`);}}p.setDepth(60000+p.y);
+      const e=k?.['E'];const actionNow=e&&Phaser.Input.Keyboard.JustDown(e);
+      if(!input.paused&&!this.attacking&&(input.action!==this.lastAction||actionNow)){this.lastAction=input.action;this.caveAction(time);if(!this.caves.current){this.report(time,p);return;}}else this.lastAction=input.action;
+      const food=input.eat;input.eat=null;if(food){const r=eat(this.pantry(),food);if(r){this.setPantry(r);this.healPulse++;}}
+      const actors=this.caveFollowers();const blocks=(this.caveView?.walls.getChildren()??[]).flatMap(o=>{const b=(o as Phaser.Physics.Arcade.Sprite).body;return b?[{x:b.x,y:b.y,width:b.width,height:b.height}]:[];});
+      this.companionMovement.tick(actors,this.companionOrders,p,this.lastFacing,time,input.paused||this.dead,running,false,blocks);
+      for(const a of actors){a.sprite.setDepth(60000+a.sprite.y);if(!input.paused){const h=this.allyHealth(a.id);let next=tickAllyHealth(h,time,delta,this.caveWarm(a.sprite),this.allyMaxHp(a.id));const cold=uraColdDamage(PROFILE_IDS[a.id]??a.id,id==='ice'?'nordics':'wenjaWest',this.owned.includes('fur'))*caveColdFactor(this.caves);if(cold&&!this.caveWarm(a.sprite))next={...next,hp:Math.max(0,next.hp-cold*dt)};this.allyHp.set(a.id,next);}}
+      this.cavePrompt=Math.hypot(p.x-CAVE_EXIT.x,p.y-CAVE_EXIT.y)<36?'Höhle verlassen':null;
+      this.hidden=false;this.nearBed=false;this.nearChest=false;this.nearRack=null;this.talk=null;this.report(time,p);
+    }
     player?: Phaser.Physics.Arcade.Sprite;
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
     obstacles?: Phaser.Physics.Arcade.StaticGroup;
@@ -204,7 +306,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         let h = tickAllyHealth(before, time, delta, nearFire, this.allyMaxHp(a.id));
         const pid = PROFILE_IDS[a.id] ?? a.id, order = this.companionOrders.get(a.id);
         if (order?.mode === 'follow' && !allyDowned(h)) {
-          const cold = uraColdDamage(pid, biomeAt(a.sprite.x, a.sprite.y), this.owned.includes('fur'));
+          const cold = uraColdDamage(pid, biomeAt(a.sprite.x, a.sprite.y), this.owned.includes('fur')) * caveColdFactor(this.caves);
           if (cold) { h = { hp: Math.max(0, before.hp - cold * Math.min(delta, 100) / 1000), downUntil: 0 }; if (h.hp <= 0) h = hitAlly(h, 1, time); if (time > this.nextUraWarn) { this.nextUraWarn = time + 20000; this.message = 'Ura friert im Schnee · Fellkleidung schützt sie'; this.messageUntil = time + 2400; } }
           if (leashExceeded(pid, Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y))) { this.companionOrders.set(a.id, { id: a.id, x: a.home.x, y: a.home.y, mode: 'return' }); this.companionMovement.reset(a.id); this.message = 'Kuruk: „Das ist zu weit für meine alten Knochen!“ · Er kehrt ins Lager zurück'; this.messageUntil = time + 3000; }
         }
@@ -423,6 +525,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player;
       if (!p || this.dead || this.sleeping || this.health <= 0) return null;
       return {
+        caves: this.caves,
         x: Math.round(p.x), y: Math.round(p.y),
         health: Math.min(100, Math.max(1, Math.round(this.health))),
         stamina: Math.min(100, Math.max(0, Math.round(this.stamina))),
@@ -481,6 +584,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Wendet einen Spielstand auf die frisch (deterministisch) erzeugte Welt an. */
     restore(g: GameSave) {
       const p = this.player; if (!p) return;
+      this.caves = g.caves ? { ...newCaves(), ...g.caves, builds: g.caves.builds ?? {} } : newCaves();
       this.health = g.health; this.stamina = g.stamina;
       this.count = g.berries; this.meat = g.meat; this.cooked = g.cooked;
       this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
@@ -519,13 +623,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       for (const a of g.allies ?? []) this.allyHp.set(a.id, a.downMs > 0 ? { hp: 0, downUntil: this.time.now + Math.max(1, a.downMs) } : { hp: a.hp, downUntil: 0 });
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
+      if (this.caves.current) this.enterCave(this.caves.current, true);
       this.cameras.main.centerOn(p.x, p.y);
       this.message = 'Spielstand geladen'; this.messageUntil = this.time.now + 2400;
     }
     /** Dunkelheit als Overlay mit "Lichtlöchern" am Lagerfeuer und um den Spieler (Canvas-Textur, deckt die Kamerasicht ab). */
     nextWeatherWarn = 0;
     weatherGfx: Phaser.GameObjects.Graphics | undefined = undefined;
-    weatherNow(p: { x: number; y: number }): Weather { return weatherAt(regionOf(biomeAt(p.x, p.y)), this.clock); }
+    weatherNow(p: { x: number; y: number }): Weather { return this.caves.current ? 'clear' : weatherAt(regionOf(biomeAt(p.x, p.y)), this.clock); }
     /** Rain streaks, snowflakes, blizzard haze and lightning drawn over the camera view. */
     updateWeather() {
       const p = this.player; if (!p) return;
@@ -553,7 +658,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.updateWeather();
       const tex = this.nightTex, img = this.night, p = this.player;
       if (!tex || !img || !p) return;
-      const sky = skyTint(clockOf(this.clock).minutesOfDay);
+      const sky = this.caves.current ? { r: 2, g: 3, b: 3, a: 0.985 } : skyTint(clockOf(this.clock).minutesOfDay);
       if (sky.a < 0.01) { img.setVisible(false); return; }
       const wv = this.cameras.main.worldView, pad = 14;
       const wx = wv.x - pad, wy = wv.y - pad, ww = wv.width + pad * 2, wh = wv.height + pad * 2;
@@ -571,8 +676,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         g.addColorStop(0, `rgba(0,0,0,${strength})`); g.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, cy, cr, 0, Math.PI * 2); ctx.fill();
       };
-      hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); // Lagerfeuer
-      hole(p.x, p.y, 70, 0.35);                  // Restlicht um den Spieler
+      if (this.caves.current) {
+        for (const b of this.caves.builds[this.caves.current] ?? []) if(b.kind==='fire') hole(b.x,b.y,140,0.98);
+        hole(p.x,p.y,this.owned.includes('torch')?120+Math.sin(this.time.now/120)*3:22,this.owned.includes('torch')?0.98:0.28);
+      } else { hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); hole(p.x, p.y, this.owned.includes('torch')?120:70, this.owned.includes('torch')?0.9:0.35); }                  // Restlicht um den Spieler
       ctx.globalCompositeOperation = 'source-over';
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
@@ -861,6 +968,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.night = this.add.image(0, 0, 'night').setOrigin(0).setDepth(900000).setVisible(false);
         this.events.on('postupdate', () => this.updateNight());
       }
+      for (const id of CAVE_IDS) if(id!=='home'){ const c=CAVES[id]; const mouth=this.add.graphics().setDepth(c.y); mouth.fillStyle(id==='ice'?0x889da2:0x5c5550).fillRect(c.x-42,c.y-30,84,40);mouth.fillStyle(0x101412).fillRect(c.x-26,c.y-24,52,36);mouth.fillStyle(0x070908).fillRect(c.x-18,c.y-12,36,24); }
       if (initial) this.restore(initial);
       // Beim Schließen oder Wegwischen der Seite sofort sichern (visibilitychange ist auf Mobilgeräten am zuverlässigsten).
       const flush = () => this.persist();
@@ -872,6 +980,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
+      if (this.caves.current) { this.updateCave(time, delta); return; }
+      this.cavePrompt = caveAt(p.x,p.y) ? `Betreten: ${CAVES[caveAt(p.x,p.y) ?? 'home'].name}` : null;
       const controlled = new Set(this.companionOrders.keys()); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
@@ -914,8 +1024,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.tickTrust(dt * 2);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
-        this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids()));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
-        {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay))*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
+        this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids())*((input.sprint||this.keys?.['SHIFT']?.isDown)?caveSprintFactor(this.caves):1));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
+        {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(this.owned,isNight(minutesOfDay))*caveColdFactor(this.caves)*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));
         if(time>=this.messageUntil){
@@ -958,7 +1068,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(running||this.attacking)this.crouchOn=false;
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const speed=(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed; const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
-      this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22:13)*Math.min(delta,50)/1000,0,100);
+      this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
       const fKey=k?.['F'];
@@ -1032,6 +1142,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const keyboardAction=(actionKey&&Phaser.Input.Keyboard.JustDown(actionKey))||(spaceKey&&Phaser.Input.Keyboard.JustDown(spaceKey));
       if(!input.paused&&!this.attacking&&(input.action!==this.lastAction||keyboardAction)){
         this.lastAction=input.action;
+        const entrance=caveAt(p.x,p.y);
+        if(entrance){if(this.carried||this.spear){this.message='Erst die Hände freimachen';this.messageUntil=time+1800;}else{this.enterCave(entrance);this.report(time,p);return;}}
         const downed=this.folk.find(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),w==='wedge',false));
         if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
         const knocked=this.folk.find(f=>f.c.state==='free'&&f.combat.phase==='downed'&&f.t.captive&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<30);
@@ -1306,10 +1418,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
         const fx = dx / Math.max(1, d), fy = dy / Math.max(1, d);
         const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8; a.face(dir);
-        if ('kind' in t.ref) { if (t.ref.state !== 'dead') this.hurt(t.ref, ALLY_DAMAGE, fx, fy, time); }
+        if ('kind' in t.ref) { if (t.ref.state !== 'dead') this.hurt(t.ref, ALLY_DAMAGE*caveDamageFactor(this.caves,companionWeapon(a.id)), fx, fy, time); }
         else {
           const f = t.ref; if (f.combat.phase !== 'ready' || f.c.state !== 'free') continue;
-          f.combat = isWarrior(f.t) && !isChampion(f.t) ? hitWarrior(f.combat, ALLY_DAMAGE, time, true) : hitFighter(f.combat, ALLY_DAMAGE, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, f.combat.phase === 'dead' ? 28 : 14);
+          const dmg=ALLY_DAMAGE*caveDamageFactor(this.caves,companionWeapon(a.id)); f.combat = isWarrior(f.t) && !isChampion(f.t) ? hitWarrior(f.combat, dmg, time, true) : hitFighter(f.combat, dmg, time); this.armFolk(f, time); this.bleed(f.sprite.x, f.sprite.y, fx, fy, f.combat.phase === 'dead' ? 28 : 14);
           if (f.combat.phase === 'dead') { dieFolk(f); this.message = 'Dein Trupp hat einen Krieger erschlagen'; this.messageUntil = time + 2200; this.persist(); }
           if (f.combat.phase === 'downed') { poseFolk(f); this.message = isChampion(f.t) ? `Dein Trupp hat ${CHAMPION_NAMES[f.t.village]} niedergerungen · jetzt der Finisher!` : 'Dein Jagdtrupp hat einen Gegner niedergeschlagen'; this.messageUntil = time + 2200; }
         }
@@ -1487,7 +1599,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           this.allyFocus = 'c' + this.creatures.indexOf(c);
-          this.hurt(c, hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10, fx, fy, time);
+          this.hurt(c, (hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10)*caveDamageFactor(this.caves,input.club?'club':hw), fx, fy, time);
         }
         for (const f of this.folk) {
           if (f.c.state !== 'free') continue;
@@ -1495,7 +1607,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
           this.allyFocus='f'+f.c.id;
-          {const dmg=hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10;f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);}
+          {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10)*caveDamageFactor(this.caves,input.club?'club':hw);f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);}
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
           if(f.combat.phase==='dead'){dieFolk(f);this.message='Krieger erschlagen';this.persist();}
@@ -1624,10 +1736,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearOwnBuild:!!this.ownBuildNear(p),weather:this.weatherNow(p),boss:this.bossStatus(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearOwnBuild:!!this.ownBuildNear(p),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
     }
   }
-  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:parent.clientWidth,height:parent.clientHeight,pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
+  const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
 }
 
 // Southern edge of the mountain massif; flattened at the camp with rock spurs either side.

@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains cave location, finite deposits, paintings, upgrades and cave buildings', () => {
+    const caves = { current: 'ice' as const, mined: ['ice:0'], paintings: ['lion' as const], obsidian: 2, pigment: 4, sharpened: true, builds: { ice: [{ id: 'fire-1', kind: 'fire' as const, x: 320, y: 480 }] } };
+    expect(saveGame({ game: { ...game, caves } })).toBe(true);
+    expect(loadSave()?.game?.caves).toEqual(caves);
+  });
   it('speichert persönliche Vertrauensbedingungen und Nachtwache ohne erneute Belohnung', () => {
     const trustProgress = { 'nordic-m0': { done: ['weapon'], since: 504, peacefulSince: 504, trades: 0, watch: 120 } };
     expect(saveGame({ game: { ...game, trustProgress } })).toBe(true);
