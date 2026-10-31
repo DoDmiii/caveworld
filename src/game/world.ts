@@ -63,6 +63,7 @@ import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespa
 import { interact, drop, CARRY_SPEED } from './captives';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
+import { TRAPS, TRAP_KINDS, PIT_DAMAGE, trapPlacementError, triggerTrap, collectTrap, type Trap, type TrapKind, type TrapTarget } from './traps';
 import rack0 from '@/assets/build/rack-0.png.asset.json';
 import rack1 from '@/assets/build/rack-1.png.asset.json';
 import rack2 from '@/assets/build/rack-2.png.asset.json';
@@ -85,8 +86,8 @@ import ba7 from '@/assets/build/barricade-7.png.asset.json';
 const RACK_TEX=[rack0,rack1,rack2],SHELTER_TEX=[sh0,sh1,sh2,sh3,sh4,sh5,sh6,sh7],BARRICADE_TEX=[ba0,ba1,ba2,ba3,ba4,ba5,ba6,ba7];
 /** Texture key of a structure: racks pick a stable variant, rotating builds use their direction. */
 const structTex=(s:{kind:StructureKind;dir:number;id?:string})=>s.kind==='rack'?`rack-${[...(s.id??'')].reduce((a,c)=>a+c.charCodeAt(0),0)%3}`:`${s.kind}-${s.dir}`;
-export type BuildCommand={op:'select';kind:StructureKind}|{op:'rotate'|'place'|'remove'|'cancel'};
-export type BuildStatus={kind:StructureKind;dir:number;error:string|null};
+export type BuildCommand={op:'select';kind:StructureKind|TrapKind}|{op:'rotate'|'place'|'remove'|'cancel'};
+export type BuildStatus={kind:StructureKind|TrapKind;dir:number;error:string|null};
 import { CHEST_POS, CHEST_RANGE, EMPTY_CHEST, deposit, withdraw, type ChestGoods, type Storable } from './storage';
 import { getProfile, profileState, PROFILE_IDS, type ProfileStates } from './profiles';
 import { advanceTrust, trustSteps, TRUST_STEPS, type TrustBook, type TrustEvent } from './trust';
@@ -262,6 +263,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     jerky = 0;
     structures: Placed[] = [];
     structSprites = new Map<string, Phaser.GameObjects.Image>();
+    traps: Trap[] = [];
+    trapSprites = new Map<string, Phaser.GameObjects.Image>();
+    nearTrap: Trap | null = null;
     ghost?: Phaser.GameObjects.Image;
     building: BuildStatus | null = null;
     nearRack: Placed | null = null;
@@ -270,6 +274,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     drawDryBars(){const g=this.dryGfx??=this.add.graphics();g.clear();for(const s of this.structures){if(s.kind!=='rack'||!s.meat.length)continue;const w=24,h=3,x=s.x-w/2,y=s.y-34;g.setDepth(s.y+1000);g.fillStyle(0x1a120b,0.85).fillRect(x-1,y-1,w+2,h+2);const sw=(w-(RACK_SLOTS-1))/RACK_SLOTS;s.meat.forEach((t,i)=>{const f=dryProgress(t,this.clock);g.fillStyle(f>=1?0x7fd04a:0xd9873a,1).fillRect(x+i*(sw+1),y,sw*f,h);});}}
     makeObstacle?: (x:number,y:number,key:string,bw:number,bh:number)=>Phaser.Physics.Arcade.Sprite|undefined;
     spawnStructure(s:Placed){const key=structTex(s);const o=s.kind==='barricade'?this.makeObstacle?.(s.x,s.y,key,26,8):s.kind==='shelter'?this.makeObstacle?.(s.x,s.y,key,40,8):this.makeObstacle?.(s.x,s.y,key,22,6);if(o)this.structSprites.set(s.id,o as unknown as Phaser.GameObjects.Image);}
+    /** Procedural pixel icons for the three trap kinds (no uploaded art yet). */
+    makeTrapTextures(){
+      if(this.textures.exists('trap-snare'))return;
+      const g=this.add.graphics();
+      g.lineStyle(2,0xc9a86a).strokeCircle(8,8,5);g.generateTexture('trap-snare',16,16);g.clear();
+      g.fillStyle(0x120d08).fillEllipse(10,8,18,12);g.fillStyle(0xd8d0c0);for(let i=0;i<4;i++)g.fillTriangle(3+i*4,11,5+i*4,4,7+i*4,11);g.generateTexture('trap-pit',20,16);g.clear();
+      g.fillStyle(0xe8e0cc).fillRect(2,6,12,3);g.fillRect(6,2,3,12);g.generateTexture('trap-rattle',16,16);g.destroy();
+    }
+    spawnTrap(t:Trap){this.makeTrapTextures();const o=this.add.image(t.x,t.y,`trap-${t.kind}`).setDepth(t.y+1);this.trapSprites.set(t.id,o);}
     tutorial: TutorialState = newTutorial();
     tutLast?: { x: number; y: number };
     tut(ev: TutorialEvent, time: number) { const r = tutorialEvent(this.tutorial, ev); this.tutorial = r.state; if (r.completed) { this.message = this.tutorial.step >= TUTORIAL_DONE ? `Einführung geschafft · +${r.completed.xp} EP` : `Ziel erreicht: ${r.completed.title} · +${r.completed.xp} EP`; this.messageUntil = time + 2600; this.addXp(r.completed.xp); this.persist(); } }
@@ -598,6 +611,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         chest: { ...this.chest },
         jerky: this.jerky,
         structures: this.structures.map(s => ({ ...s, meat: [...s.meat] })),
+        traps: this.traps.map(t => ({ ...t })),
         tutorial: { ...this.tutorial },
         campSocial: { bonds: { ...this.campSocial.bonds }, resolved: { ...this.campSocial.resolved } },
         trustProgress: this.trustProgress,
