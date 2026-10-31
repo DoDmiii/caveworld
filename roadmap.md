@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Jagdfallen: Schlinge (fängt Gazellen, 3 Nutzungen), Fallgrube (verletzt Raubtiere, 2 Nutzungen), Knochenrassel (warnt vor Kriegstrupps, 5 Alarme); Baumenü, Abbau mit Rückerstattung, Einsammeln per AKTION, gespeichert
 - [x] Mobile Steuerung: Ducken, Sprint-Umschalter, Tierzielwahl und Speerwurf; Hoch-/Querformat mit breiterer Sicht. Bewegung, Drehen, Pause und Speerherstellung/Ausrüsten/Wurf live geprüft, auch 320px ohne Seitenüberlauf.
 - [x] Betretbare Heimat-/Eis-/Obsidianhöhle, Fackellicht, Begleiter, Rohstoffe, Malereien, Höhlenbauten und Speicherung; Heimat-Abbau, Ritual, Feuer, Begleiter und Reload live geprüft.
 - [x] Add follow/wait recruitment for camp allies and integrated captives, formation navigation and save/reload; verify in game.

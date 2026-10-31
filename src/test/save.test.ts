@@ -5,7 +5,7 @@ const game: GameSave = {
   x: 1000, y: 610, health: 80, stamina: 60, hunger: 55, warmth: 70, clock: 1500, berries: 2, meat: 1, cooked: 0,
   stock: { wood: 3, stone: 1, flint: 0, fiber: 1 }, xp: 120, owned: ['axe', 'club'],
   stumps: [{ x: 790, y: 770, dir: 3 }], minedRocks: [[800, 610]], pickedBerries: [0, 4],
-  lootedHouses: ['Frostheim:0'], jerky: 0, structures: [],
+  lootedHouses: ['Frostheim:0'], jerky: 0, structures: [], traps: [],
   captives: [],
   chest: { wood: 5, stone: 0, flint: 1, fiber: 0, berries: 2, meat: 0, cooked: 1 },
   relationships: { village: { frostheim: 15 }, personal: {}, alarmUntil: {} },
@@ -60,6 +60,16 @@ describe('save', () => {
     const next = { ...game, owned: ['axe', 'wedge'] as GameSave['owned'], fighters: [{ id: 'nordic-m2-f', hp: 0, phase: 'dead' as const, x: 200, y: -700, facing: 2 }] };
     expect(saveGame({ game: next })).toBe(true);
     expect(loadSave()?.game).toEqual(next);
+  });
+  it('stellte Fallen überleben das Speichern und Laden', () => {
+    const traps = [{ id: 't100_200', kind: 'snare' as const, x: 100, y: 200, uses: 2, meat: 1 }];
+    expect(saveGame({ game: { ...game, traps } })).toBe(true);
+    expect(loadSave()?.game?.traps).toEqual(traps);
+  });
+  it('ältere Spielstände ohne Fallen laden mit leerer Fallenliste', () => {
+    const { traps: _t, ...old } = game;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: old }));
+    expect(loadSave()?.game?.traps).toEqual([]);
   });
   it('ohne Spielstand gibt es null', () => { expect(loadSave()).toBeNull(); });
 

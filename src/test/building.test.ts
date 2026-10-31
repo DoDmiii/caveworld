@@ -43,7 +43,7 @@ describe('building', () => {
     const game = { x: 1000, y: 610, health: 80, stamina: 60, hunger: 55, warmth: 70, clock: 1500, berries: 0, meat: 0, cooked: 0, jerky: 2,
       stock: { wood: 0, stone: 0, flint: 0, fiber: 0 }, xp: 0, owned: ['axe' as const], stumps: [], minedRocks: [], pickedBerries: [], lootedHouses: [], captives: [],
       chest: { wood: 0, stone: 0, flint: 0, fiber: 0, berries: 0, meat: 0, cooked: 0 }, relationships: { village: {}, personal: {}, alarmUntil: {} },
-      structures: [{ ...rack(), meat: [1400] }, { id: 's', kind: 'shelter' as const, x: 300, y: 2000, dir: 5, meat: [] }] };
+      structures: [{ ...rack(), meat: [1400] }, { id: 's', kind: 'shelter' as const, x: 300, y: 2000, dir: 5, meat: [] }], traps: [] };
     expect(saveGame({ game })).toBe(true);
     expect(loadSave()?.game?.structures).toEqual(game.structures);
     expect(loadSave()?.game?.jerky).toBe(2);
