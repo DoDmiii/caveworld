@@ -61,6 +61,16 @@ describe('save', () => {
     expect(saveGame({ game: next })).toBe(true);
     expect(loadSave()?.game).toEqual(next);
   });
+  it('stellte Fallen überleben das Speichern und Laden', () => {
+    const traps = [{ id: 't100_200', kind: 'snare' as const, x: 100, y: 200, uses: 2, meat: 1 }];
+    expect(saveGame({ game: { ...game, traps } })).toBe(true);
+    expect(loadSave()?.game?.traps).toEqual(traps);
+  });
+  it('ältere Spielstände ohne Fallen laden mit leerer Fallenliste', () => {
+    const { traps: _t, ...old } = game;
+    localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, savedAt: 1, game: old }));
+    expect(loadSave()?.game?.traps).toEqual([]);
+  });
   it('ohne Spielstand gibt es null', () => { expect(loadSave()).toBeNull(); });
 
   it('speichert und lädt unverändert', () => {
