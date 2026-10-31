@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Mobile Steuerung vervollständigen, Hoch-/Querformat erlauben, Sichtweite und Touch-Flows in beiden Ausrichtungen prüfen.
 - [x] Betretbare Heimat-/Eis-/Obsidianhöhle, Fackellicht, Begleiter, Rohstoffe, Malereien, Höhlenbauten und Speicherung; Heimat-Abbau, Ritual, Feuer, Begleiter und Reload live geprüft.
 - [x] Add follow/wait recruitment for camp allies and integrated captives, formation navigation and save/reload; verify in game.
 - [x] Add uploaded Steinkeil weapon, knockdowns and finishers; verify combat and save/reload.
