@@ -40,7 +40,9 @@ import rackIcon from '@/assets/build/rack-0.png.asset.json';
 import shelterIcon from '@/assets/build/shelter-2.png.asset.json';
 import barricadeIcon from '@/assets/build/barricade-2.png.asset.json';
 import { STRUCTURES, STRUCTURE_KINDS, canAfford } from './building';
-const BUILD_ICON={rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url};
+import { TRAPS, TRAP_KINDS } from './traps';
+const BUILD_ICON: Record<string, string>={rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url};
+const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, number>>; effect: string }>={...STRUCTURES,...TRAPS};
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
 const STORABLE_ICON: Record<Storable, string> = { wood: resWood.url, stone: resStone.url, flint: resFlint.url, fiber: resFiber.url, berries: '✦', meat: '🥩', cooked: '🍖' };
 
@@ -137,7 +139,7 @@ export default function GameView(){
     <Button variant="ghost" size="icon" className="glass-icon gear-button" aria-label="Inventar öffnen" title="Inventar" onClick={()=>setPanel('gear')}><Backpack/></Button>
     <Button disabled={!!status.caves?.current} variant="ghost" size="icon" className={`glass-icon build-button ${buildOpen?'is-active':''}`} aria-label="Bauen" title="Bauen · Taste B" onClick={()=>{if(buildOpen)build({op:'cancel'});setBuildOpen(!buildOpen);}}><img src={rackIcon.url} alt="" style={{width:24,height:24,imageRendering:'pixelated'}}/></Button>
     {ready&&buildOpen&&!status.caves?.current&&!panel&&!talk&&<div className="build-bar" role="toolbar" aria-label="Baumenü">
-      <div className="build-options">{STRUCTURE_KINDS.map(k=>{const d=STRUCTURES[k];const ok=canAfford(d.cost,status);return <Button variant="ghost" key={k} type="button" className={`build-option ${status.build?.kind===k?'is-selected':''}`} disabled={!ok&&status.build?.kind!==k} title={d.effect} onClick={()=>build({op:'select',kind:k})}><img src={BUILD_ICON[k]} alt=""/><strong>{d.name}</strong><em>{Object.entries(d.cost).map(([r,n])=>`${n} ${RESOURCE_NAME[r as keyof typeof RESOURCE_NAME]}`).join(' · ')}</em></Button>;})}</div>
+      <div className="build-options">{[...STRUCTURE_KINDS,...TRAP_KINDS].map(k=>{const d=BUILD_DEFS[k]!;const ok=canAfford(d.cost,status);return <Button variant="ghost" key={k} type="button" className={`build-option ${status.build?.kind===k?'is-selected':''}`} disabled={!ok&&status.build?.kind!==k} title={d.effect} onClick={()=>build({op:'select',kind:k})}><img src={BUILD_ICON[k]} alt=""/><strong>{d.name}</strong><em>{Object.entries(d.cost).map(([r,n])=>`${n} ${RESOURCE_NAME[r as keyof typeof RESOURCE_NAME]}`).join(' · ')}</em></Button>;})}</div>
       <div className="build-actions">{status.build?<><span className={`build-state ${status.build.error?'is-bad':''}`}>{status.build.error??'Platz frei'}</span>{STRUCTURES[status.build.kind].rotates&&<Button size="sm" variant="outline" onClick={()=>build({op:'rotate'})}>Drehen</Button>}<Button size="sm" disabled={!!status.build.error} onClick={()=>build({op:'place'})}>Platzieren</Button></>:<span className="build-state">Wähle einen Bau · er erscheint vor dir</span>}{status.nearOwnBuild&&<Button size="sm" variant="outline" onClick={()=>build({op:'remove'})}>Abbauen</Button>}<Button size="sm" variant="ghost" onClick={()=>{build({op:'cancel'});setBuildOpen(false);}}>Fertig</Button></div>
     </div>}
     {!status.caves?.current&&<div className="camp-marker"><Flame size={12}/> LAGERFEUER <span>·</span> {Math.round(Math.hypot(status.x-CAMP_POS.x,status.y-CAMP_POS.y-40))} m</div>}
