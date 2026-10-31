@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Game architecture
+- Keep touch controls in TouchControls.tsx and orientation-independent camera sizing in engine-free mobile-controls.ts; shared input commands reuse existing actions and resizing must clear held movement.
 - Keep cave geography, finite deposits, ritual bonuses and upgrades engine-free in caves.ts; cave-render.ts owns pixel artwork and walls, while world.ts gates outdoor simulation during pocket-space visits and persists cave state in the existing save.
 - Load Phaser dynamically inside the game view's effect; browser-only engine imports must never enter SSR evaluation.
 - Use Phaser Arcade physics for movement and collisions, with a deterministic generated pixel world and direct uploaded directional sprite textures.

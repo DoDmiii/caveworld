@@ -1,5 +1,6 @@
 import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTINGS, caveAt, caveWalkable, caveDeposits, newCaves, mineDeposit, paint, sharpen, caveDamageFactor, caveSprintFactor, caveColdFactor, type CaveState, type CaveId, type PaintingId } from './caves';
 import { renderCave } from './cave-render';
+import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
@@ -105,7 +106,7 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
-export type GameInput = { caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
+export type GameInput = { focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
 export type GameStatus = { caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
@@ -900,7 +901,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if(a.key.startsWith('anim-finisher-') && frame.index === 9)this.landFinisher();});
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')){this.finisher=undefined;this.persist();}});
       this.physics.add.collider(this.player,this.obstacles);
-      this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(2.6).startFollow(this.player,true,0.07,0.07);
+      this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(cameraZoom(this.scale.width,this.scale.height)).startFollow(this.player,true,0.07,0.07);
+      const resizeCamera = (size: Phaser.Structs.Size) => { this.cameras.main.setZoom(cameraZoom(size.width,size.height)); };
+      this.scale.on('resize',resizeCamera);
+      this.events.once('shutdown',()=>this.scale.off('resize',resizeCamera));
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE,FOUR') as Record<string,Phaser.Input.Keyboard.Key>;
       this.input.mouse?.disableContextMenu();
       this.input.on('pointerdown',(ptr:Phaser.Input.Pointer)=>{if(ptr.wasTouch)return;if(ptr.rightButtonDown())this.lockReq=true;else if(ptr.leftButtonDown())this.clickAttack=true;});
@@ -1072,7 +1076,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
       const fKey=k?.['F'];
-      const lockNow=this.lockReq||(fKey&&Phaser.Input.Keyboard.JustDown(fKey));this.lockReq=false;
+      const lockNow=input.focus||this.lockReq||(fKey&&Phaser.Input.Keyboard.JustDown(fKey));this.lockReq=false;input.focus=false;
       if(!input.paused&&lockNow){
         const cands=this.creatures.filter(c=>c.state!=='dead'&&c!==this.target&&Math.hypot(c.sprite.x-p.x,c.sprite.y-p.y)<260).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y));
         this.target=cands[0];
@@ -1081,10 +1085,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       // Throw (R): spear only, needs a locked target and the spear in hand.
       const rKey=k?.['R'];
-      if(!input.paused&&!this.attacking&&rKey&&Phaser.Input.Keyboard.JustDown(rKey)){
+      const throwNow=input.throwSpear||(rKey&&Phaser.Input.Keyboard.JustDown(rKey));input.throwSpear=false;
+      if(!input.paused&&!this.attacking&&throwNow){
         if(w!=='spear'){this.message='Rüste den Steinspeer aus zum Werfen';}
         else if(!this.hasSpear){this.message='Dein Speer liegt noch im Gras';}
-        else if(!this.target){this.message='Erst ein Ziel anvisieren [Rechtsklick]';}
+        else if(!this.target){this.message='Erst ein Tier anvisieren';}
         else{
           const t=this.target;this.lastFacing=(Math.round(Math.atan2(t.sprite.y-p.y,t.sprite.x-p.x)/(Math.PI/4))+8)%8;
           this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;p.play(`anim-spear-attack-${this.lastFacing}`);
