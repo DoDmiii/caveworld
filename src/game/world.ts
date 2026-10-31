@@ -283,6 +283,28 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       g.fillStyle(0xe8e0cc).fillRect(2,6,12,3);g.fillRect(6,2,3,12);g.generateTexture('trap-rattle',16,16);g.destroy();
     }
     spawnTrap(t:Trap){this.makeTrapTextures();const o=this.add.image(t.x,t.y,`trap-${t.kind}`).setDepth(t.y+1);this.trapSprites.set(t.id,o);}
+    /** Checks every trap against creatures and raiders crossing its radius; applies catches, wounds and alarms. */
+    tickTraps(time:number){
+      if(!this.traps.length||this.caves.current)return;
+      const targets:{x:number;y:number;kind:TrapTarget;creature?:Creature}[]=[];
+      for(const c of this.creatures){if(c.state==='dead')continue;const kind:TrapTarget|null=c.kind==='gazelle'?'prey':c.kind==='mammoth'?null:'predator';if(kind)targets.push({x:c.sprite.x,y:c.sprite.y,kind,creature:c});}
+      for(const f of this.raiders())targets.push({x:f.sprite.x,y:f.sprite.y,kind:'raider'});
+      if(!targets.length)return;
+      let changed=false;
+      for(const t of this.traps){
+        const hit=targets.find(o=>Math.hypot(o.x-t.x,o.y-t.y)<TRAPS[t.kind].radius);
+        if(!hit)continue;
+        const r=triggerTrap(t,hit.kind);
+        if(!r)continue;
+        changed=true;
+        if(r.trap){this.traps=this.traps.map(o=>o.id===t.id?r.trap!:o);}
+        else{this.trapSprites.get(t.id)?.destroy();this.trapSprites.delete(t.id);this.traps=this.traps.filter(o=>o.id!==t.id);}
+        if(r.event.kind==='catch'&&hit.creature){const c=hit.creature;c.state='dead';c.sprite.destroy();if(this.target===c)this.target=undefined;this.bleed(t.x,t.y,0,1,6);this.addXp(XP.gazelle);this.message=`Schlinge hat eine Gazelle gefangen · [E] Fleisch holen`;this.messageUntil=time+3000;}
+        else if(r.event.kind==='wound'&&hit.creature){const c=hit.creature;c.hp-=PIT_DAMAGE;this.bleed(c.sprite.x,c.sprite.y,0,1,9);if(c.hp<=0){c.state='dead';c.sprite.destroy();if(this.target===c)this.target=undefined;const meat=this.add.image(c.sprite.x,c.sprite.y,'meat').setDepth(c.sprite.y);this.meatPickups.push({x:c.sprite.x,y:c.sprite.y,sprite:meat});this.addXp(XP[c.kind]);this.message=`${NAME[c.kind]} ist in der Fallgrube verendet`;this.messageUntil=time+3000;}else{c.state='flee';c.stateUntil=time+5000;this.message=`${NAME[c.kind]} hat sich in der Fallgrube verletzt`;this.messageUntil=time+2600;}}
+        else if(r.event.kind==='alarm'){this.message='Knochenrassel klappert – Krieger nähern sich!';this.messageUntil=time+3000;}
+      }
+      if(changed)this.persist();
+    }
     tutorial: TutorialState = newTutorial();
     tutLast?: { x: number; y: number };
     tut(ev: TutorialEvent, time: number) { const r = tutorialEvent(this.tutorial, ev); this.tutorial = r.state; if (r.completed) { this.message = this.tutorial.step >= TUTORIAL_DONE ? `Einführung geschafft · +${r.completed.xp} EP` : `Ziel erreicht: ${r.completed.title} · +${r.completed.xp} EP`; this.messageUntil = time + 2600; this.addXp(r.completed.xp); this.persist(); } }
@@ -1218,7 +1240,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.carryImg.setTexture(this.carried.t.tex,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
       }
       const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':k?.['FOUR']&&Phaser.Input.Keyboard.JustDown(k['FOUR'])?'jerky':null;
-      this.tickBuild(input,p,time);this.drawDryBars();
+      this.tickBuild(input,p,time);this.drawDryBars();this.tickTraps(time);
       const food=input.eat??eatKey;input.eat=null;
       if(food&&!this.dead&&!this.sleeping){const r=eat(this.pantry(),food);
         if(r){this.setPantry(r);this.healPulse++;this.message=`${FOOD[food].name} gegessen · +${FOOD[food].heal} Leben`;}
@@ -1253,6 +1275,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           else{this.carried=captive;this.message='Auf den Schultern · bring sie ins Höhlenlager';}
           poseFolk(captive);
         }
+        else if(this.nearTrap&&!this.building){const c=collectTrap(this.nearTrap);this.meat+=c.meat;this.traps=this.traps.map(t=>t.id===c.trap.id?c.trap:t);this.message=`Fleisch aus der Schlinge geholt · +${c.meat}`;this.persist();}
         else if(this.nearRack&&!this.building&&(this.meat>0||dryCount(this.nearRack,this.clock)>0)){const rk=this.nearRack;const c=collectJerky(rk,this.clock);let next=c.rack;let hung=0;while(this.meat>0){const h=hangMeat(next,this.clock);if(!h)break;next=h;this.meat--;hung++;}this.jerky+=c.jerky;this.structures=this.structures.map(s=>s.id===rk.id?next:s);this.message=c.jerky?`${c.jerky} Dörrfleisch abgenommen${hung?` · ${hung} Fleisch aufgehängt`:''} · [4] essen`:hung?`${hung} Fleisch zum Trocknen aufgehängt`:`Gestell voll (${RACK_SLOTS} Streifen)`;this.persist();}
         else if(this.nearChest){this.chestOpen=!this.chestOpen;this.message=this.chestOpen?'Vorratskiste geöffnet':'Kiste geschlossen';}
         else if(this.nearBed){input.sleep=true;this.message='Du legst dich schlafen …';}
