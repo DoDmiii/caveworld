@@ -432,3 +432,78 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .boss-name { font-family: monospace; font-size: 11px; color: var(--primary-foreground, #f5e6c8); text-shadow: 0 1px 0 #000, 0 0 3px #000; letter-spacing: 0.04em; margin-bottom: 2px; }
 .boss-track { height: 7px; border: 2px solid hsl(20 40% 12%); background: hsl(20 30% 8% / 0.85); }
 .boss-fill { height: 100%; background: linear-gradient(90deg, hsl(0 70% 38%), hsl(12 80% 50%)); transition: width 0.15s; }
+
+/* Touch controls and both phone orientations share one unobstructed playfield. */
+.touch-controls {left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));bottom:calc(88px + env(safe-area-inset-bottom));display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;z-index:20;}
+.joystick-area {width:112px;}
+.joystick {width:112px;height:112px;}
+.joystick-arrow.left,.joystick-arrow.right {top:42px;}
+.movement-modes {display:flex;justify-content:center;gap:8px;margin-bottom:8px;}
+.touch-mode {width:44px;height:44px;padding:0;border:1px solid var(--glass-border);border-radius:50%;background:var(--glass);color:var(--foreground);touch-action:none;}
+.touch-mode svg {width:21px;height:21px;}
+.touch-mode.is-active {background:var(--accent);color:var(--primary);border-color:var(--primary);}
+.action-area {display:grid;grid-template-columns:56px 56px;gap:10px;align-items:center;justify-items:center;}
+.attack-button,.gather-button {width:56px;height:56px;margin:0;background:var(--glass);border:1px solid var(--glass-border);color:var(--primary);box-shadow:none;}
+.attack-button:active,.gather-button:active {background:var(--accent);}
+.hud {display:grid;grid-template-columns:auto minmax(0,1fr) auto;pointer-events:none;z-index:10;left:max(12px,env(safe-area-inset-left));right:max(12px,env(safe-area-inset-right));}
+.hud .vitals {min-width:0;max-width:174px;}
+.hud button {pointer-events:auto;width:44px;height:44px;}
+.game-bottom {height:calc(44px + env(safe-area-inset-bottom));padding:0 max(8px,env(safe-area-inset-right)) env(safe-area-inset-bottom) max(8px,env(safe-area-inset-left));gap:2px;}
+.game-bottom .food-quick {width:auto;min-width:44px;height:44px;padding:0 4px;flex-shrink:0;gap:3px;font-size:10px;}
+.game-bottom .resource-label {display:none;}
+.game-bottom>span {min-width:0;gap:3px;white-space:nowrap;font-size:8px;}
+.game-bottom>button:last-child {width:44px;height:44px;flex-shrink:0;}
+.hotbar {bottom:calc(46px + env(safe-area-inset-bottom));}
+.hot-slot {width:44px;height:44px;}
+.pause-overlay,.death-screen {z-index:60;}
+.pause-overlay {padding:12px;}
+.pause-panel {max-height:calc(100dvh - 24px);overflow-y:auto;overscroll-behavior:contain;touch-action:pan-y;}
+.mobile-control-list {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px 10px;margin:12px 0;}
+.mobile-control-list dt {font-weight:700;}
+.mobile-control-list dd {margin:0;overflow-wrap:anywhere;}
+.location-label {top:99px;max-width:calc(100% - 110px);}
+.camp-marker {top:122px;}
+.squad-hud {top:149px;}
+.game-toast {max-width:calc(100% - 24px);white-space:normal;text-align:center;}
+.sleep-hint {max-width:calc(100% - 24px);white-space:normal;letter-spacing:0;bottom:278px;height:auto;}
+.talk-hint,.chest-hint {bottom:278px;}
+.stealth-hint {bottom:248px;letter-spacing:0;pointer-events:none;}
+.tutorial-card {bottom:318px;}
+.build-bar {bottom:calc(270px + env(safe-area-inset-bottom));max-height:calc(100dvh - 380px);overflow-y:auto;touch-action:pan-y;}
+.build-option {height:auto;min-height:86px;white-space:normal;}
+.cave-ritual {bottom:270px;}
+@media (orientation:landscape) and (max-height:600px) {
+ .hud {top:max(8px,env(safe-area-inset-top))!important;gap:8px;}
+ .portrait {width:36px;height:40px;}.portrait img {width:34px;height:34px;}
+ .vitals-label {margin-bottom:2px;}.stat-row {margin-top:2px;}
+ .location-label {top:76px;left:max(12px,env(safe-area-inset-left));font-size:9px;}
+ .camp-marker {display:none;}
+ .mini-map {top:8px;right:calc(max(12px,env(safe-area-inset-right)) + 56px);width:44px;height:44px;}
+ .map-terrain {height:34px;margin:3px;}.map-caption {display:none;}
+ .gear-button {top:62px;right:max(12px,env(safe-area-inset-right));width:44px;height:44px;}
+ .build-button {top:62px;right:calc(max(12px,env(safe-area-inset-right)) + 52px);width:44px;height:44px;}
+ .touch-controls {bottom:calc(48px + env(safe-area-inset-bottom));}
+ .joystick-area {width:100px;}.joystick {width:100px;height:100px;}.joystick-arrow.left,.joystick-arrow.right {top:36px;}
+ .movement-modes {margin-bottom:6px;}
+ .hotbar {bottom:calc(48px + env(safe-area-inset-bottom));}
+ .game-bottom {justify-content:center;gap:14px;}
+ .squad-hud {top:8px;left:50%;transform:translateX(-50%);flex-direction:row;gap:4px;}
+ .squad-member {width:100px;}.squad-portrait {display:none;}
+ .boss-bar {top:62px;width:240px;}
+ .boss-name {color:var(--foreground);}
+ .tutorial-card {top:104px;bottom:auto;max-width:280px;padding:4px 8px;}
+ .sleep-hint,.talk-hint,.chest-hint {bottom:104px;max-width:calc(100% - 290px);min-height:36px;}
+ .stealth-hint {bottom:150px;}
+ .build-bar {left:140px;right:140px;bottom:100px;max-height:calc(100dvh - 180px);}
+ .build-options {flex-shrink:0;}.build-option img {width:24px;height:24px;}.build-option {min-height:64px;}
+ .cave-tools {top:106px;left:140px;right:140px;flex-direction:row;flex-wrap:wrap;gap:4px;max-height:100px;overflow-y:auto;touch-action:pan-y;}
+ .cave-ritual {left:140px;right:140px;bottom:100px;max-height:150px;overflow-y:auto;touch-action:pan-y;}
+ .pause-panel {width:min(100%,560px);padding:16px;}.pause-panel h2 {margin:4px 0 12px;}.resume-button {margin-top:12px;}
+ .game-toast {top:82px!important;max-width:calc(100% - 280px);}
+}
+
+@media (orientation:portrait) {
+ .gear-button {top:166px;width:44px;height:44px;}
+ .build-button {top:218px;width:44px;height:44px;}
+}
+.controls-overview {touch-action:pan-y;}

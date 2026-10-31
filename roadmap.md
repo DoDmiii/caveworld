@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Mobile Steuerung: Ducken, Sprint-Umschalter, Tierzielwahl und Speerwurf; Hoch-/Querformat mit breiterer Sicht. Bewegung, Drehen, Pause und Speerherstellung/Ausrüsten/Wurf live geprüft, auch 320px ohne Seitenüberlauf.
 - [x] Betretbare Heimat-/Eis-/Obsidianhöhle, Fackellicht, Begleiter, Rohstoffe, Malereien, Höhlenbauten und Speicherung; Heimat-Abbau, Ritual, Feuer, Begleiter und Reload live geprüft.
 - [x] Add follow/wait recruitment for camp allies and integrated captives, formation navigation and save/reload; verify in game.
 - [x] Add uploaded Steinkeil weapon, knockdowns and finishers; verify combat and save/reload.
