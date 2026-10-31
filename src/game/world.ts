@@ -106,7 +106,7 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
-export type GameInput = { focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
+export type GameInput = { zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
 export type GameStatus = { caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
@@ -901,9 +901,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if(a.key.startsWith('anim-finisher-') && frame.index === 9)this.landFinisher();});
       this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')){this.finisher=undefined;this.persist();}});
       this.physics.add.collider(this.player,this.obstacles);
-      this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(cameraZoom(this.scale.width,this.scale.height)).startFollow(this.player,true,0.07,0.07);
-      const resizeCamera = (size: Phaser.Structs.Size) => { this.cameras.main.setZoom(cameraZoom(size.width,size.height)); };
+      this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(cameraZoom(this.scale.width,this.scale.height,input.zoomScale??1)).startFollow(this.player,true,0.07,0.07);
+      const resizeCamera = (size: Phaser.Structs.Size) => { this.cameras.main.setZoom(cameraZoom(size.width,size.height,input.zoomScale??1)); };
       this.scale.on('resize',resizeCamera);
+      let lastZoomScale=input.zoomScale??1;
+      this.events.on('update',()=>{const z=input.zoomScale??1;if(z!==lastZoomScale){lastZoomScale=z;this.cameras.main.setZoom(cameraZoom(this.scale.width,this.scale.height,z));}});
       this.events.once('shutdown',()=>this.scale.off('resize',resizeCamera));
       this.keys=this.input.keyboard?.addKeys('W,A,S,D,UP,DOWN,LEFT,RIGHT,SHIFT,E,SPACE,Q,F,R,CTRL,C,ONE,TWO,THREE,FOUR') as Record<string,Phaser.Input.Keyboard.Key>;
       this.input.mouse?.disableContextMenu();
