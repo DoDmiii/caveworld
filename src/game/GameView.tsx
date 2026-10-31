@@ -72,7 +72,7 @@ export default function GameView(){
   const onKey=(e:KeyboardEvent)=>{if(e.target instanceof HTMLInputElement)return;if(e.key==='+'||e.key==='=')stepZoom(ZOOM_STEP);else if(e.key==='-')stepZoom(1/ZOOM_STEP);else if(e.key==='0')setZoom(1);};
   window.addEventListener('keydown',onKey);
   const el=host.current;let start=0,base=1;
-  const dist=(t:TouchList)=>Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
+  const dist=(t:TouchList)=>{const a=t.item(0),b=t.item(1);return a&&b?Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY):0;};
   const ts=(e:TouchEvent)=>{if(e.touches.length===2){start=dist(e.touches);base=input.current.zoomScale??1;}};
   const tm=(e:TouchEvent)=>{if(e.touches.length===2&&start>0){e.preventDefault();input.current.zoomScale=pinchZoom(base,start,dist(e.touches));}};
   const te=(e:TouchEvent)=>{if(e.touches.length<2&&start>0){start=0;setZoom(input.current.zoomScale??1);}};
