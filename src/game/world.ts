@@ -633,25 +633,29 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Build mode: ghost in front of the player, rotate, place or take down own structures. */
     tickBuild(input:GameInput,p:Phaser.Physics.Arcade.Sprite,time:number){
       this.nearRack=this.structures.find(s=>s.kind==='rack'&&Math.hypot(s.x-p.x,s.y-p.y)<38)??null;
+      this.nearTrap=this.traps.find(t=>t.meat>0&&Math.hypot(t.x-p.x,t.y-p.y)<30)??null;
       const cmd=input.build;input.build=null;
       const say=(m:string)=>{this.message=m;this.messageUntil=time+2200;};
       if(cmd?.op==='select')this.building={kind:cmd.kind,dir:this.building?.dir??2,error:null};
       else if(cmd?.op==='cancel')this.building=null;
       else if(cmd?.op==='rotate'&&this.building)this.building={...this.building,dir:(this.building.dir+1)%8};
-      else if(cmd?.op==='remove'){const s=this.ownBuildNear(p);if(s){this.structSprites.get(s.id)?.destroy();this.structSprites.delete(s.id);this.structures=this.structures.filter(o=>o.id!==s.id);this.stock=refund(STRUCTURES[s.kind].cost,this.stock);this.meat+=s.meat.length;say(`${STRUCTURES[s.kind].name} abgebaut · Material zurück`);this.persist();}else say('Kein eigener Bau in der Nähe');}
+      else if(cmd?.op==='remove'){const s=this.ownBuildNear(p);const tr=this.traps.find(t=>Math.hypot(t.x-p.x,t.y-p.y)<30);if(s){this.structSprites.get(s.id)?.destroy();this.structSprites.delete(s.id);this.structures=this.structures.filter(o=>o.id!==s.id);this.stock=refund(STRUCTURES[s.kind].cost,this.stock);this.meat+=s.meat.length;say(`${STRUCTURES[s.kind].name} abgebaut · Material zurück`);this.persist();}else if(tr){this.trapSprites.get(tr.id)?.destroy();this.trapSprites.delete(tr.id);this.traps=this.traps.filter(o=>o.id!==tr.id);this.stock=refund(TRAPS[tr.kind].cost,this.stock);this.meat+=tr.meat;say(`${TRAPS[tr.kind].name} abgebaut · Material zurück`);this.persist();}else say('Kein eigener Bau in der Nähe');}
       if(!this.building){this.ghost?.setVisible(false);return;}
       const a=this.lastFacing*Math.PI/4;const gx=Math.round(p.x+Math.cos(a)*30),gy=Math.round(p.y+Math.sin(a)*24+6);
-      const b=this.building;const def=STRUCTURES[b.kind];
+      const b=this.building;const isTrap=(TRAP_KINDS as readonly string[]).includes(b.kind);
+      const def=isTrap?TRAPS[b.kind as TrapKind]:STRUCTURES[b.kind as StructureKind];
       const blockers=[{x:CAMP.x,y:CAMP.y+FIRE_DY,r:20},{x:CHEST_POS.x,y:CHEST_POS.y,r:12},{x:this.bed?.x??0,y:this.bed?.y??0,r:16},{x:p.x,y:p.y,r:4}];
-      let error=placementError(b.kind,gx,gy,this.structures,blockers);
+      let error=isTrap?trapPlacementError(gx,gy,this.traps,blockers):placementError(b.kind as StructureKind,gx,gy,this.structures,blockers);
       if(!error&&!canAfford(def.cost,this.stock))error='Zu wenig Material';
       b.error=error;
-      const sid=`s${gx}_${gy}`;const key=structTex({kind:b.kind,dir:b.dir,id:sid});
+      const sid=`s${gx}_${gy}`;const key=isTrap?`trap-${b.kind}`:structTex({kind:b.kind as StructureKind,dir:b.dir,id:sid});
+      if(isTrap)this.makeTrapTextures();
       if(!this.ghost)this.ghost=this.add.image(gx,gy,key);
       this.ghost.setTexture(key).setPosition(gx,gy).setVisible(true).setAlpha(.6).setTint(error?0xff6060:0x80ff90).setDepth(gy+40);
       if(cmd?.op==='place'){
         if(error){say(error);return;}
-        const s:Placed={id:sid,kind:b.kind,x:gx,y:gy,dir:def.rotates?b.dir:0,meat:[]};
+        if(isTrap){const t:Trap={id:`t${gx}_${gy}`,kind:b.kind as TrapKind,x:gx,y:gy,uses:TRAPS[b.kind as TrapKind].uses,meat:0};this.stock=pay(def.cost,this.stock);this.traps=[...this.traps,t];this.spawnTrap(t);say(`${def.name} aufgestellt`);this.persist();return;}
+        const s:Placed={id:sid,kind:b.kind as StructureKind,x:gx,y:gy,dir:!isTrap&&'rotates' in def&&def.rotates?b.dir:0,meat:[]};
         this.stock=pay(def.cost,this.stock);this.structures=[...this.structures,s];this.spawnStructure(s);say(`${def.name} gebaut`);this.persist();
       }
     }
@@ -666,6 +670,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.lootedHouses = [...g.lootedHouses];
       this.chest = { ...g.chest };
       this.jerky = g.jerky; this.structures = g.structures.map(s => ({ ...s, meat: [...s.meat] })); this.structures.forEach(s => this.spawnStructure(s));
+      this.traps = (g.traps ?? []).map(t => ({ ...t })); this.traps.forEach(t => this.spawnTrap(t));
       // Ältere Spielstände ohne Einführung: Spieler kennt das Spiel schon.
       this.tutorial = g.tutorial ? { ...g.tutorial } : { step: TUTORIAL_DONE, progress: 0 };
       this.rel = g.relationships;
