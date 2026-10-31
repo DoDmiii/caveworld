@@ -1,3 +1,5 @@
+import { clampZoomScale, pinchZoom, ZOOM_KEY, ZOOM_STEP } from './mobile-controls';
+import { ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 import { CAVES, CAVE_IDS, PAINTINGS, PAINTING_IDS } from './caves';
 import { WEATHER } from './weather';
 import { TouchControls } from './TouchControls';
@@ -64,6 +66,21 @@ const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', ches
 
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
+ const setZoom=(z:number)=>{const v=clampZoomScale(z);input.current.zoomScale=v;try{localStorage.setItem(ZOOM_KEY,String(v));}catch{/* ignore */}};
+ const stepZoom=(f:number)=>setZoom((input.current.zoomScale??1)*f);
+ useEffect(()=>{try{input.current.zoomScale=clampZoomScale(Number(localStorage.getItem(ZOOM_KEY)??1));}catch{/* ignore */}
+  const onKey=(e:KeyboardEvent)=>{if(e.target instanceof HTMLInputElement)return;if(e.key==='+'||e.key==='=')stepZoom(ZOOM_STEP);else if(e.key==='-')stepZoom(1/ZOOM_STEP);else if(e.key==='0')setZoom(1);};
+  window.addEventListener('keydown',onKey);
+  const el=host.current;let start=0,base=1;
+  const dist=(t:TouchList)=>{const a=t.item(0),b=t.item(1);return a&&b?Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY):0;};
+  const ts=(e:TouchEvent)=>{if(e.touches.length===2){start=dist(e.touches);base=input.current.zoomScale??1;}};
+  const tm=(e:TouchEvent)=>{if(e.touches.length===2&&start>0){e.preventDefault();input.current.zoomScale=pinchZoom(base,start,dist(e.touches));}};
+  const te=(e:TouchEvent)=>{if(e.touches.length<2&&start>0){start=0;setZoom(input.current.zoomScale??1);}};
+  const wh=(e:WheelEvent)=>{if(!e.ctrlKey)return;e.preventDefault();setZoom((input.current.zoomScale??1)*Math.exp(-e.deltaY*0.01));};
+  el?.addEventListener('touchstart',ts,{passive:true});el?.addEventListener('touchmove',tm,{passive:false});el?.addEventListener('touchend',te);el?.addEventListener('touchcancel',te);el?.addEventListener('wheel',wh,{passive:false});
+  return()=>{window.removeEventListener('keydown',onKey);el?.removeEventListener('touchstart',ts);el?.removeEventListener('touchmove',tm);el?.removeEventListener('touchend',te);el?.removeEventListener('touchcancel',te);el?.removeEventListener('wheel',wh);};
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ },[]);
  const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0,eat:null,club:false,craft:null,save:0});
  const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,cooked:0,nearFire:false,healPulse:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false,wood:0,stone:0,flint:0,fiber:0,xp:0,level:1,owned:['axe'],hunger:100,warmth:100,day:1,minutes:504});
  const [buildOpen,setBuildOpen]=useState(false);
@@ -111,7 +128,7 @@ export default function GameView(){
  return <div className="game-page">
   <main className="game-shell">
    <section className="game-frame" aria-label="Steinzeit-Spielwelt">
-    <div className="world-canvas" ref={host}/>
+    <div className="world-canvas" ref={host}/><div className="zoom-controls" aria-label="Zoom"><Button variant="ghost" size="icon" className="glass-icon" title="Heranzoomen (+)" aria-label="Heranzoomen" onClick={()=>stepZoom(ZOOM_STEP)}><ZoomIn/></Button><Button variant="ghost" size="icon" className="glass-icon" title="Herauszoomen (−)" aria-label="Herauszoomen" onClick={()=>stepZoom(1/ZOOM_STEP)}><ZoomOut/></Button><Button variant="ghost" size="icon" className="glass-icon" title="Zoom zurücksetzen (0)" aria-label="Zoom zurücksetzen" onClick={()=>setZoom(1)}><RotateCcw/></Button></div>
     {!ready&&<div className="game-loading" style={{backgroundImage:`url(${cover.url})`}}><img src={loader.url} alt="" className="loader-icon"/>{error?'Die Wildnis konnte nicht geladen werden.':'Die Wildnis erwacht …'}</div>}
     <div className="top-shade"/>
     <div className="hud"><div className="portrait"><img src={IDLE[status.weapon][2]} alt="Dein Höhlenmensch"/></div><div className="vitals"><div className="vitals-label"><span>HÖHLENMENSCH</span><span>LV. {status.level}</span></div><div className="xp-track" title={`${status.xp} EP`}><i style={{width:`${Math.min(100,(status.xp-xpForLevel(status.level))/(xpForLevel(status.level+1)-xpForLevel(status.level))*100)}%`}}/></div><div className="stat-row"><Heart className="health-icon"/><div key={status.healPulse} className={`stat-track health ${status.healPulse?"is-healing":""}`}><i style={{width:`${status.health}%`}}/></div><span>{status.health}</span></div><div className="stat-row"><Zap className="energy-icon"/><div className="stat-track energy"><i style={{width:`${status.stamina}%`}}/></div><span>{status.stamina}</span></div><div className="stat-row duo"><Drumstick className="hunger-icon"/><div className={`stat-track hunger ${status.hunger<25?'is-low':''}`} title={`Hunger ${status.hunger}`}><i style={{width:`${status.hunger}%`}}/></div><Snowflake className="warmth-icon"/><div className={`stat-track warmth ${status.warmth<30?'is-low':''}`} title={`Wärme ${status.warmth}`}><i style={{width:`${status.warmth}%`}}/></div></div></div><Button variant="ghost" size="icon" className="glass-icon pause-button" title={paused?'Fortsetzen':'Pause'} aria-label={paused?'Fortsetzen':'Pause'} onClick={()=>setPaused(!paused)}>{paused?<Play/>:<Pause/>}</Button></div>{!!status.squad?.length&&<div className="squad-hud" aria-label="Jagdtrupp">{status.squad.map(m=>{const r=m.hp/m.max;return <div key={m.id} className={`squad-member ${m.down?"is-down":""}`}><div className="squad-portrait"><img src={m.portrait} alt={m.name}/></div><div className="squad-info"><span className="squad-name">{m.name}<em>{m.down?`KO · ${m.down}s`:`${m.hp}/${m.max}`}</em></span><div className="squad-track"><i className={r<0.3?"low":r<0.6?"mid":""} style={{width:`${m.down?0:r*100}%`}}/></div></div></div>;})}</div>}

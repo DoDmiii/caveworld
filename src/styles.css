@@ -507,3 +507,6 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
  .build-button {top:218px;width:44px;height:44px;}
 }
 .controls-overview {touch-action:pan-y;}
+.zoom-controls {position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:5;}
+.zoom-controls button {width:32px;height:32px;}
+@media (pointer: coarse) {.zoom-controls {display:none;}}
