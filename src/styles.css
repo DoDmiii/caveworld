@@ -501,3 +501,9 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
  .pause-panel {width:min(100%,560px);padding:16px;}.pause-panel h2 {margin:4px 0 12px;}.resume-button {margin-top:12px;}
  .game-toast {top:82px!important;max-width:calc(100% - 280px);}
 }
+
+@media (orientation:portrait) {
+ .gear-button {top:166px;width:44px;height:44px;}
+ .build-button {top:218px;width:44px;height:44px;}
+}
+.controls-overview {touch-action:pan-y;}
