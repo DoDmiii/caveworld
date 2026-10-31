@@ -86,6 +86,7 @@ export default function GameView(){
  const input=useRef<GameInput>({x:0,y:0,sprint:false,action:0,attack:0,paused:false,weapon:'none',sleep:false,crouch:false,respawn:0,eat:null,club:false,craft:null,save:0});
  const [status,setStatus]=useState<GameStatus>({x:1000,y:610,stamina:100,health:100,berries:0,meat:0,cooked:0,nearFire:false,healPulse:0,area:'Höhlenlager',message:'',weapon:'none',sleeping:false,nearBed:false,hidden:false,crouching:false,dead:false,wood:0,stone:0,flint:0,fiber:0,xp:0,level:1,owned:['axe'],hunger:100,warmth:100,day:1,minutes:504});
  const [buildOpen,setBuildOpen]=useState(false);
+ const [buildPicker,setBuildPicker]=useState(true);
  const build=(c:NonNullable<GameInput['build']>)=>{input.current.build=c;};
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if((e.key==='b'||e.key==='B')&&!e.repeat){setBuildOpen(o=>{if(o)input.current.build={op:'cancel'};return !o;});}};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
