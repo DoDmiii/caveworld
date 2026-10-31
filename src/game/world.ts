@@ -381,9 +381,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player; if (!p) return;
       VILLAGES.forEach((v, vi) => { const lvl = this.villageLevel.get(villageKey(v.name)) ?? 0; this.warband = scheduleRaid(this.warband, vi, lvl >= 3, this.clock, championFallen(this.raid, vi)); });
       const before = this.warband.active; this.warband = launchDue(this.warband, this.clock);
-      if (!before && this.warband.active) { const v = VILLAGES[this.warband.active.village]; this.message = `Ein Kriegstrupp aus ${v.name} marschiert auf dein Lager!`; this.messageUntil = time + 5000; this.persist(); }
+      if (!before && this.warband.active) { const v = VILLAGES[this.warband.active.village]!; this.message = `Ein Kriegstrupp aus ${v.name} marschiert auf dein Lager!`; this.messageUntil = time + 5000; this.persist(); }
       const a = this.warband.active; if (!a) return;
-      const v = VILLAGES[a.village], raiders = this.raiders();
+      const v = VILLAGES[a.village]!, raiders = this.raiders();
       const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, raiders.filter(f => f.combat.phase === 'ready').length);
       if (!this.warband.active) { this.roaming.clear(); this.message = raiders.length ? `Der Kriegstrupp aus ${v.name} ist abgezogen` : `Der Kriegstrupp aus ${v.name} ist vernichtet!`; this.messageUntil = time + 4000; this.persist(); return; }
       if (this.warband.active.phase !== prevPhase && this.warband.active.phase === 'return') { this.message = `Die Krieger aus ${v.name} ziehen sich zurück`; this.messageUntil = time + 3000; }
