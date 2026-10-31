@@ -96,6 +96,7 @@ import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
+import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, fordRoute, MAX_RAIDERS, CAMP_ARRIVAL, RAID_SIGHT, type WarbandState } from './warbands';
 import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
 import { getVillageRelationship } from './relationships';
 import type { InteractionContext, InteractionId } from './interactions';
@@ -360,6 +361,59 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     folk: Folk[] = [];
     barks = new Map<string, { text: Phaser.GameObjects.Text; until: number; next: number; sprite: Phaser.GameObjects.Components.Transform }>();
     patrolStep = new Map<string, number>();
+    warband: WarbandState = EMPTY_WARBANDS;
+    /** Guards allowed to fight far from home: ford guards and raiders. */
+    roaming = new Set<string>();
+    stuck = new Map<string, { until: number; turn: number }>();
+    fordGuards() { const out = new Set<string>(); VILLAGES.forEach((_, vi) => { const w = this.folk.find(f => f.t.village === vi && !f.t.captive && isWarrior(f.t) && !isChampion(f.t)); if (w) out.add(w.c.id); }); return out; }
+    raiders() { const a = this.warband.active; if (!a) return []; return this.folk.filter(f => f.t.village === a.village && !f.t.captive && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase !== 'dead').slice(0, MAX_RAIDERS); }
+    /** Walks a folk sprite toward a point, turning aside for a moment when blocked. */
+    walkTo(f: Folk, x: number, y: number, speed: number, time: number) {
+      const s = f.sprite, body = s.body as Phaser.Physics.Arcade.Body; let dx = x - s.x, dy = y - s.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
+      const st = this.stuck.get(f.c.id);
+      if (!body.blocked.none && (!st || time > st.until + 400)) this.stuck.set(f.c.id, { until: time + 700, turn: f.seed % 2 ? 1 : -1 });
+      const cur = this.stuck.get(f.c.id); if (cur && time < cur.until) { const t = cur.turn; [dx, dy] = [-dy * t, dx * t]; }
+      s.setVelocity(dx * speed, dy * speed); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+      s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y); return dl;
+    }
+    /** Retaliation raids: hostile villages send warriors to the camp, who fight the player or free their captured kin. */
+    tickWarband(time: number, stopped: boolean, ids: Set<string>) {
+      const p = this.player; if (!p) return;
+      VILLAGES.forEach((v, vi) => { const lvl = this.villageLevel.get(villageKey(v.name)) ?? 0; this.warband = scheduleRaid(this.warband, vi, lvl >= 3, this.clock, championFallen(this.raid, vi)); });
+      const before = this.warband.active; this.warband = launchDue(this.warband, this.clock);
+      if (!before && this.warband.active) { const v = VILLAGES[this.warband.active.village]; this.message = `Ein Kriegstrupp aus ${v.name} marschiert auf dein Lager!`; this.messageUntil = time + 5000; this.persist(); }
+      const a = this.warband.active; if (!a) return;
+      const v = VILLAGES[a.village], raiders = this.raiders();
+      const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, raiders.filter(f => f.combat.phase === 'ready').length);
+      if (!this.warband.active) { this.message = raiders.length ? `Der Kriegstrupp aus ${v.name} ist abgezogen` : `Der Kriegstrupp aus ${v.name} ist vernichtet!`; this.messageUntil = time + 4000; this.persist(); return; }
+      if (this.warband.active.phase !== prevPhase && this.warband.active.phase === 'return') { this.message = `Die Krieger aus ${v.name} ziehen sich zurück`; this.messageUntil = time + 3000; }
+      const phase = this.warband.active.phase;
+      let arrived = false, home = 0;
+      raiders.forEach((f, i) => {
+        if (f.combat.phase !== 'ready') return;
+        this.roaming.add(f.c.id);
+        const m = this.folkMood.get(f.c.id); if ((m?.armedUntil ?? 0) > time) return;
+        ids.add(f.c.id); const s = f.sprite;
+        if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
+        const d = Math.hypot(p.x - s.x, p.y - s.y);
+        if (phase !== 'return' && d < (phase === 'assault' ? RAID_SIGHT : 140) && m) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true); return; }
+        if (phase === 'march') {
+          const ox = (i - 1.5) * 22;
+          if (this.walkTo(f, CAMP.x + ox, CAMP.y - 40, 40, time) < CAMP_ARRIVAL) arrived = true;
+          if (Math.random() < 0.002) this.bark(f.c.id, s, 'attack', time);
+        } else if (phase === 'assault') {
+          const kin = this.folk.find(c => c.c.state === 'camp' && c.t.village === a.village && !this.companionOrders.has(c.c.id));
+          if (!kin) { if (this.walkTo(f, CAMP.x + Math.cos(time / 2000 + i * 1.6) * 60, CAMP.y + Math.sin(time / 2000 + i * 1.6) * 40, 30, time) < 8) { s.setVelocity(0, 0); s.anims.stop(); } return; }
+          if (this.walkTo(f, kin.sprite.x, kin.sprite.y, 44, time) < 16) {
+            kin.c = { ...kin.c, state: 'free', x: v.x + kin.t.dx, y: v.y + kin.t.dy }; kin.sprite.setVelocity(0, 0); kin.sprite.setPosition(kin.c.x, kin.c.y); poseFolk(kin);
+            this.bark(f.c.id, s, 'alarm', time, true, 'Wir holen dich heim!');
+            this.message = `Krieger aus ${v.name} haben ${getProfile(kin.c.id)?.name ?? 'einen Gefangenen'} aus deinem Lager befreit!`; this.messageUntil = time + 4500; this.persist();
+          }
+        } else if (this.walkTo(f, f.t.x, f.t.y, 40, time) < 20 || Math.hypot(s.x - v.x, s.y - v.y) < v.r * 0.6) home++;
+      });
+      if (arrived) { this.warband = arrive(this.warband, this.clock); this.message = `Krieger aus ${v.name} greifen dein Lager an!`; this.messageUntil = time + 4000; this.cameras.main.shake(300, 0.006); }
+      if (phase === 'return' && home >= raiders.filter(f => f.combat.phase === 'ready').length) { this.warband = advanceRaid(this.warband, Infinity, 0); this.roaming.clear(); }
+    }
     villageLevel = new Map<string, WarningLevel>();
     /** Short speech bubble above a person; respects a per-person cooldown. */
     bark(id: string, sprite: Phaser.GameObjects.Components.Transform, kind: BarkKind, time: number, force = false, line?: string) {
@@ -385,7 +439,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.villageLevel.set(vk, lvl);
       });
       if (!p) return ids;
+      this.tickWarband(time, stopped, ids);
+      const fordGuards = this.fordGuards();
       this.folk.forEach((f, i) => {
+        if (ids.has(f.c.id)) return;
         if (f.t.captive || f.c.state !== 'free' || f.combat.phase !== 'ready') return;
         const v = VILLAGES[f.t.village], vk = villageKey(v.name), lvl = this.villageLevel.get(vk) ?? 0, m = this.folkMood.get(f.c.id);
         if (!patrolsActive(lvl) || (m?.armedUntil ?? 0) > time) return;
@@ -394,7 +451,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
         if (patrolAttacks(lvl, d) && m) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true); return; }
         if (d < 140) this.bark(f.c.id, s, lvl >= 3 ? 'spotted' : 'warn', time);
-        const route = patrolRoute(v, i), step = this.patrolStep.get(f.c.id) ?? 0, wp = route[step % route.length]!;
+        const ford = fordGuards.has(f.c.id); if (ford) this.roaming.add(f.c.id);
+        const route = ford ? fordRoute(v) : patrolRoute(v, i), step = this.patrolStep.get(f.c.id) ?? 0, wp = route[step % route.length]!;
         const dx = wp.x - s.x, dy = wp.y - s.y, dl = Math.hypot(dx, dy), body = s.body as Phaser.Physics.Arcade.Body;
         if (dl < 10 || (!body.blocked.none && time > f.until)) { this.patrolStep.set(f.c.id, step + 1); f.until = time + 800; if (Math.random() < 0.15) this.bark(f.c.id, s, 'patrol', time); return; }
         s.setVelocity(dx / dl * 30, dy / dl * 30);
@@ -549,6 +607,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
         raid: { ...this.raid },
+        warband: this.warband,
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
@@ -615,6 +674,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       this.raid = { ...(g.raid ?? {}) };
+      this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
         const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
@@ -1289,7 +1349,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (armed && !stop) {
           const s2 = f.sprite, dx = p.x - s2.x, dy = p.y - s2.y;
           if (!m.weapon && !isWarrior(f.t)) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.55 : 0.45);
-          const inRange = Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
+          const inRange = this.roaming.has(f.c.id) || Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
           const lunging = isChampion(f.t) || idx === lungeIndex(n, time);
           if (isChampion(f.t) && !(m as { roared?: boolean }).roared) { (m as { roared?: boolean }).roared = true; this.message = `${CHAMPION_NAMES[f.t.village]}, Champion von ${v.name}, stellt sich dir!`; this.messageUntil = time + 3000; this.cameras.main.shake(250, 0.006); }

@@ -50,6 +50,11 @@ const GameSchema = z.object({
     resolved: z.record(z.string().max(80), z.number().int().min(1).max(10000)),
   }).optional(),
   trustProgress: z.record(z.string().max(40), z.object({ done: z.array(z.string().max(40)).max(10), since: z.number().min(0), peacefulSince: z.number().min(0), trades: z.number().int().min(0).max(2), watch: z.number().min(0).max(240) })).optional(),
+  warband: z.object({
+    pending: z.record(z.string().max(4), z.number().min(0)),
+    cooldown: z.record(z.string().max(4), z.number().min(0)),
+    active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0) }).optional(),
+  }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7) })).max(50).optional(),
   relationships: z.object({
