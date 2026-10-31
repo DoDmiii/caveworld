@@ -59,7 +59,7 @@ import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
-import { assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
+import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED } from './captives';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
@@ -96,7 +96,7 @@ import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
-import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, fordRoute, MAX_RAIDERS, CAMP_ARRIVAL, RAID_SIGHT, type WarbandState } from './warbands';
+import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, fordRoute, MAX_RAIDERS, CAMP_ARRIVAL, RAID_SIGHT, type WarbandState } from './warbands';
 import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
 import { getVillageRelationship } from './relationships';
 import type { InteractionContext, InteractionId } from './interactions';
@@ -385,7 +385,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const a = this.warband.active; if (!a) return;
       const v = VILLAGES[a.village], raiders = this.raiders();
       const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, raiders.filter(f => f.combat.phase === 'ready').length);
-      if (!this.warband.active) { this.message = raiders.length ? `Der Kriegstrupp aus ${v.name} ist abgezogen` : `Der Kriegstrupp aus ${v.name} ist vernichtet!`; this.messageUntil = time + 4000; this.persist(); return; }
+      if (!this.warband.active) { this.roaming.clear(); this.message = raiders.length ? `Der Kriegstrupp aus ${v.name} ist abgezogen` : `Der Kriegstrupp aus ${v.name} ist vernichtet!`; this.messageUntil = time + 4000; this.persist(); return; }
       if (this.warband.active.phase !== prevPhase && this.warband.active.phase === 'return') { this.message = `Die Krieger aus ${v.name} ziehen sich zurück`; this.messageUntil = time + 3000; }
       const phase = this.warband.active.phase;
       let arrived = false, home = 0;
@@ -412,7 +412,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         } else if (this.walkTo(f, f.t.x, f.t.y, 40, time) < 20 || Math.hypot(s.x - v.x, s.y - v.y) < v.r * 0.6) home++;
       });
       if (arrived) { this.warband = arrive(this.warband, this.clock); this.message = `Krieger aus ${v.name} greifen dein Lager an!`; this.messageUntil = time + 4000; this.cameras.main.shake(300, 0.006); }
-      if (phase === 'return' && home >= raiders.filter(f => f.combat.phase === 'ready').length) { this.warband = advanceRaid(this.warband, Infinity, 0); this.roaming.clear(); }
+      if (phase === 'return' && home >= raiders.filter(f => f.combat.phase === 'ready').length) { this.warband = endRaid(this.warband, this.clock); this.roaming.clear(); this.message = `Der Kriegstrupp aus ${v.name} ist heimgekehrt`; this.messageUntil = time + 3000; this.persist(); }
     }
     villageLevel = new Map<string, WarningLevel>();
     /** Short speech bubble above a person; respects a per-person cooldown. */
