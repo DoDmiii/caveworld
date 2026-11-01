@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Kriegshorn und Alarm-Trommel: Pixelgrafiken, Herstellung/Bauen, Sammelruf, automatische/manuelle Lagerverteidigung und Speicherung; live hergestellt/gebaut, Horn/Entwarnung/Reload und echter Kriegerkampf geprüft; 233 Tests grün. Ohne Ton (Audio vom Nutzer).
 - [x] Jagdfallen: Schlinge (fängt Gazellen, 3 Nutzungen), Fallgrube (verletzt Raubtiere, 2 Nutzungen), Knochenrassel (warnt vor Kriegstrupps, 5 Alarme); Baumenü, Abbau mit Rückerstattung, Einsammeln per AKTION, gespeichert
 - [x] Mobile Steuerung: Ducken, Sprint-Umschalter, Tierzielwahl und Speerwurf; Hoch-/Querformat mit breiterer Sicht. Bewegung, Drehen, Pause und Speerherstellung/Ausrüsten/Wurf live geprüft, auch 320px ohne Seitenüberlauf.
 - [x] Betretbare Heimat-/Eis-/Obsidianhöhle, Fackellicht, Begleiter, Rohstoffe, Malereien, Höhlenbauten und Speicherung; Heimat-Abbau, Ritual, Feuer, Begleiter und Reload live geprüft.

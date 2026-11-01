@@ -2,11 +2,12 @@
 import type { Stock, Resource } from './harvest';
 import { CAMP_POS } from './biomes';
 
-export type StructureKind = 'rack' | 'shelter' | 'barricade';
-export const STRUCTURE_KINDS = ['rack', 'shelter', 'barricade'] as const satisfies readonly StructureKind[];
+export type StructureKind = 'rack' | 'shelter' | 'barricade' | 'drum';
+export const STRUCTURE_KINDS = ['rack', 'shelter', 'barricade', 'drum'] as const satisfies readonly StructureKind[];
 
 export type StructureDef = { name: string; cost: Partial<Record<Resource, number>>; zone: 'camp' | 'anywhere'; radius: number; rotates: boolean; effect: string };
 export const STRUCTURES: Record<StructureKind, StructureDef> = {
+  drum: { name: 'Alarm-Trommel', cost: { wood: 4, fiber: 3 }, zone: 'camp', radius: 14, rotates: false, effect: 'Warnt das Lager vor Feinden; Krieger verteidigen, andere suchen Schutz' },
   rack: { name: 'Räuchergestell', cost: { wood: 4, fiber: 2 }, zone: 'camp', radius: 14, rotates: false, effect: 'Trocknet rohes Fleisch zu Dörrfleisch' },
   shelter: { name: 'Leder-Unterstand', cost: { wood: 3, fiber: 4 }, zone: 'anywhere', radius: 20, rotates: true, effect: 'Halbe Kälte darunter' },
   barricade: { name: 'Barrikade', cost: { wood: 5 }, zone: 'anywhere', radius: 14, rotates: true, effect: 'Versperrt Tieren und Feinden den Weg' },
