@@ -1,0 +1,4 @@
+// Crisp, self-contained pixel artwork shared by the HUD and engine textures.
+const pixelImage = (body: string) => `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32" shape-rendering="crispEdges">${body}</svg>`)}`;
+export const HORN_ICON = pixelImage('<path fill="#33251d" d="M3 6h6v5h4v4h5v2h7v-4h4v12H17v-3h-5v-4H8v-5H3z"/><path fill="#c7b27b" d="M5 8h3v5h4v4h6v2h7v-4h2v8H18v-3h-5v-4H9v-5H5z"/><path fill="#eee2b8" d="M5 8h2v3H5zm8 9h5v2h-5zm12-2h2v8h-2z"/><path fill="#85503b" d="M18 19h3v7h-3z"/>');
+export const DRUM_ICON = pixelImage('<path fill="#30251e" d="M5 12h22v13h-3v4H8v-4H5z"/><path fill="#875640" d="M7 14h18v10h-3v3H10v-3H7z"/><path fill="#c4ad78" d="M5 10h22v3H5zm3-3h16v3H8z"/><path fill="#eee1af" d="M8 9h16v2H8z"/><path fill="#d8c69a" d="M9 15h2v9H9zm6 0h2v12h-2zm6 0h2v9h-2z"/><path fill="#30251e" d="M4 3h3v5H4zm17-2h3v6h-3z"/><path fill="#d8c69a" d="M2 2h6v3H2zm18-2h6v3h-6z"/>');

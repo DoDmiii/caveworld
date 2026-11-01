@@ -13,10 +13,11 @@ export function levelFromXp(xp: number): number {
   return l;
 }
 
-export type ItemId = 'axe' | 'spear' | 'wedge' | 'club' | 'torch' | 'bandage' | 'bag' | 'fur' | 'bundle' | 'bola';
-export const ITEM_IDS = ['axe', 'spear', 'wedge', 'club', 'torch', 'bandage', 'bag', 'fur', 'bundle', 'bola'] as const satisfies readonly ItemId[];
+export type ItemId = 'axe' | 'spear' | 'wedge' | 'club' | 'torch' | 'bandage' | 'bag' | 'fur' | 'bundle' | 'bola' | 'horn';
+export const ITEM_IDS = ['axe', 'spear', 'wedge', 'club', 'torch', 'bandage', 'bag', 'fur', 'bundle', 'bola', 'horn'] as const satisfies readonly ItemId[];
 export type Recipe = { id: ItemId; name: string; level: number; cost: Partial<Record<Resource, number>>; effect?: string };
 export const RECIPES: Recipe[] = [
+  { id: 'horn', name: 'Kriegshorn', level: 1, cost: { flint: 2, wood: 1, fiber: 2 }, effect: 'Ruft deinen Jagdtrupp zusammen' },
   { id: 'wedge', name: 'Steinkeil', level: 1, cost: { stone: 2, flint: 1 } },
   { id: 'club', name: 'Holzkeule', level: 1, cost: { wood: 3 } },
   { id: 'torch', name: 'Fackel', level: 1, cost: { wood: 2, fiber: 1 }, effect: 'Nachts halb so viel Kälte' },

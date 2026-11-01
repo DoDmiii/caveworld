@@ -63,7 +63,7 @@ export class CompanionMovement {
       const s = actor.sprite;
       const idle = () => { s.setVelocity(0, 0); s.anims.stop(); s.setTexture(actor.texture, actor.facing); };
       if (stopped) { idle(); continue; }
-      const fight = order.mode === 'follow' ? engage.get(actor.id) : undefined;
+      const fight = engage.get(actor.id);
       const goal = fight ?? (order.mode === 'follow' ? formationSlot(following.indexOf(actor), player, facing) : order.mode === 'return' ? actor.home : order);
       const distance = Math.hypot(goal.x - s.x, goal.y - s.y);
       if (distance < (fight ? 4 : order.mode === 'follow' ? 10 : 5)) {
