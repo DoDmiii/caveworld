@@ -207,6 +207,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     updateCave(time: number, delta: number) {
       const p=this.player,id=this.caves.current;if(!p||!id)return;
+      input.horn=false;input.drumToggle=false;
       this.applyCaveCommand(time);
       const k=this.keys,dt=Math.min(delta,100)/1000;
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
