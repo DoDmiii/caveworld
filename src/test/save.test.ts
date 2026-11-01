@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains horn, drum and manual alarm across reload', () => {
+    const next = { ...game, owned: [...game.owned, 'horn' as const], structures: [{id:'drum',kind:'drum' as const,x:1000,y:750,dir:0,meat:[]}], signals: {manualAlarm:true,hornReadyAt:1600} };
+    expect(saveGame({game:next})).toBe(true);
+    expect(loadSave()?.game).toEqual(next);
+  });
   it('retains cave location, finite deposits, paintings, upgrades and cave buildings', () => {
     const caves = { current: 'ice' as const, mined: ['ice:0'], paintings: ['lion' as const], obsidian: 2, pigment: 4, sharpened: true, builds: { ice: [{ id: 'fire-1', kind: 'fire' as const, x: 320, y: 480 }] } };
     expect(saveGame({ game: { ...game, caves } })).toBe(true);

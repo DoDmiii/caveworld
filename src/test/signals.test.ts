@@ -29,6 +29,6 @@ describe('war horn and camp alarm', () => {
     expect(r.targets.get('a')).toEqual(foe); expect(r.targets.has('b')).toBe(false);
     expect(r.orders.get('b')?.y).toBe(605);
     expect(campResponse(actors,[foe],false).orders.size).toBe(0);
-    expect(campResponse([{...actors[0],x:2000}], [foe],true).orders.size).toBe(0);
+    expect(campResponse([{id:'a',profile:'bruk',x:2000,y:700,down:false}], [foe],true).orders.size).toBe(0);
   });
 });

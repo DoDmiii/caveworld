@@ -4,6 +4,12 @@ const stock = { wood: 4, stone: 1, flint: 0, fiber: 1 };
 const spear = RECIPES.find(r => r.id === 'spear')!;
 const club = RECIPES.find(r => r.id === 'club')!;
 describe('progress', () => {
+  it('crafts horn once from 2 flint, 1 wood, 2 fiber', () => {
+    const horn=RECIPES.find(r=>r.id==='horn');if(!horn)throw new Error('Missing horn');
+    const s={wood:1,stone:0,flint:2,fiber:2};
+    expect(craft(horn,s,1,[])).toEqual({wood:0,stone:0,flint:0,fiber:0});
+    expect(canCraft(horn,s,1,['horn'])).toBe(false);
+  });
   it('crafts a primitive Steinkeil from stone and flint, once', () => {
     const wedge = RECIPES.find(r => r.id === 'wedge');
     if (!wedge) throw new Error('Missing Steinkeil recipe');

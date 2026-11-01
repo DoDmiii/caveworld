@@ -512,3 +512,10 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .zoom-controls {position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:5;}
 .zoom-controls button {width:32px;height:32px;}
 @media (pointer: coarse) {.zoom-controls {display:none;}}
+
+.signal-controls {position:absolute;right:max(12px,env(safe-area-inset-right));top:270px;display:flex;flex-direction:column;gap:6px;z-index:21;}
+.signal-controls button {width:44px;height:44px;}
+.signal-controls img,.camp-alarm-indicator img {width:28px;height:28px;image-rendering:pixelated;}
+.signal-controls .is-active {border-color:var(--destructive);color:var(--destructive);}
+.camp-alarm-indicator {position:absolute;top:100px;right:12px;display:flex;align-items:center;gap:4px;background:var(--glass);color:var(--destructive);border:1px solid var(--destructive);padding:3px 6px;font-size:9px;font-weight:700;pointer-events:none;z-index:22;}
+@media (orientation:landscape) and (max-height:600px) { .signal-controls {top:114px;flex-direction:row;} .camp-alarm-indicator {top:8px;right:130px;} }

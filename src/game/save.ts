@@ -39,6 +39,7 @@ const GameSchema = z.object({
   chest: z.object({ wood: count, stone: count, flint: count, fiber: count, berries: count, meat: count, cooked: count }).default({ wood: 0, stone: 0, flint: 0, fiber: 0, berries: 0, meat: 0, cooked: 0 }),
   structures: z.array(z.object({ id: z.string().max(40), kind: z.enum(STRUCTURE_KINDS), x: coord, y: coord, dir: z.number().int().min(0).max(7), meat: z.array(z.number().min(0)).max(3) })).max(60).default([]),
   traps: z.array(z.object({ id: z.string().max(40), kind: z.enum(TRAP_KINDS), x: coord, y: coord, uses: z.number().int().min(0).max(10), meat: z.number().int().min(0).max(10) })).max(20).default([]),
+  signals: z.object({ manualAlarm: z.boolean(), hornReadyAt: z.number().finite().min(0).max(10_000_000) }).optional(),
   tutorial: z.object({ step: z.number().int().min(0).max(20), progress: z.number().min(0).max(10_000) }).optional(),
   caves: z.object({ current: z.enum(['home', 'ice', 'obsidian']).nullable(), mined: z.array(z.string().max(40)).max(24), paintings: z.array(z.enum(['mammoth', 'gazelle', 'lion'])).max(3), obsidian: count, pigment: count, sharpened: z.boolean(), builds: z.record(z.enum(['home', 'ice', 'obsidian']), z.array(z.object({ id: z.string().max(40), kind: z.enum(['fire', 'shelter']), x: coord, y: coord })).max(20)) }).optional(),
   companions: z.array(z.object({ id: z.string().max(40), mode: z.enum(['follow', 'wait', 'return']), x: coord, y: coord })).max(50).optional(),

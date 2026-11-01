@@ -6,6 +6,11 @@ import { saveGame, loadSave } from '@/game/save';
 const rack = (x = 1000, y = 700): Placed => ({ id: 'r', kind: 'rack', x, y, dir: 0, meat: [] });
 
 describe('building', () => {
+  it('alarm drum is camp-only and costs 4 wood and 3 fiber', () => {
+    expect(STRUCTURES.drum.cost).toEqual({wood:4,fiber:3});
+    expect(placementError('drum',1000,750,[])).toBeNull();
+    expect(placementError('drum',1000,900,[])).toBe('Nur im Höhlenlager');
+  });
   it('Räuchergestell nur im Lager (200 um das Feuer)', () => {
     expect(placementError('rack', 1000, 830, [])).toBeNull();
     expect(placementError('rack', 1000, 900, [])).toBe('Nur im Höhlenlager');

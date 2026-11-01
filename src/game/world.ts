@@ -1553,7 +1553,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const [id, t] of assigned) if (this.shirks(id, t)) assigned.delete(id);
       if (!assigned.size && !foes.some(f => f.id === this.allyFocus && f.alive)) this.allyFocus = undefined;
       for (const [id, t] of assigned) if (this.allyTargets.get(id)?.id !== t.id && Math.random() < 0.5) { const a = following.find(o => o.id === id); if (a) this.allyBark(a, t, time); }
-      for(const [id,t] of this.defenseTargets)assigned.set(id,t);
+      for(const [id,t] of this.defenseTargets)assigned.set(id,{...t,champion:!('kind' in t.ref)&&isChampion(t.ref.t)});
       this.allyTargets = assigned;
       const per = new Map<string, number>();
       for (const a of following) {
