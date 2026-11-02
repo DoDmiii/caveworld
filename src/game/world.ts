@@ -54,6 +54,7 @@ import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FI
 import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
+import { tickTask, nextTask, taskLabel, type TaskState } from './tasks';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
 import resWood from '@/assets/res-wood.png.asset.json';
 import resStone from '@/assets/res-stone.png.asset.json';
@@ -364,6 +365,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     bed?: Phaser.GameObjects.Image;
     creatures: Creature[] = [];
     campers: Camper[] = [];
+    tasks: Record<string, TaskState> = {};
+    tickTasks(){if(this.caves.current)return;for(const [id,t] of Object.entries(this.tasks)){const r=tickTask(t,this.chest,this.clock,this.companionOrders.get(id)?.mode!=='follow');this.tasks[id]=r.task;this.chest=r.chest;}}
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
     allyFocus: string | undefined;
@@ -684,6 +687,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         pickedBerries: this.berries.flatMap((b, i) => (b.picked ? [i] : [])),
         lootedHouses: [...this.lootedHouses],
         chest: { ...this.chest },
+        tasks: Object.fromEntries(Object.entries(this.tasks).filter(([, t]) => t.kind !== 'none').map(([k, t]) => [k, { kind: t.kind, since: t.since }])),
         jerky: this.jerky,
         structures: this.structures.map(s => ({ ...s, meat: [...s.meat] })),
         traps: this.traps.map(t => ({ ...t })),
@@ -745,6 +749,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
       this.lootedHouses = [...g.lootedHouses];
       this.chest = { ...g.chest };
+      this.tasks = Object.fromEntries(Object.entries(g.tasks ?? {}).map(([k, t]) => [k, { ...t }]));
       this.jerky = g.jerky; this.structures = g.structures.map(s => ({ ...s, meat: [...s.meat] })); this.structures.forEach(s => this.spawnStructure(s));
       this.traps = (g.traps ?? []).map(t => ({ ...t })); this.traps.forEach(t => this.spawnTrap(t));
       // Ältere Spielstände ohne Einführung: Spieler kennt das Spiel schon.
@@ -1180,12 +1185,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.finisher=undefined;this.attackPending=false;this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
         this.report(time,p);return;
       }
-      if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000; this.tickTrust(0);}
+      if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000; this.tickTrust(0); this.tickTasks();}
       else if(!input.paused){
         const dt=Math.min(delta,100)/1000;
         if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
         this.tickRaid(time);
+        this.tickTasks();
         this.tickTrust(dt * 2);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
@@ -1630,7 +1636,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const portrait = this.campers.find(c => c.template.id === a.id)?.template.url ?? this.folk.find(f => f.c.id === a.id)?.t.url;
       return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, dialogues: [...this.campTopics(a.id), ...this.personalTopics(a.id)], target: 'ally', targetRole: 'villager', relationship: 100,
         hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
-        targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount() };
+        targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount(), task: taskLabel(this.tasks[a.id]?.kind ?? 'none') };
     }
     applyAllyInteraction(target: string, id: InteractionId, time: number): boolean {
       const actor = this.companionActors().find(a => a.id === target); if (!actor) return false;
@@ -1645,6 +1651,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         actor.sprite.setVelocity(0, 0); this.companionMovement.reset(target);
         if (id === 'follow') this.tut({ kind: 'recruit' }, time);
         this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
+      } else if (id === 'assign') {
+        const kind = nextTask(this.tasks[target]?.kind ?? 'none');
+        this.tasks[target] = { kind, since: this.clock };
+        this.message = kind === 'none' ? 'Hat keine Aufgabe mehr' : `Neue Aufgabe: ${taskLabel(kind)} · Erträge landen in der Vorratskiste`;
       } else if (id === 'feed') {
         const shareCooked = PROFILE_IDS[target] === 'skorra' && this.cooked > 0;
         const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: shareCooked ? 0 : this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });

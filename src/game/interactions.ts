@@ -18,6 +18,7 @@ export interface InteractionContext {
   inRange: boolean;
   following?: boolean;
   companionCount?: number;
+  task?: string;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -44,7 +45,7 @@ export const INTERACTIONS: InteractionDefinition[] = [
   { id: 'wait', label: 'Warten', icon: 'hand', targets: ['ally'], risk: 'low', description: 'Bleibt an diesem Ort.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'return', label: 'Zum Lager', icon: 'door-open', targets: ['ally'], risk: 'low', description: 'Kehrt in dein Höhlenlager zurück.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'feed', label: 'Essen geben', icon: 'wheat', targets: ['ally'], risk: 'low', description: 'Versorge ein Mitglied deiner Sippe.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
-  { id: 'assign', label: 'Aufgabe', icon: 'target', targets: ['ally'], risk: 'low', description: 'Weise eine unterstützte Lageraufgabe zu.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
+  { id: 'assign', label: 'Aufgabe', icon: 'target', targets: ['ally'], risk: 'low', description: 'Wechselt die Lageraufgabe: Holz, Steine, Sammeln oder keine.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
   { id: 'banish', label: 'Verbannen', icon: 'ban', targets: ['ally'], risk: 'high', description: 'Entfernt das Mitglied aus deiner Gemeinschaft.', disabledReason: c => !c.isOwnTribe ? 'Kein Mitglied deiner Sippe.' : null },
 ];
 

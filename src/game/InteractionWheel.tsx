@@ -33,7 +33,7 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile, di
     panel.current?.querySelector<HTMLButtonElement>('button')?.focus();
     return () => { if (previous instanceof HTMLElement) previous.focus(); };
   }, []);
-  const options = getAvailableInteractions(context).filter(o => o.id !== 'assign' && o.id !== 'banish');
+  const options = getAvailableInteractions(context).filter(o => o.id !== 'banish');
   return <div className="interaction-overlay" role="dialog" aria-modal="true" aria-label={name ? `Interaktionen mit ${name}` : 'Interaktionen'} onKeyDown={e => {
     if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
     if (e.key === 'Tab') {
@@ -60,7 +60,7 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile, di
         {options.map(option => {
           const Icon = ICONS[option.icon as keyof typeof ICONS];
           return <Button key={option.id} type="button" variant="outline" className="interaction-option" disabled={option.disabled} title={option.disabledReason ?? option.description} onClick={() => onChoose(option.id)}>
-            <span><Icon size={19}/><strong>{option.label}</strong></span>
+            <span><Icon size={19}/><strong>{option.id === 'assign' ? `Aufgabe: ${context.task ?? 'Keine'}` : option.label}</strong></span>
             <small>Risiko: {RISK_LABEL[option.risk]}</small>
           </Button>;
         })}

@@ -28,7 +28,7 @@ export function tickTask(task: TaskState, chest: ChestGoods, clock: number, work
     const total = (carry[k] ?? 0) + per * cycles;
     const whole = Math.floor(total);
     carry[k] = total - whole;
-    next[k] = Math.min(Math.max(next[k], TASK_CHEST_CAP), next[k] + whole) === next[k] + whole ? next[k] + whole : Math.max(next[k], TASK_CHEST_CAP);
+    next[k] = next[k] >= TASK_CHEST_CAP ? next[k] : Math.min(TASK_CHEST_CAP, next[k] + whole);
   }
   return { task: { kind: task.kind, since: task.since + cycles * def.minutes, carry }, chest: next };
 }

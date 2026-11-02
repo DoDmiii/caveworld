@@ -26,6 +26,7 @@ const GameSchema = z.object({
   meat: count,
   cooked: count,
   jerky: count.default(0),
+  tasks: z.record(z.string().max(40), z.object({ kind: z.enum(['none', 'wood', 'stone', 'forage']), since: z.number().min(0).max(10_000_000) })).optional(),
   stock: z.object({ wood: count, stone: count, flint: count, fiber: count }),
   xp: count,
   owned: z.array(z.enum(ITEM_IDS)).max(20),
