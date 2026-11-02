@@ -358,7 +358,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .chest-counts{font-size:12px;color:var(--muted-foreground);text-align:right;}
 .chest-actions{grid-column:1 / -1;display:flex;gap:6px;flex-wrap:wrap;}
 .chest-hintline{margin:12px 0 0;font-size:11px;color:var(--muted-foreground);}
-.tutorial-card {position:absolute;left:50%;transform:translateX(-50%);bottom:calc(max(16px,env(safe-area-inset-bottom)) + 190px);display:flex;flex-direction:column;align-items:center;gap:2px;max-width:min(86%,320px);text-align:center;background:var(--glass);border:1px solid var(--glass-border);border-radius:4px;padding:7px 12px;font-size:10px;color:var(--foreground);pointer-events:none;z-index:3;}
+.tutorial-card {position:absolute;left:max(12px,env(safe-area-inset-left));top:160px;display:flex;flex-direction:column;align-items:flex-start;gap:1px;max-width:min(46%,200px);text-align:left;opacity:.92;background:var(--glass);border:1px solid var(--glass-border);border-radius:4px;padding:7px 12px;font-size:10px;color:var(--foreground);pointer-events:none;z-index:3;}
 .tutorial-card .eyebrow {font-size:7px;letter-spacing:.12em;color:var(--primary);}
 .tutorial-card strong {font-size:12px;color:var(--primary);}
 .profile-tabs {display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px;}
@@ -470,7 +470,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .sleep-hint {max-width:calc(100% - 24px);white-space:normal;letter-spacing:0;bottom:278px;height:auto;}
 .talk-hint,.chest-hint {bottom:278px;}
 .stealth-hint {bottom:248px;letter-spacing:0;pointer-events:none;}
-.tutorial-card {bottom:318px;}
+.tutorial-card {top:160px;}
 .build-bar {bottom:calc(270px + env(safe-area-inset-bottom));max-height:calc(100dvh - 380px);overflow-y:auto;touch-action:pan-y;}
 .build-option {height:auto;min-height:86px;white-space:normal;}
 .cave-ritual {bottom:270px;}
@@ -493,7 +493,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
  .squad-member {width:100px;}.squad-portrait {display:none;}
  .boss-bar {top:62px;width:240px;}
  .boss-name {color:var(--foreground);}
- .tutorial-card {top:104px;bottom:auto;max-width:280px;padding:4px 8px;}
+ .tutorial-card {top:84px;max-width:180px;padding:4px 8px;}
  .sleep-hint,.talk-hint,.chest-hint {bottom:104px;max-width:calc(100% - 290px);min-height:36px;}
  .stealth-hint {bottom:150px;}
  .build-bar {left:140px;right:140px;bottom:100px;max-height:calc(100dvh - 180px);}
@@ -519,3 +519,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .signal-controls .is-active {border-color:var(--destructive);color:var(--destructive);}
 .camp-alarm-indicator {position:absolute;top:100px;right:12px;display:flex;align-items:center;gap:4px;background:var(--glass);color:var(--destructive);border:1px solid var(--destructive);padding:3px 6px;font-size:9px;font-weight:700;pointer-events:none;z-index:22;}
 @media (orientation:landscape) and (max-height:600px) { .signal-controls {top:114px;flex-direction:row;} .camp-alarm-indicator {top:8px;right:130px;} }
+
+.name-dialog {position:absolute;inset:0;display:grid;place-items:center;background:color-mix(in oklab,var(--background) 70%,transparent);z-index:60;}
+.name-dialog form {display:flex;flex-direction:column;gap:10px;width:min(86%,300px);background:var(--glass);border:1px solid var(--glass-border);border-radius:6px;padding:16px;color:var(--foreground);}
+.name-dialog input {background:var(--background);border:1px solid var(--glass-border);border-radius:4px;padding:8px;color:var(--foreground);font:inherit;}
