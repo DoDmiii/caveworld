@@ -123,7 +123,7 @@ export default function GameView(){
  };
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active}});},[uiRestored,hotbar,equipped.hand,active]);
- useEffect(()=>{input.current.paused=paused||panel!==null||talk!==null||!!status.chestOpen;input.current.x=0;input.current.y=0;input.current.sprint=false;input.current.crouch=false;input.current.focus=false;input.current.throwSpear=false;},[paused,panel,talk,status.chestOpen]);
+ useEffect(()=>{input.current.paused=paused||heroName===''||panel!==null||talk!==null||!!status.chestOpen;input.current.x=0;input.current.y=0;input.current.sprint=false;input.current.crouch=false;input.current.focus=false;input.current.throwSpear=false;},[paused,panel,talk,status.chestOpen,heroName]);
  useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
