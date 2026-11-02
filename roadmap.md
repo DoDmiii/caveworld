@@ -38,3 +38,4 @@
 - [x] Baumodus: Räuchergestell (nur Lager, trocknet Fleisch zu Dörrfleisch), Leder-Unterstand (halbe Kälte), Barrikade (blockiert); frei platzieren, drehen, abbauen; gespeichert
 - [x] Dorf-Raid: Champion pro Nordic-Dorf (nur per Finisher tötbar), eigenständig kämpfender Trupp, Wiederaufbau nach 3,5 Tagen
 - [ ] Eigene Champion-Grafik, sobald der Nutzer sie liefert
+- [x] Lager-Automatisierung: Aufgabe im Optionsrad (Holz/Steine/Sammeln), Erträge in die Vorratskiste, gespeichert
