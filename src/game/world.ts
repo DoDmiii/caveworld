@@ -656,7 +656,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     bleedUntil = 0;
     nextTrail = 0;
     punch(dmg: number, finisher = false) { if (!this.physics.world.isPaused) { this.physics.pause(); this.anims.pauseAll(); this.time.delayedCall(hitstopMs(dmg, finisher), () => { this.physics.resume(); this.anims.resumeAll(); }); } this.cameras.main.shake(finisher ? 260 : 110, finisher ? 0.012 : Math.min(0.008, 0.002 + dmg * 0.0003)); if (finisher) { this.cameras.main.zoomTo(this.cameras.main.zoom * 1.08, 120, 'Sine.easeOut', true); this.time.delayedCall(500, () => this.cameras.main.zoomTo(this.cameras.main.zoom / 1.08, 300, 'Sine.easeIn', true)); } }
-    hurt(dmg: number, time: number) { this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.punch(dmg); }
+    hurtPlayer(dmg: number, time: number) { this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.punch(dmg); }
     attackPending = false;
     lastDamage = 0;
     target: Creature | undefined = undefined;
@@ -1484,7 +1484,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
             this.hitCompanion(vic, isChampion(f.t) ? CHAMPION_ALLY_DAMAGE : f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
           } else if (vic === 'player' && time > this.lastDamage + 900) {
-            this.hurt(isChampion(f.t) ? CHAMPION_DAMAGE : f.t.captive ? 5 : 7, time); this.hitFlash = time + 200; this.lastDamage = time;
+            this.hurtPlayer(isChampion(f.t) ? CHAMPION_DAMAGE : f.t.captive ? 5 : 7, time); this.hitFlash = time + 200; this.lastDamage = time;
             (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
             this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
             this.message = isChampion(f.t) ? `${CHAMPION_NAMES[f.t.village]} trifft dich hart!` : f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
@@ -1527,7 +1527,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (dec.shouldAttack && !f.t.captive) {
           // Guards close in and strike; they never leave their village.
           if (d > 16 && home) { s.setVelocity(dx / len * 55, dy / len * 55); face(dx, dy); }
-          else { s.setVelocity(0, 0); if (d <= 18 && time > this.lastDamage + 1100) { this.hurt(6, time); this.hitFlash = time + 200; this.lastDamage = time; this.message = 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400; } }
+          else { s.setVelocity(0, 0); if (d <= 18 && time > this.lastDamage + 1100) { this.hurtPlayer(6, time); this.hitFlash = time + 200; this.lastDamage = time; this.message = 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400; } }
         } else if ((dec.shouldFlee || dec.state === 'hostile') && home) { s.setVelocity(-dx / len * 45, -dy / len * 45); face(-dx, -dy); }
         s.setDepth(s.y);
       }
@@ -1836,7 +1836,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             const vic = pickVictim(s, p, this.standingAllies(), reachOf(c.kind));
             if (vic && vic !== 'player') this.hitCompanion(vic, c.kind === 'tiger' ? 14 : SNOW[c.kind].damage * 1.4, dx / Math.max(1, dist), dy / Math.max(1, dist), time);
             else if (time > this.lastDamage + 900) {
-              this.hurt(c.kind === 'tiger' ? 10 : SNOW[c.kind].damage, time);
+              this.hurtPlayer(c.kind === 'tiger' ? 10 : SNOW[c.kind].damage, time);
               this.hitFlash = time + 200;
               this.bleed(p.x, p.y, dx / Math.max(1, dist), dy / Math.max(1, dist), 7);
               this.lastDamage = time;
