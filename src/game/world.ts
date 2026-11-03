@@ -1664,8 +1664,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.message = kind === 'none' ? 'Hat keine Aufgabe mehr' : `Neue Aufgabe: ${taskLabel(kind)} · Erträge landen in der Vorratskiste`;
       } else if (id === 'feed') {
         const shareCooked = PROFILE_IDS[target] === 'skorra' && this.cooked > 0;
-        if (id === 'execute') { this.executeCaptive(f); return; }
-      if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
       const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: shareCooked ? 0 : this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
         if (shareCooked) o.goods.berries = this.count;
         if (o.goods.berries === this.count && o.goods.cooked === this.cooked) { this.message = o.message; this.messageUntil = time + 2200; return true; }
