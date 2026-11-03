@@ -3,7 +3,7 @@ import type { FolkRole } from './behavior';
 import { canRecruit } from './companions';
 
 export type InteractionTarget = 'villager' | 'captive' | 'ally' | 'guard';
-export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish';
+export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish';
 export type Risk = 'low' | 'medium' | 'high';
 export interface InteractionContext {
   target: InteractionTarget;
@@ -19,6 +19,8 @@ export interface InteractionContext {
   following?: boolean;
   companionCount?: number;
   task?: string;
+  inCamp?: boolean;
+  hasWedge?: boolean;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -38,6 +40,8 @@ export const INTERACTIONS: InteractionDefinition[] = [
   { id: 'attack', label: 'Angreifen', icon: 'swords', targets: ['villager', 'guard'], risk: 'high', description: 'Greift das Ziel an und kann Zeugen alarmieren.', disabledReason: c => c.targetRole === 'child' ? 'Kinder können nicht angegriffen werden.' : null },
   { id: 'bind', label: 'Fesseln', icon: 'link', targets: ['captive'], risk: 'medium', description: 'Sichere einen überwältigten Gegner.', disabledReason: c => !c.targetDefeated ? 'Das Ziel muss überwältigt sein.' : c.targetRole === 'child' ? 'Kinder können nicht gefangen werden.' : c.targetBound ? 'Das Ziel ist bereits gefesselt.' : null },
   { id: 'carry', label: 'Tragen', icon: 'user-round', targets: ['captive'], risk: 'medium', description: 'Trage die gefesselte Person; deine Bewegung wird langsamer.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : c.targetCarried ? 'Du trägst diese Person bereits.' : null },
+  { id: 'adopt', label: 'Aufnehmen', icon: 'user-round', targets: ['captive'], risk: 'low', description: 'Binde die Person los und nimm sie in deinen Stamm auf.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : !c.inCamp ? 'Nur im Höhlenlager möglich.' : null },
+  { id: 'execute', label: 'Hinrichten', icon: 'skull', targets: ['captive'], risk: 'high', description: 'Töte die wehrlose Person mit dem Steinkeil.', disabledReason: c => !c.targetDefeated ? 'Das Ziel muss überwältigt sein.' : !c.hasWedge ? 'Du brauchst den Steinkeil in der Hand.' : null },
   { id: 'release', label: 'Freilassen', icon: 'door-open', targets: ['captive'], risk: 'medium', description: 'Lass die Person frei; sie könnte Hilfe holen.' },
   { id: 'interrogate', label: 'Verhören', icon: 'message-circle', targets: ['captive'], risk: 'medium', description: 'Versuche, Informationen zu erhalten.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : null },
   { id: 'ransom', label: 'Lösegeld', icon: 'coins', targets: ['captive'], risk: 'medium', description: 'Fordere eine Zahlung für die Freilassung.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : null },

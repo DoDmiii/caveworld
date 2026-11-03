@@ -63,7 +63,7 @@ import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
-import { interact, drop, CARRY_SPEED } from './captives';
+import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
@@ -1279,6 +1279,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.lastAttack=input.attack;
         const downed=this.folk.filter(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
         if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
+        const helpless=this.held==='wedge'?this.folk.filter(f=>canExecute(f.c,true)&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<=FINISHER_REACH).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y))[0]:undefined;
+        if(helpless&&this.executeCaptive(helpless)){this.report(time,p);return;}
         this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
@@ -1334,8 +1336,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(this.carried){
           const f=this.carried;const inCamp=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-50)<130;
           f.c=drop(f.c,p.x,p.y+6,inCamp);this.carried=undefined;this.carryImg?.setVisible(false);poseFolk(f);
-          this.message=inCamp?'Willkommen im Stamm! Die Gefangene gehört jetzt zu euch':'Gefangene abgesetzt · [E] wieder aufheben';
-          if (inCamp) this.trustEvent(f.c.id, 'joined');
+          this.message=inCamp?'Im Lager abgesetzt · Optionsrad: Aufnehmen, Freilassen oder Hinrichten':'Gefangene abgesetzt · [E] wieder aufheben';
           this.persist();
         }
         else if(captive){
@@ -1539,6 +1540,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
+          inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: this.held === 'wedge',
         };
       } else this.talk = null;
       const ally = this.companionActors().filter(a => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
@@ -1662,7 +1664,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.message = kind === 'none' ? 'Hat keine Aufgabe mehr' : `Neue Aufgabe: ${taskLabel(kind)} · Erträge landen in der Vorratskiste`;
       } else if (id === 'feed') {
         const shareCooked = PROFILE_IDS[target] === 'skorra' && this.cooked > 0;
-        const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: shareCooked ? 0 : this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
+        if (id === 'execute') { this.executeCaptive(f); return; }
+      if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
+      const o = resolveInteraction(id, { state: 'camp', capturable: false, relationship: 100, goods: { berries: shareCooked ? 0 : this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
         if (shareCooked) o.goods.berries = this.count;
         if (o.goods.berries === this.count && o.goods.cooked === this.cooked) { this.message = o.message; this.messageUntil = time + 2200; return true; }
         this.count = o.goods.berries; this.cooked = o.goods.cooked;
@@ -1689,6 +1693,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
     lastSocial = new Map<string, number>();
+    inCampAt(x: number, y: number) { return Math.hypot(x - CAMP.x, y - CAMP.y - 50) < 130; }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
@@ -1699,6 +1704,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.message = 'Dafür ist es noch zu früh · warte eine Weile'; this.messageUntil = time + 2000; return;
         }
       }
+      if (id === 'execute') { this.executeCaptive(f); return; }
+      if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
@@ -1710,19 +1717,28 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         f.c = { ...f.c, state: o.state, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) };
         if (o.carry) this.carried = f;
         poseFolk(f);
+        if (o.state === 'camp') this.trustEvent(f.c.id, 'joined');
       }
       this.message = o.message; this.messageUntil = time + 2200;
       this.persist();
     }
     startFinisher(f:Folk):boolean {
       const p=this.player;
-      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',f.c.state!=='free'))return false;
+      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',f.c.state==='camp'))return false;
       const angle=Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x);
       this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
       this.target=undefined;this.finisher=f;this.attacking=true;this.attackPending=false;this.crouchOn=false;
       p.setPosition(f.sprite.x-Math.cos(angle)*14,f.sprite.y-Math.sin(angle)*14).setVelocity(0,0).setDepth(f.sprite.y+1);
       p.anims.timeScale=1;p.play(`anim-finisher-${this.lastFacing}`);
       this.message='Finisher!';this.messageUntil=this.time.now+1800;return true;
+    }
+    /** Bound or surrendered people are helpless: the Steinkeil finisher kills them outright. */
+    executeCaptive(f:Folk):boolean {
+      if(!canExecute(f.c,this.held==='wedge')){if(this.held!=='wedge'){this.message='Nimm den Steinkeil in die Hand';this.messageUntil=this.time.now+1600;}return false;}
+      const before={c:f.c,combat:f.combat};
+      f.c={...f.c,state:'free',x:Math.round(f.sprite.x),y:Math.round(f.sprite.y)};f.combat={...f.combat,phase:'downed',downUntil:this.time.now+600000};
+      if(this.startFinisher(f)){this.message='Hinrichtung!';return true;}
+      f.c=before.c;f.combat=before.combat;return false;
     }
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;

@@ -50,6 +50,8 @@ export function resolveInteraction(id: InteractionId, s: InteractionSubject): Ou
       return s.state === 'bound' ? { ...base, state: 'carried', carry: true, message: 'Auf den Schultern · bring sie ins Höhlenlager' } : base;
     case 'release':
       return { ...base, rel: 20, state: 'free', message: 'Freigelassen · das Dorf schätzt deine Gnade' };
+    case 'adopt':
+      return s.state === 'bound' ? { ...base, state: 'camp', message: 'Losgebunden · gehört jetzt zu deinem Stamm' } : base;
     case 'interrogate':
       return { ...base, message: 'Verrät: In jedem Dorf lagert ein Haus Waffen' };
     case 'ransom':
