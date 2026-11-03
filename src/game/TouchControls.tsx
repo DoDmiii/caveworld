@@ -32,7 +32,7 @@ export function TouchControls({ input, crouching, spear, inCave }: { input: Game
     <div className="action-area">
       <div className="movement-modes">
         <Button variant="ghost" className={`touch-mode ${sprint ? 'is-active' : ''}`} aria-label="Sprinten" aria-pressed={sprint} title="Sprinten · gedrückt halten"
-          onPointerDown={e => { e.currentTarget.setPointerCapture(e.pointerId); input.sprint = true; input.crouch = false; setSprint(true); }}
+          onPointerDown={e => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic pointers */ } input.sprint = true; input.crouch = false; setSprint(true); }}
           onPointerUp={sprintOff} onPointerCancel={sprintOff} onLostPointerCapture={sprintOff}><Footprints /></Button>
         <Button variant="ghost" className={`touch-mode ${crouching ? 'is-active' : ''}`} aria-label="Ducken" aria-pressed={crouching} title="Ducken ein/aus" onClick={() => { input.crouch = !crouching; sprintOff(); }}><MoveDown /></Button>
       </div>
