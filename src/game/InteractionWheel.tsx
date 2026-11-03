@@ -1,7 +1,7 @@
 import { Ban, Coins, DoorOpen, Footprints, Gift, Hand, Link, MessageCircle, ShieldAlert, Swords, Target, Wheat, ArrowLeftRight, UserRound, Skull, UserPlus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAvailableInteractions, type InteractionContext, type InteractionId, type Risk } from './interactions';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { ProfileDetails, type ProfileView } from './ProfileDetails';
 import { relationName } from './profiles';
 import type { CampDialogue } from './camp-dialogue';
@@ -13,6 +13,46 @@ const ICONS = {
   target: Target, ban: Ban, skull: Skull, 'user-plus': UserPlus,
 } as const;
 const RISK_LABEL: Record<Risk, string> = { low: 'Niedrig', medium: 'Mittel', high: 'Hoch' };
+const HOLD_MS = 900;
+
+/** Press-and-hold confirmation for irreversible actions: a stray tap cannot trigger them. */
+function HoldConfirm({ disabled, title, label, risk, Icon, onConfirm }: {
+  disabled: boolean; title: string; label: string; risk: string; Icon: (typeof Hand); onConfirm: () => void;
+}) {
+  const [progress, setProgress] = useState(0);
+  const frame = useRef(0);
+  const start = useRef(0);
+  const armed = useRef(false);
+  const stop = useCallback((reset: boolean) => {
+    cancelAnimationFrame(frame.current);
+    armed.current = false;
+    if (reset) setProgress(0);
+  }, []);
+  const begin = useCallback(() => {
+    if (disabled || armed.current) return;
+    armed.current = true;
+    start.current = performance.now();
+    const tick = () => {
+      if (!armed.current) return;
+      const p = Math.min(1, (performance.now() - start.current) / HOLD_MS);
+      setProgress(p);
+      if (p >= 1) { stop(false); onConfirm(); } else frame.current = requestAnimationFrame(tick);
+    };
+    frame.current = requestAnimationFrame(tick);
+  }, [disabled, onConfirm, stop]);
+  useEffect(() => () => stop(true), [stop]);
+  return <Button type="button" variant="outline" className="interaction-option hold-option" disabled={disabled}
+    title={title}
+    onPointerDown={e => { e.preventDefault(); begin(); }}
+    onPointerUp={() => stop(true)} onPointerLeave={() => stop(true)} onPointerCancel={() => stop(true)}
+    onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && !e.repeat) { e.preventDefault(); begin(); } }}
+    onKeyUp={e => { if (e.key === 'Enter' || e.key === ' ') stop(true); }}
+    onContextMenu={e => e.preventDefault()}>
+    <span><Icon size={19}/><strong>{label}</strong></span>
+    <span className="hold-track" aria-hidden="true"><span className="hold-fill" style={{ width: `${Math.round(progress * 100)}%` }}/></span>
+    <small>{progress > 0 && progress < 1 ? 'Weiter halten …' : `Risiko: ${risk} · Halten zum Bestätigen`}</small>
+  </Button>;
+}
 
 export interface InteractionWheelProps {
   context: InteractionContext;
