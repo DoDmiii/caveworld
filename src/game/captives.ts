@@ -14,10 +14,18 @@ export function interact(c: Captive, carrying: boolean): Captive {
   return c;
 }
 
-/** Put the carried captive down; inside the home camp they join the tribe for good. */
-export function drop(c: Captive, x: number, y: number, inCamp: boolean): Captive {
+/** Put the carried captive down; they stay bound, even inside the camp, until the player decides. */
+export function drop(c: Captive, x: number, y: number, _inCamp?: boolean): Captive {
   if (c.state !== 'carried') return c;
-  return { ...c, state: inCamp ? 'camp' : 'bound', x: Math.round(x), y: Math.round(y) };
+  return { ...c, state: 'bound', x: Math.round(x), y: Math.round(y) };
 }
+
+/** Manual choice: a bound captive inside the home camp is untied and joins the tribe. */
+export function adopt(c: Captive, inCamp: boolean): Captive {
+  return inCamp && c.state === 'bound' ? { ...c, state: 'camp' } : c;
+}
+
+/** Surrendered or bound people can be executed with the Steinkeil finisher. */
+export const canExecute = (c: Captive, wedge: boolean) => wedge && (c.state === 'surrender' || c.state === 'bound');
 
 export const CARRY_SPEED = 50;
