@@ -486,7 +486,6 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
  .build-button {top:62px;right:calc(max(12px,env(safe-area-inset-right)) + 52px);width:44px;height:44px;}
  .touch-controls {bottom:calc(48px + env(safe-area-inset-bottom));}
  .joystick-area {width:100px;}.joystick {width:100px;height:100px;}.joystick-arrow.left,.joystick-arrow.right {top:36px;}
- .movement-modes {margin-bottom:6px;}
  .hotbar {bottom:calc(48px + env(safe-area-inset-bottom));}
  .game-bottom {justify-content:center;gap:14px;}
  .squad-hud {top:8px;left:50%;transform:translateX(-50%);flex-direction:row;gap:4px;}
