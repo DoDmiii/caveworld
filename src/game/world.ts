@@ -655,8 +655,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hitFlash = 0;
     bleedUntil = 0;
     nextTrail = 0;
-    impact(dmg: number, finisher = false) { if (!this.physics.world.isPaused) { this.physics.pause(); this.anims.pauseAll(); this.time.delayedCall(hitstopMs(dmg, finisher), () => { this.physics.resume(); this.anims.resumeAll(); }); } this.cameras.main.shake(finisher ? 260 : 110, finisher ? 0.012 : Math.min(0.008, 0.002 + dmg * 0.0003)); if (finisher) { this.cameras.main.zoomTo(this.cameras.main.zoom * 1.08, 120, 'Sine.easeOut', true); this.time.delayedCall(500, () => this.cameras.main.zoomTo(this.cameras.main.zoom / 1.08, 300, 'Sine.easeIn', true)); } }
-    hurt(dmg: number, time: number) { this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.impact(dmg); }
+    punch(dmg: number, finisher = false) { if (!this.physics.world.isPaused) { this.physics.pause(); this.anims.pauseAll(); this.time.delayedCall(hitstopMs(dmg, finisher), () => { this.physics.resume(); this.anims.resumeAll(); }); } this.cameras.main.shake(finisher ? 260 : 110, finisher ? 0.012 : Math.min(0.008, 0.002 + dmg * 0.0003)); if (finisher) { this.cameras.main.zoomTo(this.cameras.main.zoom * 1.08, 120, 'Sine.easeOut', true); this.time.delayedCall(500, () => this.cameras.main.zoomTo(this.cameras.main.zoom / 1.08, 300, 'Sine.easeIn', true)); } }
+    hurt(dmg: number, time: number) { this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.punch(dmg); }
     attackPending = false;
     lastDamage = 0;
     target: Creature | undefined = undefined;
@@ -1729,7 +1729,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       f.combat=finishFighter(f.combat);dieFolk(f);this.armFolk(f,this.time.now);
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${VILLAGES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
-      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),40);this.impact(40,true);
+      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),40);this.punch(40,true);
       const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
@@ -1796,7 +1796,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
           this.allyFocus='f'+f.c.id;
-          {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10)*caveDamageFactor(this.caves,input.club?'club':hw);f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.impact(dmg);}
+          {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10)*caveDamageFactor(this.caves,input.club?'club':hw);f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
           if(f.combat.phase==='dead'){dieFolk(f);this.message='Krieger erschlagen';this.persist();}
