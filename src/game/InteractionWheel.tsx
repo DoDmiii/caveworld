@@ -99,6 +99,9 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile, di
       </div> : view === 'profile' && profile ? <ProfileDetails profile={profile}/> : <div className="interaction-options" role="tabpanel" id="npc-actions-panel" aria-labelledby="npc-actions-tab">
         {options.map(option => {
           const Icon = ICONS[option.icon as keyof typeof ICONS];
+          if (option.id === 'execute') return <HoldConfirm key={option.id} disabled={option.disabled} Icon={Icon}
+            title={option.disabledReason ?? 'Zum Auslösen 1 Sekunde gedrückt halten'} label={option.label} risk={RISK_LABEL[option.risk]}
+            onConfirm={() => onChoose(option.id)}/>;
           return <Button key={option.id} type="button" variant="outline" className="interaction-option" disabled={option.disabled} title={option.disabledReason ?? option.description} onClick={() => onChoose(option.id)}>
             <span><Icon size={19}/><strong>{option.id === 'assign' ? `Aufgabe: ${context.task ?? 'Keine'}` : option.label}</strong></span>
             <small>Risiko: {RISK_LABEL[option.risk]}</small>
