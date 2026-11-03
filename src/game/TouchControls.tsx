@@ -22,17 +22,20 @@ export function TouchControls({ input, crouching, spear, inCave }: { input: Game
     setKnob({ x: x * scale, y: y * scale });
     input.x = length < 7 ? 0 : x * scale / radius; input.y = length < 7 ? 0 : y * scale / radius;
   };
+  const sprintOff = () => { input.sprint = false; setSprint(false); };
   return <div className="touch-controls">
     <div className="joystick-area">
-      <div className="movement-modes">
-        <Button variant="ghost" className={`touch-mode ${sprint ? 'is-active' : ''}`} aria-label="Sprinten" aria-pressed={sprint} title="Sprinten ein/aus" onClick={() => { input.sprint = !sprint; input.crouch = false; setSprint(!sprint); }}><Footprints /></Button>
-        <Button variant="ghost" className={`touch-mode ${crouching ? 'is-active' : ''}`} aria-label="Ducken" aria-pressed={crouching} title="Ducken ein/aus" onClick={() => { input.crouch = !crouching; input.sprint = false; setSprint(false); }}><MoveDown /></Button>
-      </div>
       <div className="joystick" role="group" aria-label="Bewegungsjoystick" onPointerDown={e => { if (pointer.current !== null) return; pointer.current = e.pointerId; e.currentTarget.setPointerCapture(e.pointerId); move(e); }} onPointerMove={e => { if (pointer.current === e.pointerId) move(e); }} onPointerUp={e => { if (pointer.current === e.pointerId) release(); }} onPointerCancel={e => { if (pointer.current === e.pointerId) release(); }} onLostPointerCapture={e => { if (pointer.current === e.pointerId) release(); }}>
         <span className="joystick-arrow up">⌃</span><span className="joystick-arrow down">⌄</span><span className="joystick-arrow left">‹</span><span className="joystick-arrow right">›</span><span className="joystick-knob" style={{ transform: `translate(${knob.x}px,${knob.y}px)` }}><span /></span>
       </div>
     </div>
     <div className="action-area">
+      <div className="movement-modes">
+        <Button variant="ghost" className={`touch-mode ${sprint ? 'is-active' : ''}`} aria-label="Sprinten" aria-pressed={sprint} title="Sprinten · gedrückt halten"
+          onPointerDown={e => { try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic pointers */ } input.sprint = true; input.crouch = false; setSprint(true); }}
+          onPointerUp={sprintOff} onPointerCancel={sprintOff} onLostPointerCapture={sprintOff}><Footprints /></Button>
+        <Button variant="ghost" className={`touch-mode ${crouching ? 'is-active' : ''}`} aria-label="Ducken" aria-pressed={crouching} title="Ducken ein/aus" onClick={() => { input.crouch = !crouching; sprintOff(); }}><MoveDown /></Button>
+      </div>
       <Button variant="ghost" className="touch-mode" aria-label="Ziel anvisieren" title="Nächstes Tier anvisieren · Bola" disabled={inCave} onClick={() => { input.focus = true; }}><Target /></Button>
       <Button variant="ghost" className="touch-mode" aria-label="Speer werfen" title="Speer auf anvisiertes Tier werfen" disabled={!spear || inCave} onClick={() => { input.throwSpear = true; }}><Send /></Button>
       <Button variant="ghost" className="attack-button" aria-label="Angreifen" title="Angreifen / Finisher" onClick={() => { input.attack++; }}><Sword /></Button>
