@@ -49,6 +49,8 @@ export type Folk = {
   beheaded?: boolean | undefined;
   headPosition?: { x: number; y: number } | undefined;
   headSprite?: Phaser.GameObjects.Image | undefined;
+  deathClock?: number | undefined;
+  skullTaken?: boolean | undefined;
   combat: Fighter;
   sprite: Phaser.Physics.Arcade.Sprite; t: FolkTemplate; c: Captive;
   facing: number; next: number; until: number; tx: number; ty: number; seed: number;
@@ -99,7 +101,7 @@ export function poseFolk(f: Folk) {
     if (art) {
       s.setTexture(art.bodyKey).setDepth(s.y - 4);
       corpseBlood(f);
-      if (f.headPosition && !f.headSprite?.active) {
+      if (f.headPosition && !f.skullTaken && !f.headSprite?.active) {
         f.headSprite = s.scene.add.image(f.headPosition.x, f.headPosition.y, art.headKey).setScale(s.scaleX, s.scaleY).setDepth(f.headPosition.y);
       }
       return;
@@ -107,7 +109,7 @@ export function poseFolk(f: Folk) {
   }
   if (s.texture.key !== f.t.tex) s.setTexture(f.t.tex);
   if (f.combat.phase !== 'dead') {
-    f.beheaded = false; f.headPosition = undefined;
+    f.beheaded = false; f.headPosition = undefined; f.deathClock = undefined; f.skullTaken = undefined;
     f.headSprite?.destroy(); f.headSprite = undefined;
   }
   if (f.combat.phase === 'dead' && isWarrior(f.t)) {

@@ -2,8 +2,8 @@
 export type FearState = { fear: Record<string, number>; tributeDay: Record<string, number>; grudge: Record<string, number>; day: number };
 export const EMPTY_FEAR: FearState = { fear: {}, tributeDay: {}, grudge: {}, day: 0 };
 
-export type FearEvent = 'kill' | 'finisher' | 'execution' | 'champion';
-export const FEAR_GAIN: Record<FearEvent, number> = { kill: 8, finisher: 14, execution: 18, champion: 30 };
+export type FearEvent = 'kill' | 'finisher' | 'execution' | 'champion' | 'totem';
+export const FEAR_GAIN: Record<FearEvent, number> = { kill: 8, finisher: 14, execution: 18, champion: 30, totem: 12 };
 /** Fear fades by this much per game day. */
 export const FEAR_DECAY_PER_DAY = 6;
 /** Night adds this much to effective fear (courage sinks in the dark). */
