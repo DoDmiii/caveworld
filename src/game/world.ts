@@ -137,7 +137,7 @@ type Creature = {
   wanderY: number;
   turnAt?: number;
   alert?: number;
-  feedOn?: string;
+  feedOn?: string | undefined;
   feeding?: boolean;
 };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
