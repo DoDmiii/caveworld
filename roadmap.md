@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Verwesung: abgetrennte Köpfe werden nach 3 Spieltagen zu aufhebbaren Schädeln; Schandpfahl (1 Schädel + 4 Holz) erschreckt nahe Dörfer. Tests grün, nicht live durchgespielt.
+- [x] Aasfresser-Wölfe: riechen frische Leichen (420 px, max. 3 pro Leiche) außerhalb der Dörfer und fressen mit Fress-Animation. Nicht live beobachtet.
 - [x] Enthauptung: originalen Figurenkopf statt Schädel abtrennen, kopflosen Körper darstellen; Axt-Hinrichtung und Neuladen im Spiel geprüft, 44 relevante Tests grün.
 - [x] Kriegshorn und Alarm-Trommel: Pixelgrafiken, Herstellung/Bauen, Sammelruf, automatische/manuelle Lagerverteidigung und Speicherung; live hergestellt/gebaut, Horn/Entwarnung/Reload und echter Kriegerkampf geprüft; 233 Tests grün. Ohne Ton (Audio vom Nutzer).
 - [x] Jagdfallen: Schlinge (fängt Gazellen, 3 Nutzungen), Fallgrube (verletzt Raubtiere, 2 Nutzungen), Knochenrassel (warnt vor Kriegstrupps, 5 Alarme); Baumenü, Abbau mit Rückerstattung, Einsammeln per AKTION, gespeichert

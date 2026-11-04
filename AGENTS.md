@@ -38,3 +38,4 @@
 - Keep village raid rules (champion stats, only-finisher deaths, respawn timing, autonomous ally target spreading) engine-free in raid.ts; champions are extra Nordic folk templates and the raid respawn clock is saved separately from fighter outcomes.
 - Nordic men share the packed warrior atlas (idle, walk, surrender, bound, 9-frame axe attack, death) and fight via hitWarrior in combat.ts; women never arm and panic instead, so role rules live in one place.
 - Keep village fear, morale breaking, tribute and grudge rules engine-free in fear.ts; world.ts only reports fear events and saves fear state separately from relationships so the two axes stay independent.
+- Keep corpse decay (decay.ts) and scavenger rules (scavenge.ts) engine-free; corpses save their death clock with fighter outcomes so decay and feeding survive reloads.
