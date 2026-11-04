@@ -8,6 +8,13 @@ export const MAX_FEEDERS = 3;
 /** Wolves reach a corpse when this close (px). */
 export const FEED_REACH = 16;
 
+/** Feeding wolves only notice the player this close (px); crouching halves it further. */
+export const FEED_SIGHT = 48;
+export const FEED_SIGHT_CROUCH = 28;
+/** Alert builds this much slower while feeding. */
+export const FEED_ALERT_RATE = 0.5;
+export const feedingSight = (crouching: boolean) => crouching ? FEED_SIGHT_CROUCH : FEED_SIGHT;
+
 export type Carcass = { id: string; x: number; y: number; deathClock: number };
 
 /** Flesh lasts as long as the head stays fresh; afterwards only bones remain. */

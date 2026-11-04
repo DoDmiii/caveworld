@@ -69,7 +69,7 @@ import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { headStage } from './decay';
-import { pickCarcass, isFresh, FEED_REACH, type Carcass } from './scavenge';
+import { pickCarcass, isFresh, FEED_REACH, FEED_ALERT_RATE, feedingSight, type Carcass } from './scavenge';
 import skullAsset from '@/assets/severed_skull.png.asset.json';
 import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
 const TOTEM_TEX=[to0,to1,to2,to3,to4,to5,to6,to7];
@@ -1906,7 +1906,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const dx = p.x - s.x, dy = p.y - s.y, dist = Math.hypot(dx, dy);
         // Sight range: hidden behind cover = invisible, crouching = much shorter range.
         const base = c.kind === 'tiger' ? 150 : c.kind === 'gazelle' ? 200 : SNOW[c.kind].sight;
-        const range = this.crouching ? base * 0.47 : base;
+        // Wolves busy on a corpse have tunnel vision: they only react when you come really close.
+        const busy = c.kind === 'wolf' && c.state === 'wander' && !!c.feedOn && (() => { const k = this.carcasses().find(q => q.id === c.feedOn); return !!k && Math.hypot(k.x - s.x, k.y - s.y) <= FEED_REACH + 4; })();
+        const range = busy ? feedingSight(this.crouching) : this.crouching ? base * 0.47 : base;
         const sees = !this.hidden && dist < range;
         if (c.kind === 'gazelle') {
           if (sees && c.state !== 'flee') { c.state = 'flee'; c.stateUntil = time + 2500; }
@@ -1914,7 +1916,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         } else {
           // Predators need a moment of clear sight before they notice you; mammoths never do (sight 0).
           const nm = NAME[c.kind];
-          c.alert = Phaser.Math.Clamp((c.alert ?? 0) + (sees ? delta : -delta * 0.6), 0, 1600);
+          c.alert = Phaser.Math.Clamp((c.alert ?? 0) + (sees ? delta * (busy ? FEED_ALERT_RATE : 1) : -delta * 0.6), 0, 1600);
           if (c.state === 'wander' && c.alert >= (c.kind === 'wolf' ? 900 : 1400)) { c.state = 'chase'; c.stateUntil = time + 5000; this.message = `${nm} hat dich entdeckt!`; this.messageUntil = time + 1800; }
           if (c.state === 'chase' && (this.hidden ? time > c.stateUntil - 3500 : (!sees && dist > 260 && time > c.stateUntil))) { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 800; if (this.hidden) { this.message = `${nm} verliert deine Spur`; this.messageUntil = time + 1800; } }
           if (c.state === 'chase' && !this.dead && dist < reachOf(c.kind) && time > c.nextAttack) {
