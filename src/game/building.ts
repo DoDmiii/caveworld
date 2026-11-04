@@ -1,15 +1,16 @@
 // Engine-free rules for player-built structures: costs, build zones, placement checks and the drying rack.
-import type { Stock, Resource } from './harvest';
+import type { Stock, CostKey } from './harvest';
 import { CAMP_POS } from './biomes';
 
-export type StructureKind = 'rack' | 'shelter' | 'barricade' | 'drum';
-export const STRUCTURE_KINDS = ['rack', 'shelter', 'barricade', 'drum'] as const satisfies readonly StructureKind[];
+export type StructureKind = 'rack' | 'shelter' | 'barricade' | 'drum' | 'totem';
+export const STRUCTURE_KINDS = ['rack', 'shelter', 'barricade', 'drum', 'totem'] as const satisfies readonly StructureKind[];
 
-export type StructureDef = { name: string; cost: Partial<Record<Resource, number>>; zone: 'camp' | 'anywhere'; radius: number; rotates: boolean; effect: string };
+export type StructureDef = { name: string; cost: Partial<Record<CostKey, number>>; zone: 'camp' | 'anywhere'; radius: number; rotates: boolean; effect: string };
 export const STRUCTURES: Record<StructureKind, StructureDef> = {
   drum: { name: 'Alarm-Trommel', cost: { wood: 4, fiber: 3 }, zone: 'camp', radius: 14, rotates: false, effect: 'Warnt das Lager vor Feinden; Krieger verteidigen, andere suchen Schutz' },
   rack: { name: 'Räuchergestell', cost: { wood: 4, fiber: 2 }, zone: 'camp', radius: 14, rotates: false, effect: 'Trocknet rohes Fleisch zu Dörrfleisch' },
   shelter: { name: 'Leder-Unterstand', cost: { wood: 3, fiber: 4 }, zone: 'anywhere', radius: 20, rotates: true, effect: 'Halbe Kälte darunter' },
+  totem: { name: 'Schandpfahl', cost: { skull: 1, wood: 4 }, zone: 'anywhere', radius: 12, rotates: true, effect: 'Ein Schädel auf dem Pfahl · nahe Dörfer erzittern vor Furcht' },
   barricade: { name: 'Barrikade', cost: { wood: 5 }, zone: 'anywhere', radius: 14, rotates: true, effect: 'Versperrt Tieren und Feinden den Weg' },
 };
 
@@ -25,16 +26,16 @@ export type Placed = { id: string; kind: StructureKind; x: number; y: number; di
 export type Blocker = { x: number; y: number; r: number };
 
 export function canAfford(cost: StructureDef['cost'], stock: Stock): boolean {
-  return (Object.entries(cost) as [Resource, number][]).every(([k, n]) => stock[k] >= n);
+  return (Object.entries(cost) as [CostKey, number][]).every(([k, n]) => (stock[k] ?? 0) >= n);
 }
 export function pay(cost: StructureDef['cost'], stock: Stock): Stock {
   const next = { ...stock };
-  for (const [k, n] of Object.entries(cost) as [Resource, number][]) next[k] -= n;
+  for (const [k, n] of Object.entries(cost) as [CostKey, number][]) next[k] = (next[k] ?? 0) - n;
   return next;
 }
 export function refund(cost: StructureDef['cost'], stock: Stock): Stock {
   const next = { ...stock };
-  for (const [k, n] of Object.entries(cost) as [Resource, number][]) next[k] += n;
+  for (const [k, n] of Object.entries(cost) as [CostKey, number][]) next[k] = (next[k] ?? 0) + n;
   return next;
 }
 
@@ -61,3 +62,6 @@ export function collectJerky(rack: Placed, clock: number): { rack: Placed; jerky
   const left = rack.meat.filter(t => clock - t < DRY_MINUTES);
   return { rack: { ...rack, meat: left }, jerky: rack.meat.length - left.length };
 }
+
+/** A trophy pole frightens a village when raised within this distance of its centre. */
+export const TOTEM_FEAR_RANGE = 600;

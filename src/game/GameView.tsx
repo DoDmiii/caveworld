@@ -28,7 +28,7 @@ import iBola from '../assets/craft/icon-bola.png.asset.json';
 import iAxe from '../assets/craft/icon-axe.png.asset.json';
 import iSpear from '../assets/craft/icon-spear.png.asset.json';
 const CRAFT_ICON: Partial<Record<ItemId, string>> = { horn: HORN_ICON, wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url };
-import { RESOURCE_NAME } from './harvest';
+import { RESOURCE_NAME, COST_NAME } from './harvest';
 import { formatMinutes, isNight } from './survival';
 import { InteractionWheel } from './InteractionWheel';
 import type { TalkTarget } from './world';
@@ -40,9 +40,10 @@ import jerkyIcon from '@/assets/build/jerky-icon.png.asset.json';
 import rackIcon from '@/assets/build/rack-0.png.asset.json';
 import shelterIcon from '@/assets/build/shelter-2.png.asset.json';
 import barricadeIcon from '@/assets/build/barricade-2.png.asset.json';
+import totemIcon from '@/assets/totem/totem-2.png.asset.json';
 import { STRUCTURES, STRUCTURE_KINDS, canAfford } from './building';
 import { TRAPS, TRAP_KINDS } from './traps';
-const BUILD_ICON: Record<string, string>={drum:DRUM_ICON,rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url};
+const BUILD_ICON: Record<string, string>={drum:DRUM_ICON,rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url,totem:totemIcon.url};
 const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, number>>; effect: string }>={...STRUCTURES,...TRAPS};
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
 const STORABLE_ICON: Record<Storable, string> = { wood: resWood.url, stone: resStone.url, flint: resFlint.url, fiber: resFiber.url, berries: '✦', meat: '🥩', cooked: '🍖' };
@@ -144,7 +145,7 @@ export default function GameView(){
     <Button variant="ghost" size="icon" className="glass-icon gear-button" aria-label="Inventar öffnen" title="Inventar" onClick={()=>setPanel('gear')}><Backpack/></Button>
     <Button disabled={!!status.caves?.current} variant="ghost" size="icon" className={`glass-icon build-button ${buildOpen?'is-active':''}`} aria-label="Bauen" title="Bauen · Taste B" onClick={()=>{if(buildOpen)build({op:'cancel'});setBuildPicker(true);setBuildOpen(!buildOpen);}}><img src={rackIcon.url} alt="" style={{width:24,height:24,imageRendering:'pixelated'}}/></Button>
     {ready&&buildOpen&&!status.caves?.current&&!panel&&!talk&&<div className={`build-bar ${status.build&&!buildPicker?'is-compact':''}`} role="toolbar" aria-label="Baumenü">
-      {(!status.build||buildPicker)&&<div className="build-options">{[...STRUCTURE_KINDS,...TRAP_KINDS].map(k=>{const d=BUILD_DEFS[k];if(!d)return null;const ok=canAfford(d.cost,status);return <Button variant="ghost" key={k} type="button" className={`build-option ${status.build?.kind===k?'is-selected':''}`} disabled={!ok&&status.build?.kind!==k} title={d.effect} onClick={()=>{build({op:'select',kind:k});setBuildPicker(false);}}><img src={BUILD_ICON[k]} alt=""/><strong>{d.name}</strong><em>{Object.entries(d.cost).map(([r,n])=>`${n} ${RESOURCE_NAME[r as keyof typeof RESOURCE_NAME]}`).join(' · ')}</em></Button>;})}</div>}
+      {(!status.build||buildPicker)&&<div className="build-options">{[...STRUCTURE_KINDS,...TRAP_KINDS].map(k=>{const d=BUILD_DEFS[k];if(!d)return null;const ok=canAfford(d.cost,status);return <Button variant="ghost" key={k} type="button" className={`build-option ${status.build?.kind===k?'is-selected':''}`} disabled={!ok&&status.build?.kind!==k} title={d.effect} onClick={()=>{build({op:'select',kind:k});setBuildPicker(false);}}><img src={BUILD_ICON[k]} alt=""/><strong>{d.name}</strong><em>{Object.entries(d.cost).map(([r,n])=>`${n} ${COST_NAME[r as keyof typeof COST_NAME]}`).join(' · ')}</em></Button>;})}</div>}
       <div className="build-actions">{status.build?<>{!buildPicker&&<Button size="sm" variant="outline" aria-label="Bauwerk wechseln" onClick={()=>setBuildPicker(true)}><img src={BUILD_ICON[status.build.kind]} alt="" style={{width:18,height:18,imageRendering:'pixelated'}}/>Wechseln</Button>}<span className={`build-state ${status.build.error?'is-bad':''}`}>{status.build.error??'Platz frei'}</span>{(STRUCTURE_KINDS as readonly string[]).includes(status.build.kind)&&STRUCTURES[status.build.kind as keyof typeof STRUCTURES].rotates&&<Button size="sm" variant="outline" onClick={()=>build({op:'rotate'})}>Drehen</Button>}<Button size="sm" disabled={!!status.build.error} onClick={()=>build({op:'place'})}>Platzieren</Button></>:<span className="build-state">Wähle einen Bau · er erscheint vor dir</span>}{status.nearOwnBuild&&<Button size="sm" variant="outline" onClick={()=>build({op:'remove'})}>Abbauen</Button>}<Button size="sm" variant="ghost" onClick={()=>{build({op:'cancel'});setBuildOpen(false);}}>Fertig</Button></div>
     </div>}
     {!status.caves?.current&&<div className="camp-marker"><Flame size={12}/> LAGERFEUER <span>·</span> {Math.round(Math.hypot(status.x-CAMP_POS.x,status.y-CAMP_POS.y-40))} m</div>}
