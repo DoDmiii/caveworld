@@ -41,7 +41,7 @@ Object.assign(DRAGON_TEXTURES, {
 });
 
 /** Fence ring bounds relative to the village centre; the gate opens south toward the valley path. */
-export const DRAGON_FENCE_BOUNDS = { half: 170, top: -165, bottom: 125, gateHalf: 30 };
+export const DRAGON_FENCE_BOUNDS = { half: 178, top: -165, bottom: 125, gateHalf: 30 };
 
 /** Fence pieces; bw 0 marks walk-through decoration (the gate arch). */
 export const DRAGON_FENCES: Piece[] = (() => {
