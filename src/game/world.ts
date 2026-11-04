@@ -8,6 +8,7 @@ import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, streamDist, STREAM_HALF } from './biomes';
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
+import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
@@ -1027,6 +1028,21 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.add.image(0,0,'ground').setOrigin(0).setDepth(MAP.y-199);
       this.physics.world.setBounds(MAP.x,MAP.y,MAP.w,MAP.h);
       this.obstacles=this.physics.add.staticGroup();
+      // Dragon mountain terraces: height shading, cliff faces and blocking edges with open passes.
+      {const T0=TERRACES[0]!,ox=Math.floor(T0.cx-T0.rx-40),oy=Math.floor(T0.cy-T0.ry-40),tw=Math.ceil(T0.rx*2+80),th=Math.ceil(T0.ry*2+80+CLIFF_H);
+        const tt=this.textures.createCanvas('terraces',tw,th);
+        if(tt){const c=tt.context;c.imageSmoothingEnabled=false;
+          for(let j=0;j<th;j+=4)for(let i=0;i<tw;i+=4){const h=heightAt(ox+i,oy+j);if(h)c.fillStyle=h===1?'rgba(170,190,150,0.10)':'rgba(200,215,170,0.17)',c.fillRect(i,j,4,4);}
+          let rs=313;const rr=()=>{rs=rs*16807%2147483647;return rs/2147483647;};
+          for(const t of TERRACES)for(const pt of cliffPoints(t,3)){if(pt.open)continue;const x=Math.floor(pt.x-ox),y=Math.floor(pt.y-oy);
+            if(pt.ny>0.25){const fh=Math.round(CLIFF_H*Math.min(1,pt.ny*1.3));
+              for(let k=0;k<fh;k+=3){c.fillStyle=k%6===0?'#3d3f44':(rr()<.5?'#4a4c52':'#55575a');c.fillRect(x-1,y+k,4,3);}
+              c.fillStyle='#24262a';c.fillRect(x-1,y+fh,4,3);c.fillStyle='rgba(0,0,0,0.22)';c.fillRect(x-1,y+fh+3,4,5);
+              if(rr()<.08){c.fillStyle='#4f6b3e';c.fillRect(x,y+Math.floor(rr()*fh),3,2);}
+            } else {c.fillStyle=pt.ny<-0.25?'#2c2e33':'#3a3c40';c.fillRect(x-1,y-1,4,4);c.fillStyle='#6d6f6c';c.fillRect(x-1,y-2,4,1);}
+            c.fillStyle='#8a8c84';c.fillRect(x-1,y-1,3,1);}
+          tt.refresh();this.add.image(ox,oy,'terraces').setOrigin(0).setDepth(MAP.y-198);}
+      }
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
         const obj=this.obstacles?.create(x,y,key) as Phaser.Physics.Arcade.Sprite | undefined;
         if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
@@ -1063,12 +1079,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Nordic villages.
       for(const pc of NORDIC_LAYOUT){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
         const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
       }
+      for(const t of TERRACES)for(const pt of cliffPoints(t,14)){if(pt.open)continue;const yy=pt.y+(pt.ny>0.25?CLIFF_H*Math.min(1,pt.ny*1.3)/2:0);
+        const o=this.obstacles?.create(pt.x,yy,'__DEFAULT') as Phaser.Physics.Arcade.Sprite|undefined;if(o){o.setVisible(false);(o.body as Phaser.Physics.Arcade.StaticBody).setSize(18,pt.ny>0.25?CLIFF_H:18);}}
       // Dragon-people terrace village.
       for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
       for(const pc of DRAGON_FENCES){
