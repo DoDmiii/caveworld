@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('retains a headless corpse and its own detached head after reload', () => {
+    const fighters = [{ id: 'nordic-w0', hp: 0, phase: 'dead' as const, x: 1018, y: 610, facing: 2, beheaded: true, headPosition: { x: 1040, y: 616 } }];
+    expect(saveGame({ game: { ...game, fighters } })).toBe(true);
+    expect(loadSave()?.game?.fighters).toEqual(fighters);
+  });
   it('retains horn, drum and manual alarm across reload', () => {
     const next = { ...game, owned: [...game.owned, 'horn' as const], structures: [{id:'drum',kind:'drum' as const,x:1000,y:750,dir:0,meat:[]}], signals: {manualAlarm:true,hornReadyAt:1600} };
     expect(saveGame({game:next})).toBe(true);
