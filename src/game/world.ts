@@ -10,7 +10,7 @@ import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FOR
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
-import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
+import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
@@ -51,7 +51,7 @@ import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
-import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, type Weapon } from './gear';
+import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
 import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
@@ -865,6 +865,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         ATTACK[w].forEach((u, i) => this.load.spritesheet(`${w}-attack-${i}`, u, { frameWidth: 32, frameHeight: 32 }));
       });
       FINISHER.forEach((u,i)=>this.load.spritesheet(`finisher-${i}`,u,{frameWidth:32,frameHeight:32}));
+      BEHEAD.forEach((u,i)=>this.load.spritesheet(`behead-${i}`,u,{frameWidth:32,frameHeight:32}));
       DEATH.forEach((u,i)=>this.load.spritesheet(`death-${i}`,u,{frameWidth:32,frameHeight:32}));
       CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
@@ -914,6 +915,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       for (let i = 0; i < 8; i++) {
         this.anims.create({ key: `anim-finisher-${i}`, frames: this.anims.generateFrameNumbers(`finisher-${i}`), frameRate: 10, repeat: 0 });
+        this.anims.create({ key: `anim-behead-${i}`, frames: this.anims.generateFrameNumbers(`behead-${i}`), frameRate: 11, repeat: 0 });
         this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
         this.anims.create({ key: `anim-crouch-${i}`, frames: this.anims.generateFrameNumbers(`crouch-${i}`), frameRate: 7, repeat: -1 });
         this.anims.create({ key: `tiger-walk-${i}`, frames: this.anims.generateFrameNumbers(`tiger-walk-${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
@@ -1068,8 +1070,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
       this.player.setSize(10,7).setOffset(11,23);
-      this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if(a.key.startsWith('anim-finisher-') && frame.index === 9)this.landFinisher();});
-      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')){this.finisher=undefined;this.persist();}});
+      this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if((a.key.startsWith('anim-finisher-')&&frame.index===finisherImpactFrame('wedge'))||(a.key.startsWith('anim-behead-')&&frame.index===finisherImpactFrame('axe')))this.landFinisher();});
+      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')||a.key.startsWith('anim-behead-')){this.finisher=undefined;this.persist();}});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(cameraZoom(this.scale.width,this.scale.height,input.zoomScale??1)).startFollow(this.player,true,0.07,0.07);
       const resizeCamera = (size: Phaser.Structs.Size) => { this.cameras.main.setZoom(cameraZoom(size.width,size.height,input.zoomScale??1)); };
@@ -1280,9 +1282,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.carried&&(input.attack!==this.lastAttack||keyAttack)){this.lastAttack=input.attack;this.message='Hände voll · erst absetzen [E]';this.messageUntil=time+1400;}
       else if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
         this.lastAttack=input.attack;
-        const downed=this.folk.filter(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
+        const downed=this.folk.filter(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
         if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
-        const helpless=this.held==='wedge'?this.folk.filter(f=>canExecute(f.c,true)&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<=FINISHER_REACH).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y))[0]:undefined;
+        const helpless=canFinishWith(this.held)?this.folk.filter(f=>canExecute(f.c,true)&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<=FINISHER_REACH).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y))[0]:undefined;
         if(helpless&&this.executeCaptive(helpless)){this.report(time,p);return;}
         this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
@@ -1326,7 +1328,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.lastAction=input.action;
         const entrance=caveAt(p.x,p.y);
         if(entrance){if(this.carried||this.spear){this.message='Erst die Hände freimachen';this.messageUntil=time+1800;}else{this.enterCave(entrance);this.report(time,p);return;}}
-        const downed=this.folk.find(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),w==='wedge',false));
+        const downed=this.folk.find(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(w),false));
         if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
         const knocked=this.folk.find(f=>f.c.state==='free'&&f.combat.phase==='downed'&&f.t.captive&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<30);
         if(knocked){knocked.combat=newFighter();knocked.c={...knocked.c,state:'surrender'};poseFolk(knocked);}
@@ -1543,7 +1545,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
-          inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: this.held === 'wedge',
+          inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: canFinishWith(this.held),
           fear: this.villageFear(f.t.village), tributePaid: !canDemandTribute(this.fear, vk, clockOf(this.clock).day) && fearOf(this.fear, vk) >= 50,
         };
       } else this.talk = null;
@@ -1747,18 +1749,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     startFinisher(f:Folk):boolean {
       const p=this.player;
-      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),this.held==='wedge',f.c.state==='camp'))return false;
+      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),f.c.state==='camp'))return false;
       const angle=Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x);
       this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
-      this.target=undefined;this.finisher=f;this.attacking=true;this.attackPending=false;this.crouchOn=false;
+      this.target=undefined;this.finisher=f;this.beheading=finisherStyle(this.held)==='behead';this.attacking=true;this.attackPending=false;this.crouchOn=false;
       p.setPosition(f.sprite.x-Math.cos(angle)*14,f.sprite.y-Math.sin(angle)*14).setVelocity(0,0).setDepth(f.sprite.y+1);
-      p.anims.timeScale=1;p.play(`anim-finisher-${this.lastFacing}`);
-      this.message='Finisher!';this.messageUntil=this.time.now+1800;return true;
+      p.anims.timeScale=1;p.play(`anim-${this.beheading?'behead':'finisher'}-${this.lastFacing}`);
+      this.message=this.beheading?'Enthauptung!':'Finisher!';this.messageUntil=this.time.now+1800;return true;
     }
     executing = false;
+    beheading = false;
     /** Bound or surrendered people are helpless: the Steinkeil finisher kills them outright. */
     executeCaptive(f:Folk):boolean {
-      if(!canExecute(f.c,this.held==='wedge')){if(this.held!=='wedge'){this.message='Nimm den Steinkeil in die Hand';this.messageUntil=this.time.now+1600;}return false;}
+      if(!canExecute(f.c,canFinishWith(this.held))){if(!canFinishWith(this.held)){this.message='Nimm Steinkeil oder Axt in die Hand';this.messageUntil=this.time.now+1600;}return false;}
       const before={c:f.c,combat:f.combat};
       f.c={...f.c,state:'free',x:Math.round(f.sprite.x),y:Math.round(f.sprite.y)};f.combat={...f.combat,phase:'downed',downUntil:this.time.now+600000};
       if(this.startFinisher(f)){this.executing=true;this.message='Hinrichtung!';return true;}
@@ -1769,10 +1772,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       f.combat=finishFighter(f.combat);dieFolk(f);this.armFolk(f,this.time.now);
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${VILLAGES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
-      this.bleed(f.sprite.x,f.sprite.y,Math.cos(this.lastFacing*Math.PI/4),Math.sin(this.lastFacing*Math.PI/4),40);this.punch(40,true);
+      {const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,40);if(this.beheading)this.severHead(f,fx,fy);}this.beheading=false;this.punch(40,true);
       this.frighten(f.t.village,isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
       const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
+    }
+    /** Axe finisher: blood erupts from the neck and the severed head rolls 12-16 px aside. */
+    severHead(f:Folk,fx:number,fy:number){
+      const x=f.sprite.x,y=f.sprite.y,side=Math.random()<0.5?-1:1;
+      this.bleed(x,y,-fy*side,fx*side,30);
+      const stump=this.add.graphics().setDepth(y+1);stump.fillStyle(0x5e0808,1).fillRect(x-2,y-4,4,2).fillStyle(0x8a0f0f,1).fillRect(x-1,y-5,2,1);
+      const head=this.add.graphics();head.fillStyle(0xc89a72,1).fillCircle(0,0,2.5).fillStyle(0xe6c46a,1).fillRect(-3,-3,6,2).fillStyle(0x6e0b0b,1).fillRect(-2,2,4,1);
+      head.setPosition(x,y-8).setDepth(y+6);
+      const a=Math.atan2(fy,fx)+side*1.1,dist=12+Math.random()*4,tx=x+Math.cos(a)*dist,ty=y+Math.sin(a)*dist*0.6+2;
+      this.tweens.add({targets:head,x:tx,duration:520,ease:'Quad.easeOut',angle:side*540});
+      this.tweens.add({targets:head,y:{from:y-8,to:ty},duration:520,ease:'Bounce.easeOut',onComplete:()=>{head.setDepth(ty);const trail=this.add.ellipse(tx,ty+1,5,2,0x6e0b0b,0.8).setDepth(MAP.y-198);this.tweens.add({targets:trail,alpha:0,delay:360000,duration:60000,onComplete:()=>trail.destroy()});}});
+      this.beheading=false;
     }
     /** Pixel blood: droplets fly in hit direction, then leave fading stains on the ground. */
     bleed(x: number, y: number, dx: number, dy: number, n: number) {

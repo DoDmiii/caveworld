@@ -63,3 +63,10 @@ describe('warriors fight to the death', () => {
     expect(hitWarrior({ hp: 30, phase: 'ready', downUntil: 0 }, 20, 0, true)).toMatchObject({ phase: 'ready', hp: 10 });
   });
 });
+import { canFinishWith, finisherStyle } from '../game/combat';
+describe('axe finisher', () => {
+  it('axe beheads, wedge crushes, spear cannot finish', () => {
+    expect(canFinishWith('axe')).toBe(true); expect(canFinishWith('wedge')).toBe(true); expect(canFinishWith('spear')).toBe(false);
+    expect(finisherStyle('axe')).toBe('behead'); expect(finisherStyle('wedge')).toBe('wedge');
+  });
+});

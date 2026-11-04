@@ -11,6 +11,7 @@ export const WEDGE_IDLE = directional('wedge-idle');
 export const WEDGE_WALK = directional('wedge-walk');
 export const WEDGE_ATTACK = directional('wedge-attack');
 export const FINISHER = directional('finisher');
+export const BEHEAD = directional('behead');
 const icon = assets['../assets/gear/icon-wedge.png.asset.json'];
 if (!icon) throw new Error('Missing Steinkeil icon');
 export const ICON_WEDGE = icon.url;
