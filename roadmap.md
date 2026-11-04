@@ -39,3 +39,5 @@
 - [x] Dorf-Raid: Champion pro Nordic-Dorf (nur per Finisher tötbar), eigenständig kämpfender Trupp, Wiederaufbau nach 3,5 Tagen
 - [ ] Eigene Champion-Grafik, sobald der Nutzer sie liefert
 - [x] Lager-Automatisierung: Aufgabe im Optionsrad (Holz/Steine/Sammeln), Erträge in die Vorratskiste, gespeichert
+- [x] Furcht Gruppe 3: Furcht pro Dorf (Töten/Finisher/Hinrichtung/Champion), tägliches Abklingen, Moralbruch der Krieger (nachts früher), Tribut fordern mit Rache nach 3 Zahlungen; gespeichert
+- [ ] Trophäen/Schädel an der Palisade, sobald Grafik vorhanden
