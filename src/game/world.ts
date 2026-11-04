@@ -6,7 +6,8 @@ import { hornReady, recallOrders, alarmThreats, campResponse, HORN_COOLDOWN_MINU
 import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
-import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES } from './biomes';
+import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, streamDist, STREAM_HALF } from './biomes';
+import { DRAGON_TEXTURES, DRAGON_HOUSES } from './dragon';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
@@ -904,7 +905,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
-      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES})) this.load.image(k,u);
+      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES})) this.load.image(k,u);
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
         this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 64, frameHeight: 64 });
@@ -1019,7 +1020,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(let j=0;j<bh;j++){const wy=MAP.y+j*BS;const rx=riverX(wy);const ford=isFord(wy);
           for(let i=0;i<bw;i++){const wx=MAP.x+i*BS;const d=Math.abs(wx-rx);let col:readonly [number,number,number];
             if(d<56)col=ford?[125,154,146]:d<32?[92,135,138]:[75,115,120];else if(d<72)col=[122,124,112];
-            else col=BIOME_COLOR[biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48)];
+            else{const sd=wy<400?streamDist(wx,wy):Infinity;if(sd<STREAM_HALF)col=sd<STREAM_HALF-5?[88,132,140]:[110,140,138];else if(sd<STREAM_HALF+5)col=[128,124,110];else{const b=biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48);col=b==='dragon'&&(sd<90||nr()<.18)?[70,98,62]:b==='dragon'&&nr()<.12?[74,74,82]:BIOME_COLOR[b];}}
             const n=(nr()-.5)*16,o=(j*bw+i)*4;img.data[o]=col[0]+n;img.data[o+1]=col[1]+n;img.data[o+2]=col[2]+n;img.data[o+3]=255;}}
         ctx.putImageData(img,0,0);bt.refresh();}
       this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS).setDepth(MAP.y-200);
@@ -1062,12 +1063,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        if(villageAt(x,y,40))continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Nordic villages.
       for(const pc of NORDIC_LAYOUT){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
         const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
       }
+      // Dragon-people terrace village.
+      for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
       for (const h of NORDIC_HOUSES) {
         this.villageSupplies.set(h.id, this.add.image(h.x, h.y + 38, h.variant === 0 ? 'spear-proj' : 'res-wood').setScale(h.variant === 0 ? 0.55 : 1).setDepth(h.y + 38));
       }

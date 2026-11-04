@@ -33,7 +33,7 @@ import { formatMinutes, isNight } from './survival';
 import { InteractionWheel } from './InteractionWheel';
 import type { TalkTarget } from './world';
 import { loadSave, saveGame, clearSave, blockSaving, type UiSave } from './save';
-import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord } from './biomes';
+import { MAP, CAMP_POS, BIOME_COLOR, biomeAt, riverX, isFord, streamDist, STREAM_HALF } from './biomes';
 import { STORABLES, chestTotal, type Storable } from './storage';
 import chestIcon from '@/assets/camp/storage-chest.png.asset.json';
 import jerkyIcon from '@/assets/build/jerky-icon.png.asset.json';
@@ -53,7 +53,7 @@ const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachen
 function renderBiomeMap(){
  const S=32,w=MAP.w/S,h=MAP.h/S;const cv=document.createElement('canvas');cv.width=w;cv.height=h;const c=cv.getContext('2d');if(!c)return '';
  const img=c.createImageData(w,h);
- for(let j=0;j<h;j++){const y=MAP.y+j*S;const rx=riverX(y);for(let i=0;i<w;i++){const x=MAP.x+i*S;const col=Math.abs(x-rx)<64?(isFord(y)?[150,170,160]:[70,120,150]):BIOME_COLOR[biomeAt(x,y)];const o=(j*w+i)*4;img.data[o]=col[0] ?? 0;img.data[o+1]=col[1] ?? 0;img.data[o+2]=col[2] ?? 0;img.data[o+3]=255;}}
+ for(let j=0;j<h;j++){const y=MAP.y+j*S;const rx=riverX(y);for(let i=0;i<w;i++){const x=MAP.x+i*S;const col=Math.abs(x-rx)<64?(isFord(y)?[150,170,160]:[70,120,150]):(y<400&&streamDist(x,y)<STREAM_HALF+6?[80,125,145]:BIOME_COLOR[biomeAt(x,y)]);const o=(j*w+i)*4;img.data[o]=col[0] ?? 0;img.data[o+1]=col[1] ?? 0;img.data[o+2]=col[2] ?? 0;img.data[o+3]=255;}}
  c.putImageData(img,0,0);return cv.toDataURL();
 }
 
