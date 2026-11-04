@@ -53,7 +53,7 @@ import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
-import { TIGER, GAZELLE, SNOW, type SnowKind } from './wildlife';
+import { TIGER, GAZELLE, SNOW, WOLF_EAT, type SnowKind } from './wildlife';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
 import { tickTask, nextTask, taskLabel, type TaskState } from './tasks';
@@ -69,7 +69,7 @@ import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { headStage } from './decay';
-import { pickCarcass, FEED_REACH, type Carcass } from './scavenge';
+import { pickCarcass, isFresh, FEED_REACH, type Carcass } from './scavenge';
 import skullAsset from '@/assets/severed_skull.png.asset.json';
 import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
 const TOTEM_TEX=[to0,to1,to2,to3,to4,to5,to6,to7];
@@ -383,7 +383,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     scavenge(c:Creature):boolean{
       const all=this.carcasses();const feeders:Record<string,number>={};for(const o of this.creatures)if(o!==c&&o.state==='wander'&&o.feedOn)feeders[o.feedOn]=(feeders[o.feedOn]??0)+1;
       let t=c.feedOn?all.find(k=>k.id===c.feedOn):undefined;
-      if(!t||this.clock-t.deathClock>=4320){t=pickCarcass(c.sprite,all,this.clock,feeders);c.feedOn=t?.id;}
+      if(!t||!isFresh(t,this.clock)){t=pickCarcass(c.sprite,all,this.clock,feeders);c.feedOn=t?.id;}
       if(!t)return false;
       const body=c.sprite.body as Phaser.Physics.Arcade.Body;const dx=t.x-c.sprite.x,dy=t.y-c.sprite.y,d=Math.hypot(dx,dy);
       if(d>FEED_REACH){body.setVelocity(dx/d*SNOW.wolf.speed*0.6,dy/d*SNOW.wolf.speed*0.6);return true;}

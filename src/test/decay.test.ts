@@ -18,3 +18,17 @@ describe('trophy pole', () => {
     expect(pay(STRUCTURES.totem.cost, stock)).toEqual({ wood: 0, stone: 0, flint: 0, fiber: 0, skull: 0 });
   });
 });
+
+import { pickCarcass, MAX_FEEDERS } from '@/game/scavenge';
+describe('scavenging wolves', () => {
+  const c = { id: 'a', x: 100, y: 0, deathClock: 0 };
+  it('smell a fresh corpse within 420 px', () => {
+    expect(pickCarcass({ x: 0, y: 0 }, [c], 100, {})?.id).toBe('a');
+    expect(pickCarcass({ x: 0, y: 0 }, [{ ...c, x: 500 }], 100, {})).toBeUndefined();
+  });
+  it('ignore bones after three days', () => expect(pickCarcass({ x: 0, y: 0 }, [c], 4320, {})).toBeUndefined());
+  it('at most 3 wolves per corpse', () => {
+    expect(MAX_FEEDERS).toBe(3);
+    expect(pickCarcass({ x: 0, y: 0 }, [c], 100, { a: 3 })).toBeUndefined();
+  });
+});
