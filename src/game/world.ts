@@ -760,7 +760,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.health = g.health; this.stamina = g.stamina;
       this.count = g.berries; this.meat = g.meat; this.cooked = g.cooked;
       this.hunger = g.hunger; this.warmth = g.warmth; this.clock = g.clock;
-      this.stock = { ...g.stock }; this.xp = g.xp; this.owned = [...g.owned];
+      this.stock = { ...g.stock, skull: g.stock.skull ?? 0 }; this.xp = g.xp; this.owned = [...g.owned];
       this.lootedHouses = [...g.lootedHouses];
       this.chest = { ...g.chest };
       this.tasks = Object.fromEntries(Object.entries(g.tasks ?? {}).map(([k, t]) => [k, { ...t }]));
