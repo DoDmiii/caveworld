@@ -68,7 +68,11 @@ import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespa
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
-import { STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
+import { headStage } from './decay';
+import skullAsset from '@/assets/severed_skull.png.asset.json';
+import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
+const TOTEM_TEX=[to0,to1,to2,to3,to4,to5,to6,to7];
+import { TOTEM_FEAR_RANGE, STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
 import { TRAPS, TRAP_KINDS, PIT_DAMAGE, trapPlacementError, triggerTrap, collectTrap, type Trap, type TrapKind, type TrapTarget } from './traps';
 import rack0 from '@/assets/build/rack-0.png.asset.json';
 import rack1 from '@/assets/build/rack-1.png.asset.json';
@@ -116,7 +120,7 @@ import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
 export type GameInput = { horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
-export type GameStatus = { bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
+export type GameStatus = { skull?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -330,7 +334,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Draws a segmented drying bar above every rack holding meat (one segment per slot). */
     drawDryBars(){const g=this.dryGfx??=this.add.graphics();g.clear();for(const s of this.structures){if(s.kind!=='rack'||!s.meat.length)continue;const w=24,h=3,x=s.x-w/2,y=s.y-34;g.setDepth(s.y+1000);g.fillStyle(0x1a120b,0.85).fillRect(x-1,y-1,w+2,h+2);const sw=(w-(RACK_SLOTS-1))/RACK_SLOTS;s.meat.forEach((t,i)=>{const f=dryProgress(t,this.clock);g.fillStyle(f>=1?0x7fd04a:0xd9873a,1).fillRect(x+i*(sw+1),y,sw*f,h);});}}
     makeObstacle?: (x:number,y:number,key:string,bw:number,bh:number)=>Phaser.Physics.Arcade.Sprite|undefined;
-    spawnStructure(s:Placed){const key=structTex(s);const o=s.kind==='barricade'?this.makeObstacle?.(s.x,s.y,key,26,8):s.kind==='shelter'?this.makeObstacle?.(s.x,s.y,key,40,8):this.makeObstacle?.(s.x,s.y,key,22,6);if(o)this.structSprites.set(s.id,o as unknown as Phaser.GameObjects.Image);}
+    spawnStructure(s:Placed){const key=structTex(s);const o=s.kind==='barricade'?this.makeObstacle?.(s.x,s.y,key,26,8):s.kind==='shelter'?this.makeObstacle?.(s.x,s.y,key,40,8):s.kind==='totem'?this.makeObstacle?.(s.x,s.y,key,6,4):this.makeObstacle?.(s.x,s.y,key,22,6);if(o)this.structSprites.set(s.id,o as unknown as Phaser.GameObjects.Image);}
     /** Procedural pixel icons for the three trap kinds (no uploaded art yet). */
     makeTrapTextures(){
       if(this.textures.exists('trap-snare'))return;
@@ -369,7 +373,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     creatures: Creature[] = [];
     campers: Camper[] = [];
     tasks: Record<string, TaskState> = {};
-    tickTasks(){if(this.caves.current)return;for(const [id,t] of Object.entries(this.tasks)){const r=tickTask(t,this.chest,this.clock,this.companionOrders.get(id)?.mode!=='follow');this.tasks[id]=r.task;this.chest=r.chest;}}
+    /** Severed heads rot to bare skulls after three game days. */
+    tickSkulls(){for(const f of this.folk){if(!f.beheaded||f.combat.phase!=='dead')continue;if(f.deathClock===undefined)f.deathClock=this.clock;const h=f.headSprite;if(h?.active&&headStage(f.deathClock,this.clock,f.skullTaken)==='skull'&&h.texture.key!=='severed-skull'&&!this.tweens.isTweening(h))h.setTexture('severed-skull').setScale(1).setAngle(0);}}
+    tickTasks(){this.tickSkulls();if(this.caves.current)return;for(const [id,t] of Object.entries(this.tasks)){const r=tickTask(t,this.chest,this.clock,this.companionOrders.get(id)?.mode!=='follow');this.tasks[id]=r.task;this.chest=r.chest;}}
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
     allyFocus: string | undefined;
@@ -710,7 +716,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         warband: this.warband,
         fear: this.fear,
-        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition } : {}) })),
+        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.deathClock !== undefined ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
@@ -744,7 +750,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(error){say(error);return;}
         if(isTrap){const t:Trap={id:`t${gx}_${gy}`,kind:b.kind as TrapKind,x:gx,y:gy,uses:TRAPS[b.kind as TrapKind].uses,meat:0};this.stock=pay(def.cost,this.stock);this.traps=[...this.traps,t];this.spawnTrap(t);say(`${def.name} aufgestellt`);this.persist();return;}
         const s:Placed={id:sid,kind:b.kind as StructureKind,x:gx,y:gy,dir:!isTrap&&'rotates' in def&&def.rotates?b.dir:0,meat:[]};
-        this.stock=pay(def.cost,this.stock);this.structures=[...this.structures,s];this.spawnStructure(s);say(`${def.name} gebaut`);this.persist();
+        this.stock=pay(def.cost,this.stock);this.structures=[...this.structures,s];this.spawnStructure(s);say(`${def.name} gebaut`);if(s.kind==='totem'){const v=VILLAGES.find(v=>Math.hypot(v.x-gx,v.y-gy)<TOTEM_FEAR_RANGE);if(v){this.fear=addFear(decayFear(this.fear,clockOf(this.clock).day),villageKey(v.name),'totem');say(`Schandpfahl errichtet · ${v.name} erzittert`);}}this.persist();
       }
     }
     /** Wendet einen Spielstand auf die frisch (deterministisch) erzeugte Welt an. */
@@ -785,7 +791,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.raid = { ...(g.raid ?? {}) };
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
-      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
+      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.beheaded ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
         const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
         if (order.mode === 'follow' && this.followingCount() >= MAX_COMPANIONS) continue;
@@ -874,7 +880,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('folk-axe', ICON_AXE);
       this.load.image('drum-0', DRUM_ICON);
       this.load.image('bed', BED);
-      RACK_TEX.forEach((a,i)=>this.load.image(`rack-${i}`,a.url));SHELTER_TEX.forEach((a,i)=>this.load.image(`shelter-${i}`,a.url));BARRICADE_TEX.forEach((a,i)=>this.load.image(`barricade-${i}`,a.url));
+      RACK_TEX.forEach((a,i)=>this.load.image(`rack-${i}`,a.url));SHELTER_TEX.forEach((a,i)=>this.load.image(`shelter-${i}`,a.url));BARRICADE_TEX.forEach((a,i)=>this.load.image(`barricade-${i}`,a.url));TOTEM_TEX.forEach((a,i)=>this.load.image(`totem-${i}`,a.url));this.load.image('severed-skull',skullAsset.url);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
       SNOW_ROCKS.forEach((asset, i) => this.load.image(`snow-rock-${i}`, asset.url));
@@ -1335,6 +1341,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(knocked){knocked.combat=newFighter();knocked.c={...knocked.c,state:'surrender'};poseFolk(knocked);}
         const berry=this.berries.find(b=>!b.picked&&Math.hypot(p.x-b.x,p.y-b.y)<65);
         const meat=this.meatPickups.find(m=>Math.hypot(p.x-m.x,p.y-m.y)<32);
+        const skullF=this.folk.find(f=>f.beheaded&&f.combat.phase==='dead'&&f.headPosition&&headStage(f.deathClock,this.clock,f.skullTaken)==='skull'&&Math.hypot(p.x-f.headPosition.x,p.y-f.headPosition.y)<30);
+        if(skullF){skullF.skullTaken=true;skullF.headSprite?.destroy();skullF.headSprite=undefined;this.stock={...this.stock,skull:(this.stock.skull??0)+1};this.message=`Schädel aufgehoben · ${this.stock.skull} im Besitz`;this.messageUntil=time+2600;this.persist();this.report(time,p);return;}
         const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
         const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
         const house = NORDIC_HOUSES.find(h => Math.hypot(p.x-h.x,p.y-h.y-38)<28);
@@ -1789,7 +1797,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(let k=0;k<4;k++)this.time.delayedCall(k*260,()=>{if(s.active)this.bleed(nx,ny+6,-fy*side,fx*side,8);});
       const head=this.add.image(x,y,art.headKey).setDepth(s.y+20).setScale(s.scaleX,s.scaleY);f.headSprite=head;
       const a=Math.atan2(fy,fx)+side*1.1,dist=22+Math.random()*8,tx=x+Math.cos(a)*dist,ty=y+Math.sin(a)*dist*0.6+3;
-      f.headPosition={x:tx,y:ty};
+      f.headPosition={x:tx,y:ty};f.deathClock=this.clock;f.skullTaken=false;
       // high arc: rise then fall, bounce and roll out
       this.tweens.add({targets:head,x:tx,duration:820,ease:'Quad.easeOut',angle:side*720});
       this.tweens.chain({targets:head,tweens:[{y:y-30,duration:300,ease:'Quad.easeOut'},{y:ty,duration:520,ease:'Bounce.easeOut'}],onComplete:()=>{head.setDepth(ty);
@@ -1990,7 +1998,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.hitFlash) p.setTint(0xff5050); else p.clearTint();
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
