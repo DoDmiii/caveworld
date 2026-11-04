@@ -12,6 +12,7 @@ import { CompanionMovement, type CompanionActor, type Block } from './companion-
 import { getAvailableInteractions } from './interactions';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
+import severedSkull from '@/assets/severed_skull.png.asset.json';
 import northEast from '@/assets/north-east.png.asset.json';
 import east from '@/assets/east.png.asset.json';
 import southEast from '@/assets/south-east.png.asset.json';
@@ -857,6 +858,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     preload() {
       preloadCampers(this);
       preloadFolk(this);
+      this.load.image('severed-head', severedSkull.url);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
       (['none','axe','spear','wedge'] as Weapon[]).forEach(w => {
@@ -1781,12 +1783,24 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     severHead(f:Folk,fx:number,fy:number){
       const x=f.sprite.x,y=f.sprite.y,side=Math.random()<0.5?-1:1;
       this.bleed(x,y,-fy*side,fx*side,30);
-      const stump=this.add.graphics().setDepth(y+1);stump.fillStyle(0x5e0808,1).fillRect(x-2,y-4,4,2).fillStyle(0x8a0f0f,1).fillRect(x-1,y-5,2,1);
-      const head=this.add.graphics();head.fillStyle(0xc89a72,1).fillCircle(0,0,2.5).fillStyle(0xe6c46a,1).fillRect(-3,-3,6,2).fillStyle(0x6e0b0b,1).fillRect(-2,2,4,1);
-      head.setPosition(x,y-8).setDepth(y+6);
-      const a=Math.atan2(fy,fx)+side*1.1,dist=12+Math.random()*4,tx=x+Math.cos(a)*dist,ty=y+Math.sin(a)*dist*0.6+2;
-      this.tweens.add({targets:head,x:tx,duration:520,ease:'Quad.easeOut',angle:side*540});
-      this.tweens.add({targets:head,y:{from:y-8,to:ty},duration:520,ease:'Bounce.easeOut',onComplete:()=>{head.setDepth(ty);const trail=this.add.ellipse(tx,ty+1,5,2,0x6e0b0b,0.8).setDepth(MAP.y-198);this.tweens.add({targets:trail,alpha:0,delay:360000,duration:60000,onComplete:()=>trail.destroy()});}});
+      // Headless body: once the death fall settles, crop off the top (head) rows and mark a jagged neck stump.
+      this.time.delayedCall(700,()=>{const s=f.sprite as Phaser.GameObjects.Sprite;if(!s?.active)return;
+        const fr=s.frame,cut=Math.round(fr.height*0.32);s.setCrop(0,cut,fr.width,fr.height-cut);
+        const nx=s.x,ny=s.y-s.displayHeight*s.originY+cut*s.scaleY;
+        const pool=this.add.ellipse(nx,ny+3,18,7,0x5a0606,0.85).setDepth(s.depth-1).setScale(0.2);
+        this.tweens.add({targets:pool,scale:1,duration:2400,ease:'Sine.easeOut'});
+        const st=this.add.graphics().setDepth(s.depth+1);st.fillStyle(0x8a0f0f,1).fillRect(nx-3,ny,6,2).fillStyle(0x5e0808,1).fillRect(nx-2,ny-1,1,1).fillRect(nx+1,ny-1,1,1).fillStyle(0xd8c8a8,1).fillRect(nx,ny,1,1);
+        // short pulsing neck fountain
+        for(let k=0;k<4;k++)this.time.delayedCall(k*260,()=>this.bleed(nx,ny+6,-fy*side,fx*side,8));
+      });
+      const head=this.add.image(x,y-10,'severed-head').setDepth(y+20).setScale(0.9);
+      const a=Math.atan2(fy,fx)+side*1.1,dist=22+Math.random()*8,tx=x+Math.cos(a)*dist,ty=y+Math.sin(a)*dist*0.6+3;
+      // high arc: rise then fall, bounce and roll out
+      this.tweens.add({targets:head,x:tx,duration:820,ease:'Quad.easeOut',angle:side*720});
+      this.tweens.chain({targets:head,tweens:[{y:y-30,duration:300,ease:'Quad.easeOut'},{y:ty,duration:520,ease:'Bounce.easeOut'}],onComplete:()=>{head.setDepth(ty);
+        this.bleed(tx,ty+6,side,0,10);
+        const trail=this.add.ellipse(tx,ty+3,7,3,0x6e0b0b,0.85).setDepth(MAP.y-198);this.tweens.add({targets:trail,alpha:0,delay:360000,duration:60000,onComplete:()=>trail.destroy()});}});
+      const drip=this.time.addEvent({delay:60,repeat:12,callback:()=>{const d=this.add.rectangle(head.x,head.y+2,1,1,0x8a0f0f).setDepth(MAP.y-197);this.tweens.add({targets:d,alpha:0,delay:240000,duration:30000,onComplete:()=>d.destroy()});}});void drip;
       this.beheading=false;
     }
     /** Pixel blood: droplets fly in hit direction, then leave fading stains on the ground. */
