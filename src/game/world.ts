@@ -7,7 +7,7 @@ import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, streamDist, STREAM_HALF } from './biomes';
-import { DRAGON_TEXTURES, DRAGON_HOUSES } from './dragon';
+import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
@@ -1071,6 +1071,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       // Dragon-people terrace village.
       for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
+      for(const pc of DRAGON_FENCES){
+        if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
+        const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
+      }
       for (const h of NORDIC_HOUSES) {
         this.villageSupplies.set(h.id, this.add.image(h.x, h.y + 38, h.variant === 0 ? 'spear-proj' : 'res-wood').setScale(h.variant === 0 ? 0.55 : 1).setDepth(h.y + 38));
       }
