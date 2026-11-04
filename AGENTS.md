@@ -39,3 +39,4 @@
 - Nordic men share the packed warrior atlas (idle, walk, surrender, bound, 9-frame axe attack, death) and fight via hitWarrior in combat.ts; women never arm and panic instead, so role rules live in one place.
 - Keep village fear, morale breaking, tribute and grudge rules engine-free in fear.ts; world.ts only reports fear events and saves fear state separately from relationships so the two axes stay independent.
 - Keep corpse decay (decay.ts) and scavenger rules (scavenge.ts) engine-free; corpses save their death clock with fighter outcomes so decay and feeding survive reloads.
+- Keep the dragon-people village layout and hut textures in dragon.ts, with its position and mountain streams engine-free in biomes.ts; streams are shallow and never block movement, so paths stay walkable.
