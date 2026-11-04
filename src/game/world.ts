@@ -69,6 +69,7 @@ import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { headStage } from './decay';
+import { pickCarcass, FEED_REACH, type Carcass } from './scavenge';
 import skullAsset from '@/assets/severed_skull.png.asset.json';
 import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
 const TOTEM_TEX=[to0,to1,to2,to3,to4,to5,to6,to7];
@@ -136,6 +137,8 @@ type Creature = {
   wanderY: number;
   turnAt?: number;
   alert?: number;
+  feedOn?: string;
+  feeding?: boolean;
 };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
@@ -374,7 +377,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campers: Camper[] = [];
     tasks: Record<string, TaskState> = {};
     /** Severed heads rot to bare skulls after three game days. */
-    tickSkulls(){for(const f of this.folk){if(!f.beheaded||f.combat.phase!=='dead')continue;if(f.deathClock===undefined)f.deathClock=this.clock;const h=f.headSprite;if(h?.active&&headStage(f.deathClock,this.clock,f.skullTaken)==='skull'&&h.texture.key!=='severed-skull'&&!this.tweens.isTweening(h))h.setTexture('severed-skull').setScale(1).setAngle(0);}}
+    /** Corpses lying in the open that scavengers can reach. */
+    carcasses():Carcass[]{return this.folk.filter(f=>f.combat.phase==='dead'&&f.c.state==='free'&&f.deathClock!==undefined&&!villageAt(f.sprite.x,f.sprite.y,60)).map(f=>({id:f.c.id,x:f.sprite.x,y:f.sprite.y,deathClock:f.deathClock!}));}
+    /** Wolves trot to the nearest fresh corpse and feed; returns true while that overrides wandering. */
+    scavenge(c:Creature):boolean{
+      const all=this.carcasses();const feeders:Record<string,number>={};for(const o of this.creatures)if(o!==c&&o.state==='wander'&&o.feedOn)feeders[o.feedOn]=(feeders[o.feedOn]??0)+1;
+      let t=c.feedOn?all.find(k=>k.id===c.feedOn):undefined;
+      if(!t||this.clock-t.deathClock>=4320){t=pickCarcass(c.sprite,all,this.clock,feeders);c.feedOn=t?.id;}
+      if(!t)return false;
+      const body=c.sprite.body as Phaser.Physics.Arcade.Body;const dx=t.x-c.sprite.x,dy=t.y-c.sprite.y,d=Math.hypot(dx,dy);
+      if(d>FEED_REACH){body.setVelocity(dx/d*SNOW.wolf.speed*0.6,dy/d*SNOW.wolf.speed*0.6);return true;}
+      body.setVelocity(0,0);c.facing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;c.feeding=true;return true;
+    }
+    tickSkulls(){for(const f of this.folk){if(f.combat.phase!=='dead')continue;if(f.deathClock===undefined)f.deathClock=this.clock;if(!f.beheaded)continue;const h=f.headSprite;if(h?.active&&headStage(f.deathClock,this.clock,f.skullTaken)==='skull'&&h.texture.key!=='severed-skull'&&!this.tweens.isTweening(h))h.setTexture('severed-skull').setScale(1).setAngle(0);}}
     tickTasks(){this.tickSkulls();if(this.caves.current)return;for(const [id,t] of Object.entries(this.tasks)){const r=tickTask(t,this.chest,this.clock,this.companionOrders.get(id)?.mode!=='follow');this.tasks[id]=r.task;this.chest=r.chest;}}
     companionOrders = new Map<string, CompanionOrder>();
     companionMovement = new CompanionMovement();
@@ -716,7 +731,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         warband: this.warband,
         fear: this.fear,
-        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.deathClock !== undefined ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
+        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
         relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
@@ -791,7 +806,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.raid = { ...(g.raid ?? {}) };
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
-      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.beheaded ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
+      for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
         const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
         if (order.mode === 'follow' && this.followingCount() >= MAX_COMPANIONS) continue;
@@ -903,6 +918,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.load.spritesheet(`${k}-walk-${i}`, sp.walk[i]!, f);
           if (sp.attack) this.load.spritesheet(`${k}-attack-${i}`, sp.attack[i]!, f);
         }
+        this.load.spritesheet(`wolf-eat-${i}`, WOLF_EAT[i]!, { frameWidth: 52, frameHeight: 52 });
       }
     }
     create() {
@@ -934,6 +950,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.anims.create({ key: `${k}-walk-${i}`, frames: this.anims.generateFrameNumbers(`${k}-walk-${i}`), frameRate: k === 'mammoth' ? 7 : 10, repeat: -1 });
           if (sp.attack) this.anims.create({ key: `anim-${k}-attack-${i}`, frames: this.anims.generateFrameNumbers(`${k}-attack-${i}`), frameRate: 13, repeat: 0 });
         }
+        this.anims.create({ key: `anim-wolf-eat-${i}`, frames: this.anims.generateFrameNumbers(`wolf-eat-${i}`), frameRate: 8, repeat: -1 });
       }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
@@ -1884,6 +1901,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Creature AI.
       for (const c of this.creatures) {
         if (c.state === 'dead') continue;
+        c.feeding = false;
         const s = c.sprite; const body = s.body as Phaser.Physics.Arcade.Body;
         const dx = p.x - s.x, dy = p.y - s.y, dist = Math.hypot(dx, dy);
         // Sight range: hidden behind cover = invisible, crouching = much shorter range.
@@ -1938,6 +1956,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           gx += sep.x * 50; gy += sep.y * 50;
           const gl = Math.max(1, Math.hypot(gx, gy));
           if (dist < reachOf(c.kind) - 6 && Math.hypot(sep.x, sep.y) < 0.05) body.setVelocity(0, 0); else body.setVelocity(gx / gl * sp, gy / gl * sp);
+        } else if (c.kind === 'wolf' && this.scavenge(c)) {
+          // feeding on a corpse
         } else {
           // Wander: pick a nearby target now and then.
           if (time > c.nextDecision) {
@@ -1958,7 +1978,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (c.state === 'chase' || c.state === 'attack') { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 2500; }
         }
         // Animate based on velocity.
-        if (c.state !== 'attack') {
+        if (c.feeding) {
+          const ek = `anim-wolf-eat-${c.facing}`;
+          if (s.anims.currentAnim?.key !== ek || !s.anims.isPlaying) s.play(ek);
+        } else if (c.state !== 'attack') {
           const vx = body.velocity.x, vy = body.velocity.y, vlen = Math.hypot(vx, vy);
           if (vlen > 12) {
             // Only turn after a short hold so close-range contact doesn't flicker directions.

@@ -15,6 +15,9 @@ const pick = (prefix: string) => {
 export const TIGER = { idle: pick('tiger-idle'), walk: pick('tiger-walk'), attack: pick('tiger-attack') };
 export const GAZELLE = { idle: pick('gazelle-idle'), walk: pick('gazelle-walk'), run: pick('gazelle-run') };
 
+/** Wolves feeding on the ground: 9 frames per direction in 52 px cells. */
+export const WOLF_EAT = pick('wolf-eat');
+
 export type SnowKind = 'wolf' | 'bear' | 'mammoth';
 export type SnowSpecies = {
   name: string; cell: number; body: [number, number, number, number];
