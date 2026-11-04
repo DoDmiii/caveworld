@@ -3,7 +3,7 @@ import type { FolkRole } from './behavior';
 import { canRecruit } from './companions';
 
 export type InteractionTarget = 'villager' | 'captive' | 'ally' | 'guard';
-export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish';
+export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish' | 'tribute';
 export type Risk = 'low' | 'medium' | 'high';
 export interface InteractionContext {
   target: InteractionTarget;
@@ -21,6 +21,8 @@ export interface InteractionContext {
   task?: string;
   inCamp?: boolean;
   hasWedge?: boolean;
+  fear?: number;
+  tributePaid?: boolean;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -37,6 +39,7 @@ export const INTERACTIONS: InteractionDefinition[] = [
   { id: 'gift', label: 'Geschenk', icon: 'gift', targets: ['villager', 'guard'], risk: 'low', description: 'Gib Ressourcen ab, um Vertrauen aufzubauen.', disabledReason: c => !c.hasGift ? 'Du hast nichts zum Verschenken.' : null },
   { id: 'trade', label: 'Handeln', icon: 'arrows-left-right', targets: ['villager'], risk: 'low', description: 'Tausche verfügbare Waren.', disabledReason: c => !c.hasTradeGoods ? 'Du hast keine geeigneten Tauschgüter.' : c.relationship < -40 ? 'Die Beziehung ist zu schlecht.' : null },
   { id: 'intimidate', label: 'Einschüchtern', icon: 'shield-alert', targets: ['villager', 'guard'], risk: 'medium', description: 'Kann die Person zurückweichen lassen oder die Lage eskalieren.' },
+  { id: 'tribute', label: 'Tribut fordern', icon: 'skull', targets: ['villager', 'guard'], risk: 'high', description: 'Verängstigte Dörfer zahlen aus Furcht, sinnen aber auf Rache.', disabledReason: c => (c.fear ?? 0) < 50 ? 'Das Dorf fürchtet dich nicht genug.' : c.tributePaid ? 'Heute wurde schon gezahlt.' : null },
   { id: 'attack', label: 'Angreifen', icon: 'swords', targets: ['villager', 'guard'], risk: 'high', description: 'Greift das Ziel an und kann Zeugen alarmieren.', disabledReason: c => c.targetRole === 'child' ? 'Kinder können nicht angegriffen werden.' : null },
   { id: 'bind', label: 'Fesseln', icon: 'link', targets: ['captive'], risk: 'medium', description: 'Sichere einen überwältigten Gegner.', disabledReason: c => !c.targetDefeated ? 'Das Ziel muss überwältigt sein.' : c.targetRole === 'child' ? 'Kinder können nicht gefangen werden.' : c.targetBound ? 'Das Ziel ist bereits gefesselt.' : null },
   { id: 'carry', label: 'Tragen', icon: 'user-round', targets: ['captive'], risk: 'medium', description: 'Trage die gefesselte Person; deine Bewegung wird langsamer.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : c.targetCarried ? 'Du trägst diese Person bereits.' : null },
