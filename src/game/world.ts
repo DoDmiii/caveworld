@@ -1237,7 +1237,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const {kind,n}=input.chestTransfer;input.chestTransfer=null;
         const playerGoods:ChestGoods={wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,fiber:this.stock.fiber,berries:this.count,meat:this.meat,cooked:this.cooked};
         const r=n>0?deposit(this.chest,playerGoods,kind,n):withdraw(this.chest,playerGoods,kind,-n);
-        if(r){this.chest=r.chest;this.stock={wood:r.player.wood,stone:r.player.stone,flint:r.player.flint,fiber:r.player.fiber};this.count=r.player.berries;this.meat=r.player.meat;this.cooked=r.player.cooked;this.persist();}
+        if(r){this.chest=r.chest;this.stock={wood:r.player.wood,stone:r.player.stone,flint:r.player.flint,fiber:r.player.fiber,skull:this.stock.skull??0};this.count=r.player.berries;this.meat=r.player.meat;this.cooked=r.player.cooked;this.persist();}
       }
       // Sleeping: lie on the bed, fade, restore vitals, wake up.
       if(input.sleep&&!this.sleeping&&this.nearBed){
