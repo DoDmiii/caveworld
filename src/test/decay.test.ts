@@ -32,3 +32,9 @@ describe('scavenging wolves', () => {
     expect(pickCarcass({ x: 0, y: 0 }, [c], 100, { a: 3 })).toBeUndefined();
   });
 });
+
+import { feedingSight, FEED_ALERT_RATE } from '@/game/scavenge';
+describe('feeding wolves', () => {
+  it('only notice the player very close', () => { expect(feedingSight(false)).toBe(48); expect(feedingSight(true)).toBe(28); });
+  it('build alert at half speed', () => expect(FEED_ALERT_RATE).toBe(0.5));
+});
