@@ -86,7 +86,7 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile, di
   }}>
     <div className="interaction-panel" ref={panel}>
       <div className="interaction-heading">
-        <div><div className="eyebrow">{context.isOwnTribe ? `JAGDTRUPP · ${context.companionCount ?? 0}/3` : 'STAMMESINTERAKTION'}</div><h2>{name ?? 'Was möchtest du tun?'}</h2></div>
+        <div><div className="eyebrow">{context.isOwnTribe ? `JAGDTRUPP · ${context.companionCount ?? 0}/3` : (context.fear ?? 0) > 0 ? `STAMMESINTERAKTION · FURCHT ${context.fear}` : 'STAMMESINTERAKTION'}</div><h2>{name ?? 'Was möchtest du tun?'}</h2></div>
         <Button type="button" variant="ghost" size="icon" onClick={onClose} aria-label="Optionsrad schließen">✕</Button>
       </div>
       {profile && <div className="profile-tabs" role="tablist" aria-label="Personenansicht">
