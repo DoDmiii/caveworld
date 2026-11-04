@@ -24,6 +24,11 @@ export function hitFighter(f: Fighter, damage: number, now: number): Fighter {
 export function recoverFighter(f: Fighter, now: number): Fighter {
   return f.phase === 'downed' && now >= f.downUntil ? { hp: Math.round((f.max ?? FIGHTER_HP) / 2), phase: 'ready', downUntil: 0 , ...keepMax(f) } : f;
 }
+/** Weapons that can deliver a finisher; the axe beheads, the Steinkeil crushes. */
+export const canFinishWith = (w: string) => w === 'wedge' || w === 'axe';
+export const finisherStyle = (w: string): 'behead' | 'wedge' => (w === 'axe' ? 'behead' : 'wedge');
+/** 1-based animation frame on which the blow lands. */
+export const finisherImpactFrame = (w: string) => (w === 'axe' ? 7 : 9);
 export function canFinish(f: Fighter, distance: number, wedge: boolean, allied: boolean): boolean {
   return !allied && wedge && f.phase === 'downed' && distance <= FINISHER_REACH;
 }

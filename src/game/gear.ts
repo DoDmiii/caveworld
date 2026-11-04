@@ -76,7 +76,7 @@ import bed_tex from '../assets/gear/bed.png.asset.json';
 import icon_axe from '../assets/craft/icon-axe.png.asset.json';
 import icon_spear from '../assets/craft/icon-spear.png.asset.json';
 import { WEDGE_IDLE, WEDGE_WALK, WEDGE_ATTACK } from './wedge';
-export { FINISHER, ICON_WEDGE } from './wedge';
+export { FINISHER, BEHEAD, ICON_WEDGE } from './wedge';
 export type Weapon='none'|'axe'|'spear'|'wedge';
 export const IDLE:Record<Weapon,string[]>={
   wedge: WEDGE_IDLE,
