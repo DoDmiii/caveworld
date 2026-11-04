@@ -60,7 +60,7 @@ const GameSchema = z.object({
     active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0) }).optional(),
   }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
-  fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7) })).max(50).optional(),
+  fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7), beheaded: z.boolean().optional(), headPosition: z.object({ x: coord, y: coord }).optional() })).max(50).optional(),
   fear: z.object({
     fear: z.record(z.string().max(40), z.number().min(0).max(100)),
     tributeDay: z.record(z.string().max(40), z.number().int().min(0)),

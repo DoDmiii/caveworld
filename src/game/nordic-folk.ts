@@ -8,6 +8,7 @@ import { isCampDestination } from './tribe';
 import type { Captive } from './captives';
 import { newFighter, type Fighter } from './combat';
 import { CHAMPION_HP, CHAMPION_SCALE } from './raid';
+import { corpseParts } from './corpse-art';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
 // Only blond Nordic atlases (w0, w1, w3, m0, m2) may spawn in Nordic villages.
@@ -45,6 +46,9 @@ export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
 export type Folk = {
+  beheaded?: boolean | undefined;
+  headPosition?: { x: number; y: number } | undefined;
+  headSprite?: Phaser.GameObjects.Image | undefined;
   combat: Fighter;
   sprite: Phaser.Physics.Arcade.Sprite; t: FolkTemplate; c: Captive;
   facing: number; next: number; until: number; tx: number; ty: number; seed: number;
@@ -77,7 +81,7 @@ function corpseBlood(f: Folk) {
 /** Plays the death fall once, then poseFolk keeps the last frame. */
 export function dieFolk(f: Folk) {
   poseFolk(f);
-  if (!isWarrior(f.t)) return;
+  if (f.beheaded || !isWarrior(f.t)) return;
   const sc = f.sprite.scene, key = `nordic-warrior-death-${deathDir(f.facing)}`, st = DEATH_START + deathDir(f.facing) * 7;
   if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers('nordic-warrior', { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
   f.sprite.play(key);
@@ -89,6 +93,23 @@ export function poseFolk(f: Folk) {
   body.enable = f.c.state !== 'carried' && f.combat.phase === 'ready';
   s.setVisible(f.c.state !== 'carried');
   s.setAngle(0);
+  s.setCrop();
+  if (f.combat.phase === 'dead' && f.beheaded) {
+    const art = corpseParts(s.scene, f.t.tex);
+    if (art) {
+      s.setTexture(art.bodyKey).setDepth(s.y - 4);
+      corpseBlood(f);
+      if (f.headPosition && !f.headSprite?.active) {
+        f.headSprite = s.scene.add.image(f.headPosition.x, f.headPosition.y, art.headKey).setScale(s.scaleX, s.scaleY).setDepth(f.headPosition.y);
+      }
+      return;
+    }
+  }
+  if (s.texture.key !== f.t.tex) s.setTexture(f.t.tex);
+  if (f.combat.phase !== 'dead') {
+    f.beheaded = false; f.headPosition = undefined;
+    f.headSprite?.destroy(); f.headSprite = undefined;
+  }
   if (f.combat.phase === 'dead' && isWarrior(f.t)) {
     s.setFrame(DEATH_START + deathDir(f.facing) * 7 + 6).setDepth(s.y - 4);
     corpseBlood(f); return;
