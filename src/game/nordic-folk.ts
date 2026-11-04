@@ -46,9 +46,9 @@ export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
 export type Folk = {
-  beheaded?: boolean;
-  headPosition?: { x: number; y: number };
-  headSprite?: Phaser.GameObjects.Image;
+  beheaded?: boolean | undefined;
+  headPosition?: { x: number; y: number } | undefined;
+  headSprite?: Phaser.GameObjects.Image | undefined;
   combat: Fighter;
   sprite: Phaser.Physics.Arcade.Sprite; t: FolkTemplate; c: Captive;
   facing: number; next: number; until: number; tx: number; ty: number; seed: number;
