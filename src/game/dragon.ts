@@ -46,8 +46,8 @@ export const DRAGON_FENCE_BOUNDS = { half: 178, top: -165, bottom: 125, gateHalf
 /** Fence pieces; bw 0 marks walk-through decoration (the gate arch). */
 export const DRAGON_FENCES: Piece[] = (() => {
   const { half, top, bottom } = DRAGON_FENCE_BOUNDS, { x: cx, y: cy } = DRAGON_VILLAGE, out: Piece[] = [];
-  for (const [i, x] of [-126, -84, -42, 0, 42, 84, 126].entries()) out.push({ key: `dragon-fence-h${i % 2}`, x: cx + x, y: cy + top, flip: i % 3 === 1, bw: 44, bh: 10 });
-  for (const [i, x] of [-126, -84, 84, 126].entries()) out.push({ key: `dragon-fence-h${(i + 1) % 2}`, x: cx + x, y: cy + bottom, flip: x > 0, bw: 44, bh: 10 });
+  for (const [i, x] of [-126, -84, -42, 0, 42, 84, 126].entries()) out.push({ key: `dragon-fence-h${i % 3 === 0 ? 1 : 0}`, x: cx + x, y: cy + top, flip: i > 3, bw: 44, bh: 10 });
+  for (const [i, x] of [-126, -84, 84, 126].entries()) out.push({ key: `dragon-fence-h${i === 1 || i === 2 ? 1 : 0}`, x: cx + x, y: cy + bottom, flip: x > 0, bw: 44, bh: 10 });
   for (const side of [-1, 1]) for (let y = top + 30, i = 0; y <= bottom - 30; y += 30, i++)
     out.push({ key: `dragon-fence-v${i % 2}`, x: cx + side * half, y: cy + y, flip: side > 0, bw: 14, bh: 30 });
   for (const side of [-1, 1]) {
