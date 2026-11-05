@@ -1694,7 +1694,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     bossStatus(p: { x: number; y: number }) {
       const c = this.folk.find(f => isChampion(f.t) && f.combat.phase !== 'dead' && f.c.state === 'free' && Math.hypot(f.sprite.x - p.x, f.sprite.y - p.y) < 220 && ((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now || f.combat.phase === 'downed'));
-      return c ? { name: `${CHAMPION_NAMES[c.t.village]} · ${FOLK_HOMES[c.t.village].name}`, hp: Math.round(c.combat.hp), max: CHAMPION_HP, down: c.combat.phase === 'downed' } : null;
+      return c ? { name: `${CHAMPION_NAMES[c.t.village as 0]} · ${FOLK_HOMES[c.t.village].name}`, hp: Math.round(c.combat.hp), max: CHAMPION_HP, down: c.combat.phase === 'downed' } : null;
     }
     followingCount() { return [...this.companionOrders.values()].filter(o => o.mode === 'follow').length; }
     companionActors(): CompanionActor[] {
@@ -1821,7 +1821,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
       f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);this.armFolk(f,this.time.now);
-      if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
+      if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village as 0]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       {const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,40);if(this.beheading)this.severHead(f,fx,fy);}this.beheading=false;this.punch(40,true);
       this.frighten(f.t.village,isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
