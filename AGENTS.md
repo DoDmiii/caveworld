@@ -42,3 +42,4 @@
 - Keep corpse decay (decay.ts) and scavenger rules (scavenge.ts) engine-free; corpses save their death clock with fighter outcomes so decay and feeding survive reloads.
 - Keep the dragon-people village layout and hut textures in dragon.ts, with its position and mountain streams engine-free in biomes.ts; streams are shallow and never block movement, so paths stay walkable.
 - Keep dragon mountain terrace rings, passes and height levels engine-free in terrain.ts; cliffs always open at passes and water gorges so streams and paths stay walkable.
+- Keep first-contact tension rules (personal space, shove escalation, escorts, kin-crime alarms) engine-free in tension.ts; world.ts only moves folk, applies knockback and raises alarms.
