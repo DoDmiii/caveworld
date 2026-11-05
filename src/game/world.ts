@@ -1506,6 +1506,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
       for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free')continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
+      const escorts = new Set<string>();
+      if (inside && !stop) for (let vi = 0; vi < FOLK_HOMES.length; vi++) {
+        const e = pickEscort(this.folk.filter(o => o.t.village === vi && o.c.state === 'free' && o.combat.phase === 'ready' && isWarrior(o.t) && !this.roaming.has(o.c.id) && Math.hypot(o.sprite.x - p.x, o.sprite.y - p.y) < 220).map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y })), p);
+        if (e) escorts.add(e.id);
+      }
       const armedFolk = this.folk.filter(o => o.combat.phase === 'ready' && o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
         if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
@@ -1515,6 +1520,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         let m = this.folkMood.get(f.c.id);
         if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
         const v = FOLK_HOMES[f.t.village], vk = villageKey(v.name);
+        // Carrying one of theirs makes the player an outlaw: warriors charge on sight.
+        if (this.carried && f.c.state === 'free' && isWarrior(f.t) && d < CARRY_SIGHT && (m.armedUntil ?? 0) <= time) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true, 'Lass sie los!'); }
         // Villagers who saw an attack draw their weapons and hunt the player for a while.
         const armed = f.c.state === 'free' && (m.armedUntil ?? 0) > time;
         if (!armed) m.weapon?.setVisible(false);
@@ -1584,6 +1591,24 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const dx = p.x - s.x, dy = p.y - s.y, len = Math.max(1, d);
         const home = Math.hypot(s.x - v.x, s.y - v.y) < v.r;
         const face = (vx: number, vy: number) => { f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); };
+        // Tense first contact: distrustful people stare, block, warn, shove and finally strike.
+        if (!dec.shouldAttack && !dec.shouldFlee && dec.state !== 'friendly' && guardsSpace(getPersonalRelationship(this.rel, f.c.id, vk))) {
+          const mm = m as { shoveAt?: number };
+          const stare = () => { s.setVelocity(0, 0); s.anims.stop(); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8; s.setFrame(f.facing); };
+          if (d < SHOVE_RANGE && time > (mm.shoveAt ?? 0)) {
+            mm.shoveAt = time + SHOVE_COOLDOWN_MS; stare();
+            const strikes = nextStrikes(this.pressStrikes.get(f.c.id), time); this.pressStrikes.set(f.c.id, { strikes, at: time });
+            const step = shoveStep(strikes, this.held !== 'none');
+            if (step === 'warn') { this.bark(f.c.id, s, 'warn', time, true, isWarrior(f.t) ? 'Zurück, Fremder!' : 'Komm mir nicht zu nah!'); this.shove = { vx: dx / len * SHOVE_SPEED * 0.4, vy: dy / len * SHOVE_SPEED * 0.4, until: time + SHOVE_MS }; }
+            else if (step === 'shove') { this.shove = { vx: dx / len * SHOVE_SPEED, vy: dy / len * SHOVE_SPEED, until: time + SHOVE_MS }; this.hurtPlayer(SHOVE_DAMAGE, time); this.hitFlash = time + 150; this.cameras.main.shake(140, 0.004); this.bark(f.c.id, s, 'warn', time, true, isWarrior(f.t) ? 'Verschwinde! Letzte Warnung!' : 'Weg von mir!'); this.message = 'Du wirst weggestoßen'; this.messageUntil = time + 1400; }
+            else if (isWarrior(f.t)) { this.rel = raiseAlarm(this.rel, vk, now); this.armFolk(f, time); this.message = `${v.name} hat genug · sie greifen an!`; this.messageUntil = time + 2200; }
+            else this.kinAlarm(f, time);
+          } else if (d < PERSONAL_SPACE) stare();
+          else if (escorts.has(f.c.id)) { const g = escortGoal(s, p), gx = g.x - s.x, gy = g.y - s.y, gl = Math.hypot(gx, gy); if (gl > 8) { s.setVelocity(gx / gl * 50, gy / gl * 50); face(gx, gy); } else stare(); }
+          else if (!isWarrior(f.t) && this.held !== 'none' && d < 90 && home) { s.setVelocity(-dx / len * 40, -dy / len * 40); face(-dx, -dy); }
+          else if (d < 110 && inside) stare();
+          s.setDepth(s.y); continue;
+        }
         if (dec.shouldAttack && !f.t.captive) {
           // Guards close in and strike; they never leave their village.
           if (d > 16 && home) { s.setVelocity(dx / len * 55, dy / len * 55); face(dx, dy); }
