@@ -3,7 +3,14 @@ import w0 from '@/assets/nordic-people/nordic-w0.png.asset.json';
 import w1 from '@/assets/nordic-people/nordic-w1.png.asset.json';
 import w3 from '@/assets/nordic-people/nordic-w3.png.asset.json';
 import wr from '@/assets/nordic-people/nordic-warrior.png.asset.json';
-import { VILLAGES } from './biomes';
+import dw0 from '@/assets/dragon-people/dragon-w0.png.asset.json';
+import dw1 from '@/assets/dragon-people/dragon-w1.png.asset.json';
+import dw2 from '@/assets/dragon-people/dragon-w2.png.asset.json';
+import dm0 from '@/assets/dragon-people/dragon-m0.png.asset.json';
+import dm1 from '@/assets/dragon-people/dragon-m1.png.asset.json';
+import dm2 from '@/assets/dragon-people/dragon-m2.png.asset.json';
+import dm3 from '@/assets/dragon-people/dragon-m3.png.asset.json';
+import { VILLAGES, DRAGON_VILLAGE } from './biomes';
 import { isCampDestination } from './tribe';
 import type { Captive } from './captives';
 import { newFighter, type Fighter } from './combat';
@@ -33,12 +40,24 @@ const T = [
   { id: 'champion-0', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 0, dx: 0, dy: -20, champion: true },
   { id: 'champion-1', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 1, dx: 0, dy: -20, champion: true },
   { id: 'champion-2', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 2, dx: 0, dy: -20, champion: true },
+  // Dragon people (village 3 = Drachenterrasse): same atlas layout as the Nordic warrior; men are armed warriors.
+  { id: 'dragon-w0', url: dw0.url, walk: 6, captive: true, village: 3, dx: -40, dy: 40, death: true },
+  { id: 'dragon-w1', url: dw1.url, walk: 6, captive: true, village: 3, dx: 40, dy: 40, death: true },
+  { id: 'dragon-w2', url: dw2.url, walk: 6, captive: true, village: 3, dx: -110, dy: 60, death: true },
+  { id: 'dragon-m0', url: dm0.url, walk: 6, captive: true, village: 3, dx: -40, dy: -30, warrior: true },
+  { id: 'dragon-m1', url: dm1.url, walk: 6, captive: true, village: 3, dx: 40, dy: -30, warrior: true },
+  { id: 'dragon-m2', url: dm2.url, walk: 6, captive: false, village: 3, dx: 0, dy: 110, warrior: true },
+  { id: 'dragon-m3', url: dm3.url, walk: 6, captive: true, village: 3, dx: 110, dy: 60, warrior: true },
 ] as const;
-export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: VILLAGES[t.village].x + t.dx, y: VILLAGES[t.village].y + t.dy }));
+/** Home settlements of all folk: the Nordic villages, then the dragon terrace. */
+export const FOLK_HOMES = [...VILLAGES, DRAGON_VILLAGE] as const;
+export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: FOLK_HOMES[t.village].x + t.dx, y: FOLK_HOMES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
 export const isChampion = (t: FolkTemplate) => 'champion' in t;
 /** Men are warriors: armed, fight to the death. Women gather and panic when the village is attacked. */
-export const isWarrior = (t: FolkTemplate) => t.tex === 'nordic-warrior';
+export const isWarrior = (t: FolkTemplate) => t.tex === 'nordic-warrior' || 'warrior' in t;
+/** Templates whose atlas carries the 4-direction death fall. */
+export const hasDeath = (t: FolkTemplate) => isWarrior(t) || 'death' in t;
 export const ATTACK_START = 72, DEATH_START = 144;
 const deathDir = (facing: number) => [0, 1, 1, 2, 2, 3, 3, 0][facing] ?? 1;
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
@@ -83,9 +102,9 @@ function corpseBlood(f: Folk) {
 /** Plays the death fall once, then poseFolk keeps the last frame. */
 export function dieFolk(f: Folk) {
   poseFolk(f);
-  if (f.beheaded || !isWarrior(f.t)) return;
-  const sc = f.sprite.scene, key = `nordic-warrior-death-${deathDir(f.facing)}`, st = DEATH_START + deathDir(f.facing) * 7;
-  if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers('nordic-warrior', { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
+  if (f.beheaded || !hasDeath(f.t)) return;
+  const sc = f.sprite.scene, key = `${f.t.tex}-death-${deathDir(f.facing)}`, st = DEATH_START + deathDir(f.facing) * 7;
+  if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers(f.t.tex, { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
   f.sprite.play(key);
 }
 /** Re-applies the visible pose after a state change. */
@@ -112,7 +131,7 @@ export function poseFolk(f: Folk) {
     f.beheaded = false; f.headPosition = undefined; f.deathClock = undefined; f.skullTaken = undefined;
     f.headSprite?.destroy(); f.headSprite = undefined;
   }
-  if (f.combat.phase === 'dead' && isWarrior(f.t)) {
+  if (f.combat.phase === 'dead' && hasDeath(f.t)) {
     s.setFrame(DEATH_START + deathDir(f.facing) * 7 + 6).setDepth(s.y - 4);
     corpseBlood(f); return;
   }
@@ -137,7 +156,7 @@ export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGr
     if (controlled.has(f.c.id)) { f.next = time + 600; continue; }
     if (f.combat.phase !== 'ready') continue;
     if (f.c.state !== 'free' && f.c.state !== 'camp') continue;
-    const s = f.sprite, v = VILLAGES[f.t.village];
+    const s = f.sprite, v = FOLK_HOMES[f.t.village];
     const home = f.c.state === 'camp'
       ? (x: number, y: number) => isCampDestination(x, y)
       : (x: number, y: number) => Math.hypot(x - v.x, y - v.y) < v.r * 0.6;

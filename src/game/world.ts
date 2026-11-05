@@ -65,7 +65,7 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
-import { preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
+import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
@@ -453,11 +453,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         s.setPosition(940 + this.folk.indexOf(f) % 4 * 38, 735); return;
       }
       if (Math.hypot(s.x - CAMP.x, s.y - CAMP.y) > ILVAR_ESCAPE_DIST) {
-        const v = VILLAGES[f.t.village]; this.ilvarEscaping = undefined;
+        const v = FOLK_HOMES[f.t.village]; this.ilvarEscaping = undefined;
         f.c = { ...f.c, state: 'free', x: v.x + f.t.dx, y: v.y + f.t.dy }; s.setVelocity(0, 0); s.setPosition(f.c.x, f.c.y); poseFolk(f);
         this.message = `Ilvar ist nach ${v.name} entkommen`; this.messageUntil = time + 3000; this.persist(); return;
       }
-      const v = VILLAGES[f.t.village], dx = v.x - s.x, dy = v.y - s.y, d = Math.hypot(dx, dy) || 1;
+      const v = FOLK_HOMES[f.t.village], dx = v.x - s.x, dy = v.y - s.y, d = Math.hypot(dx, dy) || 1;
       s.setVelocity(dx / d * 46, dy / d * 46); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
       s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
     }
@@ -561,7 +561,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.folk.forEach((f, i) => {
         if (ids.has(f.c.id)) return;
         if (f.t.captive || f.c.state !== 'free' || f.combat.phase !== 'ready') return;
-        const v = VILLAGES[f.t.village], vk = villageKey(v.name), lvl = this.villageLevel.get(vk) ?? 0, m = this.folkMood.get(f.c.id);
+        const v = FOLK_HOMES[f.t.village], vk = villageKey(v.name), lvl = this.villageLevel.get(vk) ?? 0, m = this.folkMood.get(f.c.id);
         if (!patrolsActive(lvl) || (m?.armedUntil ?? 0) > time) return;
         ids.add(f.c.id);
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
@@ -1511,7 +1511,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (d < bd) { bd = d; best = f; }
         let m = this.folkMood.get(f.c.id);
         if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
-        const v = VILLAGES[f.t.village], vk = villageKey(v.name);
+        const v = FOLK_HOMES[f.t.village], vk = villageKey(v.name);
         // Villagers who saw an attack draw their weapons and hunt the player for a while.
         const armed = f.c.state === 'free' && (m.armedUntil ?? 0) > time;
         if (!armed) m.weapon?.setVisible(false);
@@ -1589,9 +1589,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         s.setDepth(s.y);
       }
       if (best && !this.carried) {
-        const f = best, st = f.c.state, vk = villageKey(VILLAGES[f.t.village].name);
+        const f = best, st = f.c.state, vk = villageKey(FOLK_HOMES[f.t.village].name);
         this.talk = {
-          id: f.c.id, name: getProfile(f.c.id)?.name ?? (st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${VILLAGES[f.t.village].name}`), profile: this.profileView(f.c.id, f.t.url),
+          id: f.c.id, name: getProfile(f.c.id)?.name ?? (st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${FOLK_HOMES[f.t.village].name}`), profile: this.profileView(f.c.id, f.t.url),
           target: st === 'camp' ? 'ally' : st === 'surrender' || st === 'bound' ? 'captive' : f.t.captive ? 'villager' : 'guard',
           targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
@@ -1675,12 +1675,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     fear: FearState = EMPTY_FEAR;
     /** Raises a village's fear (after daily decay) and tells the player when it changes tier. */
     frighten(village: number, ev: FearEvent) {
-      const vk = villageKey(VILLAGES[village]!.name), before = fearTier(fearOf(this.fear, vk));
+      const vk = villageKey(FOLK_HOMES[village]!.name), before = fearTier(fearOf(this.fear, vk));
       this.fear = addFear(decayFear(this.fear, clockOf(this.clock).day), vk, ev);
       const after = fearTier(fearOf(this.fear, vk));
-      if (after !== before) this.time.delayedCall(2300, () => { this.message = `${VILLAGES[village]!.name} ist ${after}`; this.messageUntil = this.time.now + 3000; });
+      if (after !== before) this.time.delayedCall(2300, () => { this.message = `${FOLK_HOMES[village]!.name} ist ${after}`; this.messageUntil = this.time.now + 3000; });
     }
-    villageFear(village: number) { this.fear = decayFear(this.fear, clockOf(this.clock).day); return fearOf(this.fear, villageKey(VILLAGES[village]!.name)); }
+    villageFear(village: number) { this.fear = decayFear(this.fear, clockOf(this.clock).day); return fearOf(this.fear, villageKey(FOLK_HOMES[village]!.name)); }
     tickRaid(time: number) {
       for (const v of villagesToRespawn(this.raid, this.clock)) {
         for (const f of this.folk) {
@@ -1694,7 +1694,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     bossStatus(p: { x: number; y: number }) {
       const c = this.folk.find(f => isChampion(f.t) && f.combat.phase !== 'dead' && f.c.state === 'free' && Math.hypot(f.sprite.x - p.x, f.sprite.y - p.y) < 220 && ((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now || f.combat.phase === 'downed'));
-      return c ? { name: `${CHAMPION_NAMES[c.t.village]} · ${VILLAGES[c.t.village].name}`, hp: Math.round(c.combat.hp), max: CHAMPION_HP, down: c.combat.phase === 'downed' } : null;
+      return c ? { name: `${CHAMPION_NAMES[c.t.village]} · ${FOLK_HOMES[c.t.village].name}`, hp: Math.round(c.combat.hp), max: CHAMPION_HP, down: c.combat.phase === 'downed' } : null;
     }
     followingCount() { return [...this.companionOrders.values()].filter(o => o.mode === 'follow').length; }
     companionActors(): CompanionActor[] {
@@ -1763,7 +1763,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
-      const vk = villageKey(VILLAGES[f.t.village].name);
+      const vk = villageKey(FOLK_HOMES[f.t.village].name);
       if (isSocialAction(id)) {
         const last = this.lastSocial.get(`${f.c.id}:${id}`) ?? 0;
         if (!socialReady(last, Date.now())) {
@@ -1778,7 +1778,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.fear = r.state; this.cooked += r.cooked; this.stock.flint += r.flint;
         this.rel = changeVillageRelationship(this.rel, vk, TRIBUTE_REL_COST);
         this.message = `Tribut aus Angst: ${r.cooked} Gebratenes, ${r.flint} Feuerstein · Hass wächst`;
-        if (r.revenge) { this.warband = scheduleRaid(this.warband, f.t.village, true, this.clock, championFallen(this.raid, f.t.village)); this.message += ` · ${VILLAGES[f.t.village].name} schwört Rache!`; }
+        if (r.revenge) { this.warband = scheduleRaid(this.warband, f.t.village, true, this.clock, championFallen(this.raid, f.t.village)); this.message += ` · ${FOLK_HOMES[f.t.village].name} schwört Rache!`; }
         this.bark(f.c.id, f.sprite, 'flee', time, true); this.messageUntil = time + 3200; this.persist(); return;
       }
       if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
@@ -1821,11 +1821,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
       f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);this.armFolk(f,this.time.now);
-      if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${VILLAGES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
+      if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       {const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,40);if(this.beheading)this.severHead(f,fx,fy);}this.beheading=false;this.punch(40,true);
       this.frighten(f.t.village,isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
-      const vk=villageKey(VILLAGES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
+      const vk=villageKey(FOLK_HOMES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
     /** Split the victim's own lying artwork at the neck, then throw that exact head. */
@@ -1918,7 +1918,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           else if(f.combat.phase==='downed'){poseFolk(f);this.message=isChampion(f.t)?`${CHAMPION_NAMES[f.t.village]} geht zu Boden · nur ein Finisher mit dem Steinkeil beendet es!`:f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Krieger niedergeschlagen · Steinkeil: Finisher';}
           else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>{f.sprite.clearTint();if(isChampion(f.t))f.sprite.setTint(0xffe6c0);});this.message=isChampion(f.t)?`Treffer! ${CHAMPION_NAMES[f.t.village]} brüllt vor Wut`:'Treffer! Das Dorf greift an!';}
           this.messageUntil=time+2000;
-          const vk=villageKey(VILLAGES[f.t.village].name);
+          const vk=villageKey(FOLK_HOMES[f.t.village].name);
           this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-15);
         }
         this.chop(time, fx, fy);
