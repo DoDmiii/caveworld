@@ -1,4 +1,5 @@
 # Roadmap
+- [ ] Vollständige Animationen der sieben Drachenmenschen neu packen, bestehende Identitäten/Verhalten erhalten und im Spiel prüfen.
 - [x] Verwesung: abgetrennte Köpfe werden nach 3 Spieltagen zu aufhebbaren Schädeln; Schandpfahl (1 Schädel + 4 Holz) erschreckt nahe Dörfer. Tests grün, nicht live durchgespielt.
 - [x] Aasfresser-Wölfe: riechen frische Leichen (420 px, max. 3 pro Leiche) außerhalb der Dörfer und fressen mit Fress-Animation. Nicht live beobachtet.
 - [x] Enthauptung: originalen Figurenkopf statt Schädel abtrennen, kopflosen Körper darstellen; Axt-Hinrichtung und Neuladen im Spiel geprüft, 44 relevante Tests grün.
