@@ -16,6 +16,8 @@ import type { Captive } from './captives';
 import { newFighter, type Fighter } from './combat';
 import { CHAMPION_HP, CHAMPION_SCALE } from './raid';
 import { corpseParts } from './corpse-art';
+import { ATTACK_START, folkDeathFrame } from './folk-animation';
+export { ATTACK_START, DEATH_START } from './folk-animation';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
 // Only blond Nordic atlases (w0, w1, w3, m0, m2) may spawn in Nordic villages.
@@ -56,10 +58,9 @@ export type FolkTemplate = typeof NORDIC_FOLK[number];
 export const isChampion = (t: FolkTemplate) => 'champion' in t;
 /** Men are warriors: armed, fight to the death. Women gather and panic when the village is attacked. */
 export const isWarrior = (t: FolkTemplate) => t.tex === 'nordic-warrior' || 'warrior' in t;
-/** Templates whose atlas carries the 4-direction death fall. */
+/** Nordic warriors have four death directions; dragon inhabitants have all eight. */
 export const hasDeath = (t: FolkTemplate) => isWarrior(t) || 'death' in t;
-export const ATTACK_START = 72, DEATH_START = 144;
-const deathDir = (facing: number) => [0, 1, 1, 2, 2, 3, 3, 0][facing] ?? 1;
+const deathStart = (f: Folk) => folkDeathFrame(f.facing, f.t.village === 3);
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
 export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
@@ -103,7 +104,7 @@ function corpseBlood(f: Folk) {
 export function dieFolk(f: Folk) {
   poseFolk(f);
   if (f.beheaded || !hasDeath(f.t)) return;
-  const sc = f.sprite.scene, key = `${f.t.tex}-death-${deathDir(f.facing)}`, st = DEATH_START + deathDir(f.facing) * 7;
+  const sc = f.sprite.scene, st = deathStart(f), key = `${f.t.tex}-death-${st}`;
   if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers(f.t.tex, { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
   f.sprite.play(key);
 }
@@ -132,7 +133,7 @@ export function poseFolk(f: Folk) {
     f.headSprite?.destroy(); f.headSprite = undefined;
   }
   if (f.combat.phase === 'dead' && hasDeath(f.t)) {
-    s.setFrame(DEATH_START + deathDir(f.facing) * 7 + 6).setDepth(s.y - 4);
+    s.setFrame(deathStart(f) + 6).setDepth(s.y - 4);
     corpseBlood(f); return;
   }
   if (f.combat.phase === 'dead') corpseBlood(f); else (f as Folk & { pool?: Phaser.GameObjects.Ellipse }).pool?.destroy();
