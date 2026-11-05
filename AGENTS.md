@@ -37,6 +37,7 @@
 - Keep trap rules (costs, radii, durability, target classes, trigger outcomes) engine-free in traps.ts; world.ts only detects targets in range, applies catch/wound/alarm outcomes and persists traps in the game save.
 - Keep village raid rules (champion stats, only-finisher deaths, respawn timing, autonomous ally target spreading) engine-free in raid.ts; champions are extra Nordic folk templates and the raid respawn clock is saved separately from fighter outcomes.
 - Nordic men share the packed warrior atlas (idle, walk, surrender, bound, 9-frame axe attack, death) and fight via hitWarrior in combat.ts; women never arm and panic instead, so role rules live in one place.
+- Keep inhabitant action slots and death-direction selection engine-free in folk-animation.ts; dragon atlases retain all eight uploaded death directions without overlapping attack frames or changing saved identities.
 - Keep village fear, morale breaking, tribute and grudge rules engine-free in fear.ts; world.ts only reports fear events and saves fear state separately from relationships so the two axes stay independent.
 - Keep corpse decay (decay.ts) and scavenger rules (scavenge.ts) engine-free; corpses save their death clock with fighter outcomes so decay and feeding survive reloads.
 - Keep the dragon-people village layout and hut textures in dragon.ts, with its position and mountain streams engine-free in biomes.ts; streams are shallow and never block movement, so paths stay walkable.
