@@ -1,5 +1,6 @@
 import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTINGS, caveAt, caveWalkable, caveDeposits, newCaves, mineDeposit, paint, sharpen, caveDamageFactor, caveSprintFactor, caveColdFactor, type CaveState, type CaveId, type PaintingId } from './caves';
 import { renderCave } from './cave-render';
+import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_FEAR, addFear, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
 import { hornReady, recallOrders, alarmThreats, campResponse, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
@@ -734,6 +735,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         warband: this.warband,
         fear: this.fear,
+        rumors: this.rumors,
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
@@ -808,6 +810,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       this.raid = { ...(g.raid ?? {}) };
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
+      this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
@@ -1251,6 +1254,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
         this.tickRaid(time);
+        this.tickRumors();
         this.tickTasks();
         this.tickTrust(dt * 2);
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
@@ -1708,6 +1712,38 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const after = fearTier(fearOf(this.fear, vk));
       if (after !== before) this.time.delayedCall(2300, () => { this.message = `${FOLK_HOMES[village]!.name} ist ${after}`; this.messageUntil = this.time.now + 3000; });
     }
+    rumors: RumorState = EMPTY_RUMORS;
+    /** Only those who see or hear a deed react; seen deeds become rumors that travel to neighbouring villages. */
+    witnessDeed(victim: { t: { village: number }; c: { id: string }; sprite: { x: number; y: number } }, kind: DeedKind, fearEv?: FearEvent) {
+      const victimVk = villageKey(FOLK_HOMES[victim.t.village]!.name);
+      const observers: Observer[] = this.folk.filter(o => o !== (victim as unknown) && o.combat.phase !== 'dead').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village]!.name), role: isWarrior(o.t) ? 'guard' as const : 'villager' as const, bound: o.c.state !== 'free' }));
+      const deed = { kind, actorId: 'player', victimVillage: victimVk, x: victim.sprite.x, y: victim.sprite.y, clock: this.clock, night: isNight(clockOf(this.clock).minutesOfDay), crouching: this.crouching };
+      const out = resolveDeed(deed, witnessesOf(deed, observers));
+      const now = Date.now();
+      for (const r of out.villages) {
+        if (r.alarm) this.rel = raiseAlarm(this.rel, r.village, now);
+        if (r.relationship) this.rel = changeVillageRelationship(this.rel, r.village, r.relationship);
+        if (r.fear) { const vi = FOLK_HOMES.findIndex(v => villageKey(v.name) === r.village); if (vi >= 0) this.frighten(vi, r.village === victimVk && fearEv ? fearEv : r.fear); }
+      }
+      if (!out.unwitnessed) this.rumors = startRumor(this.rumors, deed, victimVk);
+      else if (kind !== 'attack') { this.time.delayedCall(2300, () => { this.message = 'Niemand hat es gesehen …'; this.messageUntil = this.time.now + 2200; }); }
+    }
+    tickRumors() {
+      if (!this.rumors.rumors.length) return;
+      const keys = FOLK_HOMES.map(v => villageKey(v.name));
+      const neighbours: Record<string, string[]> = {};
+      FOLK_HOMES.forEach((v, i) => { neighbours[keys[i]!] = FOLK_HOMES.map((w, j) => ({ j, d: Math.hypot(w.x - v.x, w.y - v.y) })).filter(o => o.j !== i).sort((a, b) => a.d - b.d).slice(0, 2).map(o => keys[o.j]!); });
+      const r = spreadRumors(this.rumors, this.clock, neighbours);
+      if (r.state === this.rumors && !r.arrivals.length) return;
+      this.rumors = r.state;
+      for (const a of r.arrivals) {
+        if (a.relationship) this.rel = changeVillageRelationship(this.rel, a.village, a.relationship);
+        if (a.fear) { this.fear = decayFear(this.fear, clockOf(this.clock).day); this.fear = { ...this.fear, fear: { ...this.fear.fear, [a.village]: Math.min(100, (this.fear.fear[a.village] ?? 0) + a.fear) } }; }
+        const name = FOLK_HOMES.find(v => villageKey(v.name) === a.village)?.name;
+        if (name) { this.message = `Gerüchte erreichen ${name}`; this.messageUntil = this.time.now + 2600; }
+      }
+      if (r.arrivals.length) this.persist();
+    }
     villageFear(village: number) { this.fear = decayFear(this.fear, clockOf(this.clock).day); return fearOf(this.fear, villageKey(FOLK_HOMES[village]!.name)); }
     tickRaid(time: number) {
       for (const v of villagesToRespawn(this.raid, this.clock)) {
@@ -1865,8 +1901,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village as 0]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       {const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,40);if(this.beheading)this.severHead(f,fx,fy);}this.beheading=false;this.punch(40,true);
-      this.frighten(f.t.village,isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
-      const vk=villageKey(FOLK_HOMES[f.t.village].name);this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-35);
+      this.witnessDeed(f,isChampion(f.t)?'champion':this.executing?'execution':'kill',isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
     /** Split the victim's own lying artwork at the neck, then throw that exact head. */
@@ -1955,12 +1990,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10)*caveDamageFactor(this.caves,input.club?'club':hw);f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
-          if(f.combat.phase==='dead'){dieFolk(f);this.frighten(f.t.village,'kill');this.message='Krieger erschlagen';this.persist();}
+          if(f.combat.phase==='dead'){dieFolk(f);this.witnessDeed(f,'kill','kill');this.message='Krieger erschlagen';this.persist();}
           else if(f.combat.phase==='downed'){poseFolk(f);this.message=isChampion(f.t)?`${CHAMPION_NAMES[f.t.village]} geht zu Boden · nur ein Finisher mit dem Steinkeil beendet es!`:f.t.captive?'Niedergeschlagen · Steinkeil: Finisher · ohne: [E] fesseln':'Krieger niedergeschlagen · Steinkeil: Finisher';}
           else{f.sprite.setTint(0xff6b4a);this.time.delayedCall(140,()=>{f.sprite.clearTint();if(isChampion(f.t))f.sprite.setTint(0xffe6c0);});this.message=isChampion(f.t)?`Treffer! ${CHAMPION_NAMES[f.t.village]} brüllt vor Wut`:'Treffer! Das Dorf greift an!';}
           this.messageUntil=time+2000;
-          const vk=villageKey(FOLK_HOMES[f.t.village].name);
-          this.rel=changeVillageRelationship(raiseAlarm(this.rel,vk,Date.now()),vk,-15);
+          if(f.combat.phase!=='dead')this.witnessDeed(f,'attack');
         }
         this.chop(time, fx, fy);
       }
