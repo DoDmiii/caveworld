@@ -1858,7 +1858,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
     lastSocial = new Map<string, number>();
     inCampAt(x: number, y: number) { return Math.hypot(x - CAMP.x, y - CAMP.y - 50) < 130; }
-    closeness?: { id: string; elapsed: number; health: number; bubble: Phaser.GameObjects.Text };
+    closeness: { id: string; elapsed: number; health: number; bubble: Phaser.GameObjects.Text } | undefined;
     closenessProtests = new Map<string, number>();
     closenessContext(id: string): ClosenessContext {
       const f = this.folk.find(o => o.c.id === id), camper = this.campers.find(o => o.template.id === id), p = this.player;

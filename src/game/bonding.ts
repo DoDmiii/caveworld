@@ -36,7 +36,8 @@ export function closenessWitnesses(
 /** Segment/rectangle intersection for building and terrain occlusion. */
 export function blocksSight(ax: number, ay: number, bx: number, by: number, rect: { x: number; y: number; width: number; height: number }): boolean {
   let lo = 0, hi = 1;
-  for (const [start, delta, min, max] of [[ax, bx - ax, rect.x, rect.x + rect.width], [ay, by - ay, rect.y, rect.y + rect.height]]) {
+  const axes: [number, number, number, number][] = [[ax, bx - ax, rect.x, rect.x + rect.width], [ay, by - ay, rect.y, rect.y + rect.height]];
+  for (const [start, delta, min, max] of axes) {
     if (delta === 0) { if (start < min || start > max) return false; continue; }
     const a = (min - start) / delta, b = (max - start) / delta;
     lo = Math.max(lo, Math.min(a, b)); hi = Math.min(hi, Math.max(a, b));
