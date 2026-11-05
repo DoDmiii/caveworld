@@ -1,9 +1,10 @@
 /** Declarative action registry used by the interaction wheel. Keep engine calls out of this file. */
 import type { FolkRole } from './behavior';
 import { canRecruit } from './companions';
+import { closenessRefusal, type ClosenessContext } from './bonding';
 
 export type InteractionTarget = 'villager' | 'captive' | 'ally' | 'guard';
-export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish' | 'tribute';
+export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish' | 'tribute' | 'bond';
 export type Risk = 'low' | 'medium' | 'high';
 export interface InteractionContext {
   target: InteractionTarget;
@@ -23,6 +24,7 @@ export interface InteractionContext {
   hasWedge?: boolean;
   fear?: number;
   tributePaid?: boolean;
+  closeness?: ClosenessContext;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -35,6 +37,7 @@ export interface InteractionDefinition {
 }
 
 export const INTERACTIONS: InteractionDefinition[] = [
+  { id: 'bond', label: 'Näher kommen', icon: 'heart', targets: ['villager', 'ally', 'guard'], risk: 'low', description: 'Zu einem freiwilligen, ruhigen Moment einladen.', disabledReason: c => c.closeness ? closenessRefusal(c.closeness) : 'Keine freiwillige Nähe möglich.' },
   { id: 'greet', label: 'Grüßen', icon: 'hand', targets: ['villager', 'guard'], risk: 'low', description: 'Eine freundliche Geste.', disabledReason: c => c.relationship <= -60 ? 'Die Person ist feindlich.' : null },
   { id: 'gift', label: 'Geschenk', icon: 'gift', targets: ['villager', 'guard'], risk: 'low', description: 'Gib Ressourcen ab, um Vertrauen aufzubauen.', disabledReason: c => !c.hasGift ? 'Du hast nichts zum Verschenken.' : null },
   { id: 'trade', label: 'Handeln', icon: 'arrows-left-right', targets: ['villager'], risk: 'low', description: 'Tausche verfügbare Waren.', disabledReason: c => !c.hasTradeGoods ? 'Du hast keine geeigneten Tauschgüter.' : c.relationship < -40 ? 'Die Beziehung ist zu schlecht.' : null },

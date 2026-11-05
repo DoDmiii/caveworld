@@ -13,6 +13,7 @@ import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
+import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
 import { corpseParts } from './corpse-art';
@@ -1216,6 +1217,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.cavePrompt = caveAt(p.x,p.y) ? `Betreten: ${CAVES[caveAt(p.x,p.y) ?? 'home'].name}` : null;
       this.tickSignals(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
+      if (this.closeness) controlled.add(this.closeness.id);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
@@ -1225,7 +1227,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return body ? [{ x: body.x, y: body.y, width: body.width, height: body.height }] : [];
       });
       this.tickAllies(time, delta, input.paused || this.dead || this.sleeping);
-      this.companionMovement.tick(this.companionActors().filter(a => !allyDowned(this.allyHealth(a.id))), this.movementOrders(), p, this.lastFacing, time,
+      this.companionMovement.tick(this.companionActors().filter(a => !allyDowned(this.allyHealth(a.id)) && a.id !== this.closeness?.id), this.movementOrders(), p, this.lastFacing, time,
         input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && this.stamina > 1 && !this.carried,
         this.crouching, blocks, this.allyEngage(time, p));
       this.allyStrikes(time);
@@ -1270,6 +1272,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
       else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
+      if (this.tickCloseness(time, delta, dx, dy)) { this.report(time, p); return; }
       if(this.finisher){p.setVelocity(0,0);this.lastAttack=input.attack;this.lastAction=input.action;if(input.paused)p.anims.pause();else p.anims.resume();this.report(time,p);return;}
       if(input.craft){const base=RECIPES.find(x=>x.id===input.craft);const rc=base&&discountedRecipe(base,this.party());const next=rc&&craft(rc,this.stock,levelFromXp(this.xp),this.owned);if(rc&&next){this.stock=next;this.owned=[...this.owned,rc.id];this.message=`${rc.name} hergestellt · +25 EP`;this.messageUntil=time+2400;this.addXp(XP.craft);this.tut({kind:'craft'},time);}input.craft=null;}
       if(input.weapon!==this.weapon){this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';this.attacking=false;this.attackPending=false;}
@@ -1521,9 +1524,26 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
         if (d < bd) { bd = d; best = f; }
+        if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
         let m = this.folkMood.get(f.c.id);
         if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
         const v = FOLK_HOMES[f.t.village], vk = villageKey(v.name);
+        const protestUntil = this.closenessProtests.get(f.c.id) ?? 0;
+        if (protestUntil > time && !stop && f.c.state === 'free' && (m.armedUntil ?? 0) <= time) {
+          const dx = p.x - s.x, dy = p.y - s.y, len = Math.max(1, d);
+          f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+          m.icon.setText('!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true);
+          if (isWarrior(f.t) && d > SHOVE_RANGE) { s.setVelocity(dx / len * 65, dy / len * 65); s.play(`${f.t.tex}-walk-${f.facing}`, true); }
+          else {
+            s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing);
+            if (isWarrior(f.t) && d <= SHOVE_RANGE) {
+              this.shove = { vx: dx / len * SHOVE_SPEED, vy: dy / len * SHOVE_SPEED, until: time + SHOVE_MS };
+              this.bark(f.c.id, s, 'warn', time, true, 'Zurück! Halt Abstand!');
+              this.closenessProtests.delete(f.c.id);
+            }
+          }
+          s.setDepth(s.y); continue;
+        }
         // Carrying one of theirs makes the player an outlaw: warriors charge on sight.
         if (this.carried && f.c.state === 'free' && isWarrior(f.t) && d < CARRY_SIGHT && (m.armedUntil ?? 0) <= time) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true, 'Lass sie los!'); }
         // Villagers who saw an attack draw their weapons and hunt the player for a while.
@@ -1626,6 +1646,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           id: f.c.id, name: getProfile(f.c.id)?.name ?? (st === 'camp' ? 'Stammesmitglied' : `Bewohner von ${FOLK_HOMES[f.t.village].name}`), profile: this.profileView(f.c.id, f.t.url),
           target: st === 'camp' ? 'ally' : st === 'surrender' || st === 'bound' ? 'captive' : f.t.captive ? 'villager' : 'guard',
           targetRole: f.t.captive ? 'villager' : 'guard', relationship: getPersonalRelationship(this.rel, f.c.id, vk),
+          closeness: this.closenessContext(f.c.id),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
           inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: canFinishWith(this.held),
@@ -1772,7 +1793,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyContext(a: CompanionActor): TalkTarget {
       const portrait = this.campers.find(c => c.template.id === a.id)?.template.url ?? this.folk.find(f => f.c.id === a.id)?.t.url;
       return { id: a.id, name: getProfile(a.id)?.name ?? 'Stammesmitglied', profile: portrait ? this.profileView(a.id, portrait) : undefined, dialogues: [...this.campTopics(a.id), ...this.personalTopics(a.id)], target: 'ally', targetRole: 'villager', relationship: 100,
-        hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
+        closeness: this.closenessContext(a.id), hasGift: this.count > 0, hasTradeGoods: false, targetDefeated: false, targetBound: false,
         targetCarried: false, isOwnTribe: true, inRange: true, following: this.companionOrders.get(a.id)?.mode === 'follow', companionCount: this.followingCount(), task: taskLabel(this.tasks[a.id]?.kind ?? 'none') };
     }
     applyAllyInteraction(target: string, id: InteractionId, time: number): boolean {
@@ -1781,6 +1802,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (!p || this.dead || this.health <= 0 || this.sleeping || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return true;
       const option = getAvailableInteractions(this.allyContext(actor)).find(o => o.id === id);
       if (!option || option.disabled) return true;
+      if (id === 'bond') { this.startCloseness(target, time); return true; }
       if (id === 'follow' || id === 'wait' || id === 'return') {
         if (id === 'follow' && !canRecruit(true, this.followingCount(), this.companionOrders.get(target)?.mode === 'follow')) return true;
         { const no = id === 'follow' ? followRefusal(PROFILE_IDS[target] ?? target, this.profiles[target]?.trust ?? 0) : null; if (no) { this.message = no; this.messageUntil = time + 2600; return true; } }
@@ -1836,8 +1858,81 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Per-person cooldowns for social actions so gifts/trades/ransoms cannot be spammed. */
     lastSocial = new Map<string, number>();
     inCampAt(x: number, y: number) { return Math.hypot(x - CAMP.x, y - CAMP.y - 50) < 130; }
+    closeness: { id: string; elapsed: number; health: number; bubble: Phaser.GameObjects.Text } | undefined;
+    closenessProtests = new Map<string, number>();
+    closenessContext(id: string): ClosenessContext {
+      const f = this.folk.find(o => o.c.id === id), camper = this.campers.find(o => o.template.id === id), p = this.player;
+      const sprite = f?.sprite ?? camper?.sprite;
+      const home = f ? FOLK_HOMES[f.t.village] : undefined;
+      const vk = home ? villageKey(home.name) : '';
+      const own = !!camper || f?.c.state === 'camp';
+      const mood = this.folkMood.get(id);
+      const peaceful = !this.attacking && !this.finisher && !this.dead && this.health > 0 && !this.sleeping
+        && !this.closeness && (mood?.armedUntil ?? 0) <= this.time.now
+        && ((mood as { panicUntil?: number } | undefined)?.panicUntil ?? 0) <= this.time.now
+        && (this.closenessProtests.get(id) ?? 0) <= this.time.now;
+      return { adultWoman: ADULT_WOMEN.has(id), playerAdult: true,
+        free: !!camper || f?.c.state === 'free' || f?.c.state === 'camp',
+        ready: !!camper ? !allyDowned(this.allyHealth(id)) : f?.combat.phase === 'ready' && (!own || !allyDowned(this.allyHealth(id))),
+        willing: peaceful && (!!camper || (own ? (this.profiles[id]?.trust ?? 0) >= 75 : getPersonalRelationship(this.rel, id, vk) >= 55 && !isAlarmActive(this.rel, vk, Date.now()))),
+        playerArmed: this.held !== 'none' || input.weapon !== 'none', carrying: !!this.carried,
+        inRange: !!p && !!sprite && Math.hypot(p.x - sprite.x, p.y - sprite.y) <= INTERACTION_RANGE };
+    }
+    startCloseness(id: string, time: number) {
+      const refusal = closenessRefusal(this.closenessContext(id));
+      if (refusal) { this.message = refusal; this.messageUntil = time + 2000; return; }
+      const sprite = this.folk.find(f => f.c.id === id)?.sprite ?? this.campers.find(c => c.template.id === id)?.sprite;
+      if (!sprite || !this.player) return;
+      const bubble = this.add.text(sprite.x, sprite.y - 24, '♥', { fontFamily: 'monospace', fontSize: '12px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5).setResolution(3).setDepth(sprite.y + 2000);
+      this.closeness = { id, elapsed: 0, health: this.health, bubble };
+      this.companionMovement.reset(id); sprite.setVelocity(0, 0);
+      this.bark(id, sprite, 'greet', time, true, 'Ja, bleib einen Moment bei mir.');
+      this.message = 'Sie nimmt deine Einladung an'; this.messageUntil = time + CLOSENESS_MS;
+    }
+    endCloseness(message: string, time: number) {
+      const bond = this.closeness; if (!bond) return;
+      bond.bubble.destroy(); this.closeness = undefined;
+      const f = this.folk.find(o => o.c.id === bond.id), c = this.campers.find(o => o.template.id === bond.id);
+      if (f) { f.next = time + 600; f.until = 0; }
+      if (c) { c.nextDecision = time + 600; c.walkUntil = 0; }
+      this.message = message; this.messageUntil = time + 2000;
+    }
+    tickCloseness(time: number, delta: number, dx: number, dy: number): boolean {
+      const bond = this.closeness, p = this.player; if (!bond || !p) return false;
+      const f = this.folk.find(o => o.c.id === bond.id), c = this.campers.find(o => o.template.id === bond.id), s = f?.sprite ?? c?.sprite;
+      if (!s || this.dead || this.health <= 0 || this.sleeping || this.health < bond.health || (f && (f.combat.phase !== 'ready' || !['free', 'camp'].includes(f.c.state)))) { this.endCloseness('Der Moment endet', time); return false; }
+      if (input.paused) { p.setVelocity(0, 0); s.setVelocity(0, 0); return true; }
+      const interrupted = Math.hypot(dx, dy) > 0.12 || input.attack !== this.lastAttack || input.action !== this.lastAction || input.weapon !== 'none' || input.throwSpear
+        || this.clickAttack || this.keys?.['Q']?.isDown || this.keys?.['E']?.isDown || this.keys?.['SPACE']?.isDown || this.keys?.['R']?.isDown;
+      if (interrupted || Math.hypot(s.x - p.x, s.y - p.y) > INTERACTION_RANGE) { this.endCloseness('Du beendest den gemeinsamen Moment', time); return false; }
+      if (f && f.c.state === 'free') {
+        const village = villageKey(FOLK_HOMES[f.t.village].name);
+        const observers: Observer[] = this.folk.filter(o => o.combat.phase === 'ready').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village].name), role: isWarrior(o.t) ? 'guard' : 'villager', bound: o.c.state !== 'free' }));
+        const witnesses = closenessWitnesses({ id: bond.id, village, x: s.x, y: s.y, ownTribe: false }, observers, isNight(clockOf(this.clock).minutesOfDay), (ax, ay, bx, by) => (this.obstacles?.getChildren() ?? []).some(o => {
+          const body = (o as Phaser.Physics.Arcade.Sprite).body;
+          return !!body && blocksSight(ax, ay + 10, bx, by + 10, body);
+        }));
+        if (witnesses.length) {
+          for (const witness of witnesses) {
+            const npc = this.folk.find(o => o.c.id === witness.id); if (!npc) continue;
+            this.closenessProtests.set(witness.id, time + 4000);
+            this.bark(witness.id, npc.sprite, 'warn', time, true, isWarrior(npc.t) ? 'Halt Abstand, Fremder!' : 'Lasst das!');
+          }
+          this.endCloseness('Stammesangehörige protestieren · der Moment wird unterbrochen', time); return false;
+        }
+      }
+      p.setVelocity(0, 0); s.setVelocity(0, 0); p.anims.stop(); s.anims.stop();
+      this.lastFacing = (Math.round(Math.atan2(s.y - p.y, s.x - p.x) / (Math.PI / 4)) + 8) % 8;
+      const facing = (this.lastFacing + 4) % 8; if (f) f.facing = facing; if (c) c.facing = facing;
+      p.setTexture(`none-idle-${this.lastFacing}`).setDepth(p.y); s.setFrame(facing).setDepth(s.y);
+      bond.bubble.setPosition((p.x + s.x) / 2, Math.min(p.y, s.y) - 23 - Math.sin(time / 200) * 2);
+      bond.elapsed += Math.min(delta, 100);
+      if (bond.elapsed >= CLOSENESS_MS) { this.endCloseness('Ein ruhiger Moment zu zweit', time); return false; }
+      return true;
+    }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
+      if (id === 'bond') { this.startCloseness(f.c.id, time); return; }
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
       const vk = villageKey(FOLK_HOMES[f.t.village].name);
       if (isSocialAction(id)) {

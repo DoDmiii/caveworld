@@ -10,6 +10,7 @@
 <!-- LOVABLE:END -->
 
 ## Game architecture
+- Keep voluntary adult closeness eligibility and visible-witness rules engine-free in bonding.ts; world.ts uses only ordinary facing poses and transient interruptions, never rewards or saved companion-order changes.
 - Keep character-specific head/body splitting in corpse-art.ts, using the uploaded lying frame; persist headless outcomes with fighter saves so posing and reload never restore a removed head.
 - Keep horn recall, camp alarm detection and warrior/civilian responses engine-free in signals.ts; temporary orders never overwrite saved companion orders, and signal-art.ts shares crisp artwork between HUD and engine.
 - Keep touch controls in TouchControls.tsx and orientation-independent camera sizing in engine-free mobile-controls.ts; shared input commands reuse existing actions and resizing must clear held movement.
