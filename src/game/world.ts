@@ -111,6 +111,7 @@ import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
 import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, fordRoute, MAX_RAIDERS, CAMP_ARRIVAL, RAID_SIGHT, type WarbandState } from './warbands';
+import { PERSONAL_SPACE, SHOVE_RANGE, SHOVE_SPEED, SHOVE_MS, SHOVE_DAMAGE, SHOVE_COOLDOWN_MS, KIN_ALARM_RADIUS, CARRY_SIGHT, shoveStep, nextStrikes, isKinCrime, guardsSpace, escortGoal, pickEscort } from './tension';
 import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
 import { getVillageRelationship } from './relationships';
 import type { InteractionContext, InteractionId } from './interactions';
@@ -1298,6 +1299,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(running||this.attacking)this.crouchOn=false;
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const body=p.body as Phaser.Physics.Arcade.Body;body.checkCollision.none=!!input.fly;body.setCollideWorldBounds(!input.fly);const speed=input.fly?420:(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed*limpFactor(this.health); const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
+      if(this.shove&&time<this.shove.until&&!input.fly)p.setVelocity(this.shove.vx,this.shove.vy);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
@@ -1400,6 +1402,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if(was==='surrender'){captive.c={...captive.c,x:Math.round(captive.sprite.x),y:Math.round(captive.sprite.y)};this.message='Gefesselt · [E] auf die Schultern nehmen';}
           else{this.carried=captive;this.message='Auf den Schultern · bring sie ins Höhlenlager';}
           poseFolk(captive);
+          if(!this.inCampAt(captive.sprite.x,captive.sprite.y))this.kinAlarm(captive,time);
         }
         else if(this.nearTrap&&!this.building){const c=collectTrap(this.nearTrap);this.meat+=c.meat;this.traps=this.traps.map(t=>t.id===c.trap.id?c.trap:t);this.message=`Fleisch aus der Schlinge geholt · +${c.meat}`;this.persist();}
         else if(this.nearRack&&!this.building&&(this.meat>0||dryCount(this.nearRack,this.clock)>0)){const rk=this.nearRack;const c=collectJerky(rk,this.clock);let next=c.rack;let hung=0;while(this.meat>0){const h=hangMeat(next,this.clock);if(!h)break;next=h;this.meat--;hung++;}this.jerky+=c.jerky;this.structures=this.structures.map(s=>s.id===rk.id?next:s);this.message=c.jerky?`${c.jerky} Dörrfleisch abgenommen${hung?` · ${hung} Fleisch aufgehängt`:''} · [4] essen`:hung?`${hung} Fleisch zum Trocknen aufgehängt`:`Gestell voll (${RACK_SLOTS} Streifen)`;this.persist();}
@@ -1743,11 +1746,23 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.messageUntil = time + 2200; this.persist(); return true;
     }
     /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
-    armFolk(f: Folk, time: number) {
+    /** The victim cries for help: the village raises the alarm and every warrior within reach charges. */
+    kinAlarm(f: Folk, time: number) {
+      const vk = villageKey(FOLK_HOMES[f.t.village].name);
+      this.rel = raiseAlarm(this.rel, vk, Date.now());
+      this.bark(f.c.id, f.sprite, 'flee', time, true, 'Hilfe! Sie holen mich!');
+      this.armFolk(f, time, KIN_ALARM_RADIUS);
+      this.message = `${FOLK_HOMES[f.t.village].name} hört den Hilferuf · die Krieger kommen!`; this.messageUntil = time + 2600;
+      this.cameras.main.shake(200, 0.004);
+    }
+    /** Player shoves past villagers: brief knockback velocity overriding movement. */
+    shove?: { vx: number; vy: number; until: number };
+    pressStrikes = new Map<string, { strikes: number; at: number }>();
+    armFolk(f: Folk, time: number, radius = 200) {
       for (const ally of this.folk.filter(a => a.c.state === 'camp')) this.trustEvent(ally.c.id, 'violence');
       for (const o of this.folk) {
         if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
-        if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > 200) continue;
+        if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > radius) continue;
         const m = this.folkMood.get(o.c.id);
         // Morale: frightened warriors (worse at night) break and run instead of fighting; champions never break.
         if (isWarrior(o.t) && !isChampion(o.t) && moraleBreaks(this.villageFear(o.t.village), isNight(clockOf(this.clock).minutesOfDay))) { if (m) { (m as { panicUntil?: number }).panicUntil = time + 15000; (m as { broken?: number }).broken = time + 15000; } this.bark(o.c.id, o.sprite, 'flee', time); continue; }
@@ -1796,6 +1811,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (o.state === 'camp') this.trustEvent(f.c.id, 'joined');
       }
       this.message = o.message; this.messageUntil = time + 2200;
+      if (isKinCrime(id) && f.c.state !== 'camp' && !this.inCampAt(f.sprite.x, f.sprite.y)) this.kinAlarm(f, time);
       this.persist();
     }
     startFinisher(f:Folk):boolean {
