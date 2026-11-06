@@ -54,9 +54,8 @@ Flexibler, aber deutlich mehr Grafikarbeit: Jede Haar- und Bartvariante braucht 
 - Gefesselt kriechen/humpeln (optional, sonst Gehen langsam)
 - Pfahl/Käfig für Gefangene im Lager (bebaubar, statisch)
 
-### 3. Erbfolge (Tod des Spielers → Nachfolger spielen)
-- Nutzt die Skins aus Teil A – kein extra Sprite, wenn ein anderer Skin/Variante übernimmt
-- Optional: Grab/Steinhügel (statisch), Trauerpose (kniend, vorhanden)
+### 3. Erbfolge – vorerst nicht umsetzen, eventuell später
+- Keine Sprites vorbereiten.
 
 ### 4. Wolfszähmung / Aasfresser (vorhandene Wölfe)
 - Bereits vorhanden; optional Wolf an Leine/folgend, Sitzen.
@@ -65,7 +64,6 @@ Flexibler, aber deutlich mehr Grafikarbeit: Jede Haar- und Bartvariante braucht 
 1. Charakteranpassung mit Variante 1 (fertige Skins) – du lieferst 2–3 Skins.
 2. Feuer & Ruinen.
 3. Gefangenenflucht.
-4. Erbfolge (nutzt die Skins).
 
 ## Technische Details
 - Neue engine-freie Datei `appearance.ts` (Skin-Definitionen, Auswahl, Speicherung), Spieler-Atlas pro Skin gepackt wie die Tribe-Atlanten.
