@@ -485,7 +485,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const dt = Math.min(delta, 100), cam = this.cameras.main.worldView;
       const view = (x: number, y: number) => x > cam.x - 40 && x < cam.right + 40 && y > cam.y - 40 && y < cam.bottom + 40;
       const flushed = tickFlocks(this.flocks, p.x, p.y, m, time, dt);
-      if (tickFish(this.fish, p.x, p.y, m, time, dt) && time > this.nextBirdMsg - 4000) { /* splash only */ }
+      tickFish(this.fish, p.x, p.y, m, time, dt);
       for (const f of flushed) if (guardsNotice(f) && time > this.nextBirdMsg) {
         this.nextBirdMsg = time + 8000; this.message = 'Vögel flattern auf · die Drachenwachen horchen auf!'; this.messageUntil = time + 2200;
         for (const g of this.folk) if (g.combat.phase === 'ready' && g.c.state === 'free' && isWarrior(g.t) && Math.hypot(g.sprite.x - f.x, g.sprite.y - f.y) < 260) g.sprite.setFlipX(f.x < g.sprite.x);
