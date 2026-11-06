@@ -56,7 +56,7 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { SKINS, SKIN_ANIMS, skinFrame } from './skins';
+import { SKINS, SKIN_ANIMS, skinFrame, ARMED_SKINS, ARMED_ANIMS, armedFrame, isArmed } from './skins';
 import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, skinFor, type SkinId, PELT_NAME, type ArmorId } from './appearance';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
@@ -912,9 +912,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     skinNow(): SkinId | null { return skinFor(input.armor, this.health); }
     playDeath(p: Phaser.Physics.Arcade.Sprite) { const s = this.skinNow(); p.play(s ? `anim-skin-${s}-death-${this.lastFacing}` : `anim-death-${this.lastFacing}`); }
-    playAttack(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.play(s && w === 'none' ? `anim-skin-${s}-punch-${this.lastFacing}` : `anim-${w}-attack-${this.lastFacing}`); }
-    playWalk(p: Phaser.Physics.Arcade.Sprite, w: Weapon, running: boolean) { const s = this.skinNow(); const key = s ? (running && SKINS[s].frames.run > 1 ? `skin-${s}-run-${this.lastFacing}` : `skin-${s}-walk-${this.lastFacing}`) : `${w}-walk-${this.lastFacing}`; if (p.anims.currentAnim?.key !== key || !p.anims.isPlaying) p.play(key); p.anims.timeScale = running && !key.includes('-run-') ? 1.5 : 1; }
-    setIdle(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.anims.stop(); if (s) p.setTexture(`skin-${s}`, skinFrame('idle', this.lastFacing)); else p.setTexture(`${w}-idle-${this.lastFacing}`); }
+    playAttack(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.play(s && w === 'none' ? `anim-skin-${s}-punch-${this.lastFacing}` : s && isArmed(w) ? `anim-armed-${s}-${w}-attack-${this.lastFacing}` : `anim-${w}-attack-${this.lastFacing}`); }
+    playWalk(p: Phaser.Physics.Arcade.Sprite, w: Weapon, running: boolean) { const s = this.skinNow(); const key = s && isArmed(w) ? (running && ARMED_SKINS[s][w].frames.run > 1 ? `armed-${s}-${w}-run-${this.lastFacing}` : `armed-${s}-${w}-walk-${this.lastFacing}`) : s ? (running && SKINS[s].frames.run > 1 ? `skin-${s}-run-${this.lastFacing}` : `skin-${s}-walk-${this.lastFacing}`) : `${w}-walk-${this.lastFacing}`; if (p.anims.currentAnim?.key !== key || !p.anims.isPlaying) p.play(key); p.anims.timeScale = running && !key.includes('-run-') ? 1.5 : 1; }
+    setIdle(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.anims.stop(); if (s && isArmed(w)) p.setTexture(`armed-${s}-${w}`, armedFrame('idle', this.lastFacing)); else if (s) p.setTexture(`skin-${s}`, skinFrame('idle', this.lastFacing)); else p.setTexture(`${w}-idle-${this.lastFacing}`); }
     playCrouch(p: Phaser.Physics.Arcade.Sprite, moving: boolean) { const s = this.skinNow(); const ck = s ? `skin-${s}-crouch-${this.lastFacing}` : `anim-crouch-${this.lastFacing}`; if (moving) { if (p.anims.currentAnim?.key !== ck || !p.anims.isPlaying) p.play(ck); } else { p.anims.stop(); if (s) p.setTexture(`skin-${s}`, skinFrame('crouch', this.lastFacing, 3)); else p.setTexture(`crouch-${this.lastFacing}`, 4); } }
     preload() {
       preloadCampers(this);
@@ -929,6 +929,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       FINISHER.forEach((u,i)=>this.load.spritesheet(`finisher-${i}`,u,{frameWidth:32,frameHeight:32}));
       BEHEAD.forEach((u,i)=>this.load.spritesheet(`behead-${i}`,u,{frameWidth:32,frameHeight:32}));
       for(const [k,sk] of Object.entries(SKINS))this.load.spritesheet(`skin-${k}`,sk.url,{frameWidth:32,frameHeight:32});
+      for(const [k,ws] of Object.entries(ARMED_SKINS))for(const [w,a] of Object.entries(ws))this.load.spritesheet(`armed-${k}-${w}`,a.url,{frameWidth:32,frameHeight:32});
       DEATH.forEach((u,i)=>this.load.spritesheet(`death-${i}`,u,{frameWidth:32,frameHeight:32}));
       CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
@@ -979,6 +980,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       for (let i = 0; i < 8; i++) {
         for(const [k,sk] of Object.entries(SKINS))for(const a of SKIN_ANIMS){const n=sk.frames[a];if(n<2)continue;const st=skinFrame(a,i);const key=a==='walk'||a==='run'||a==='crouch'?`skin-${k}-${a}-${i}`:a==='finisher'?`anim-finisher-${k}-${i}`:`anim-skin-${k}-${a}-${i}`;this.anims.create({key,frames:this.anims.generateFrameNumbers(`skin-${k}`,{start:st,end:st+n-1}),frameRate:a==='walk'?10:a==='run'?10:a==='crouch'?7:a==='death'?9:a==='punch'?12:10,repeat:a==='walk'||a==='run'||a==='crouch'?-1:0});}
+        for(const [k,ws] of Object.entries(ARMED_SKINS))for(const [w,a] of Object.entries(ws))for(const an of ARMED_ANIMS){const n=a.frames[an];if(n<2)continue;const st=armedFrame(an,i);const loop=an!=='attack';this.anims.create({key:loop?`armed-${k}-${w}-${an}-${i}`:`anim-armed-${k}-${w}-attack-${i}`,frames:this.anims.generateFrameNumbers(`armed-${k}-${w}`,{start:st,end:st+n-1}),frameRate:loop?10:12,repeat:loop?-1:0});}
         this.anims.create({ key: `anim-finisher-${i}`, frames: this.anims.generateFrameNumbers(`finisher-${i}`), frameRate: 10, repeat: 0 });
         this.anims.create({ key: `anim-behead-${i}`, frames: this.anims.generateFrameNumbers(`behead-${i}`), frameRate: 11, repeat: 0 });
         this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
@@ -1363,7 +1365,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else if(!this.target){this.message='Erst ein Tier anvisieren';}
         else{
           const t=this.target;this.lastFacing=(Math.round(Math.atan2(t.sprite.y-p.y,t.sprite.x-p.x)/(Math.PI/4))+8)%8;
-          this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;p.play(`anim-spear-attack-${this.lastFacing}`);
+          this.attacking=true;p.setVelocity(0,0);p.anims.timeScale=1;this.playAttack(p,'spear');
           this.hasSpear=this.owned.includes('bundle');
           const img=this.add.image(p.x,p.y-8,'spear-proj').setScale(0.5);
           this.spear={img,target:t,tx:t.sprite.x,ty:t.sprite.y};

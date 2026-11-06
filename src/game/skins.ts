@@ -16,3 +16,21 @@ export const SKINS: Record<SkinId, { url: string; portrait: string; frames: Reco
   blood: { url: blood.url, portrait: bloodP.url, frames: { idle: 1, walk: 8, run: 0, crouch: 6, death: 7, punch: 6, finisher: 0 } },
 };
 export const skinFrame = (a: SkinAnim, dir: number, f = 0) => (SKIN_ANIMS.indexOf(a) * 8 + dir) * SKIN_COLS + f;
+
+// Armed variants per skin (axe/spear), atlas rows = anim*8 + direction for idle, walk, run, attack.
+import wolfAxe from '@/assets/skins/skin-wolf-axe.png.asset.json';
+import wolfSpear from '@/assets/skins/skin-wolf-spear.png.asset.json';
+import sabreAxe from '@/assets/skins/skin-sabre-axe.png.asset.json';
+import sabreSpear from '@/assets/skins/skin-sabre-spear.png.asset.json';
+import bloodAxe from '@/assets/skins/skin-blood-axe.png.asset.json';
+import bloodSpear from '@/assets/skins/skin-blood-spear.png.asset.json';
+export const ARMED_ANIMS = ['idle', 'walk', 'run', 'attack'] as const;
+export type ArmedAnim = (typeof ARMED_ANIMS)[number];
+export type ArmedWeapon = 'axe' | 'spear';
+export const ARMED_SKINS: Record<SkinId, Record<ArmedWeapon, { url: string; frames: Record<ArmedAnim, number> }>> = {
+  wolf: { axe: { url: wolfAxe.url, frames: { idle: 1, walk: 8, run: 8, attack: 9 } }, spear: { url: wolfSpear.url, frames: { idle: 1, walk: 8, run: 8, attack: 9 } } },
+  sabre: { axe: { url: sabreAxe.url, frames: { idle: 1, walk: 8, run: 0, attack: 9 } }, spear: { url: sabreSpear.url, frames: { idle: 1, walk: 8, run: 0, attack: 9 } } },
+  blood: { axe: { url: bloodAxe.url, frames: { idle: 1, walk: 8, run: 0, attack: 9 } }, spear: { url: bloodSpear.url, frames: { idle: 1, walk: 8, run: 0, attack: 9 } } },
+};
+export const armedFrame = (a: ArmedAnim, dir: number, f = 0) => (ARMED_ANIMS.indexOf(a) * 8 + dir) * SKIN_COLS + f;
+export const isArmed = (w: string): w is ArmedWeapon => w === 'axe' || w === 'spear';
