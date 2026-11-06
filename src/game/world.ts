@@ -1392,7 +1392,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       else if(moving) {
         const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
-        this.playWalk(p,w,running);
+        this.playWalk(p,w,!!running);
       } else {
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         this.setIdle(p,w);
