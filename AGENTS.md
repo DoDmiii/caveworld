@@ -45,3 +45,4 @@
 - Keep dragon mountain terrace rings, passes and height levels engine-free in terrain.ts; cliffs always open at passes and water gorges so streams and paths stay walkable.
 - Keep first-contact tension rules (personal space, shove escalation, escorts, kin-crime alarms) engine-free in tension.ts; world.ts only moves folk, applies knockback and raises alarms.
 - Keep witness perception, deed outcomes and rumor spreading engine-free in events.ts; world.ts only collects observers, applies outcomes and saves rumors in the game save, so unseen deeds stay without consequences.
+- Keep armor stats, pelt drops and the bloodied threshold engine-free in appearance.ts; world.ts only multiplies speed/damage/cold and tints the player until real skin atlases replace the placeholder tint.
