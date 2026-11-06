@@ -66,7 +66,7 @@ export function tickFlocks(flocks: Flock[], px: number, py: number, m: Movement,
 export function tickFish(fish: Fish[], px: number, py: number, m: Movement, now: number, dt: number): boolean {
   let any = false; const s = dt / 1000;
   for (const f of fish) {
-    if (m.moving && !m.crouching && f.fleeUntil < now && Math.hypot(px - f.x, py - f.y) < FISH_SCARE) { f.fleeUntil = now + 1400; any = true; }
+    if (m.moving && !m.crouching && f.fleeUntil <= now && Math.hypot(px - f.x, py - f.y) < FISH_SCARE) { f.fleeUntil = now + 1400; any = true; }
     if (f.fleeUntil > now) { f.x += f.dx * 120 * s; f.y += f.dy * 120 * s; }
     else { f.x += (f.hx - f.x) * Math.min(1, s * 0.6); f.y += (f.hy - f.y) * Math.min(1, s * 0.6); f.phase += s * 2; }
   }
