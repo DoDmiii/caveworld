@@ -1,5 +1,6 @@
 import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTINGS, caveAt, caveWalkable, caveDeposits, newCaves, mineDeposit, paint, sharpen, caveDamageFactor, caveSprintFactor, caveColdFactor, type CaveState, type CaveId, type PaintingId } from './caves';
 import { renderCave } from './cave-render';
+import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_FEAR, addFear, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
@@ -479,6 +480,30 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
     folk: Folk[] = [];
+    flocks: Flock[] = createFlocks(); fish: Fish[] = createFish(); birdGfx?: Phaser.GameObjects.Graphics; fishGfx?: Phaser.GameObjects.Graphics; nextBirdMsg = 0;
+    tickAmbient(time: number, delta: number, p: Phaser.Physics.Arcade.Sprite, m: Movement) {
+      const dt = Math.min(delta, 100), cam = this.cameras.main.worldView;
+      const view = (x: number, y: number) => x > cam.x - 40 && x < cam.right + 40 && y > cam.y - 40 && y < cam.bottom + 40;
+      const flushed = tickFlocks(this.flocks, p.x, p.y, m, time, dt);
+      tickFish(this.fish, p.x, p.y, m, time, dt);
+      for (const f of flushed) if (guardsNotice(f) && time > this.nextBirdMsg) {
+        this.nextBirdMsg = time + 8000; this.message = 'Vögel flattern auf · die Drachenwachen horchen auf!'; this.messageUntil = time + 2200;
+        for (const g of this.folk) if (g.combat.phase === 'ready' && g.c.state === 'free' && isWarrior(g.t) && Math.hypot(g.sprite.x - f.x, g.sprite.y - f.y) < 260) g.sprite.setFlipX(f.x < g.sprite.x);
+      }
+      const bg = this.birdGfx ??= this.add.graphics().setDepth(95000), fg = this.fishGfx ??= this.add.graphics().setDepth(4);
+      bg.clear(); fg.clear();
+      for (const fl of this.flocks) for (const b of fl.birds) {
+        if (!view(b.x, b.y)) continue;
+        if (b.state === 'rest') { const hop = Math.sin(time / 300 + b.hx) > 0.9 ? 1 : 0; bg.fillStyle(0x3b2f2a, 1).fillRect(b.x - 2, b.y - 2 - hop, 4, 3); bg.fillStyle(0xd9a441, 1).fillRect(b.x + 2, b.y - 1 - hop, 1, 1); }
+        else { const up = Math.floor(time / 90) % 2 === 0; bg.fillStyle(0x2a2220, 1).fillRect(b.x - 1, b.y - 1, 3, 2); bg.fillRect(b.x - 4, b.y - (up ? 3 : 0), 3, 1); bg.fillRect(b.x + 2, b.y - (up ? 3 : 0), 3, 1); }
+      }
+      for (const f of this.fish) {
+        if (!view(f.x, f.y)) continue;
+        const wig = Math.round(Math.sin(f.phase * 3)), fleeing = f.fleeUntil > time;
+        fg.fillStyle(0x5d6f6a, 0.85).fillRect(f.x - 3, f.y - 1 + wig * 0.5, 6, 2); fg.fillStyle(0xc77a8a, 0.8).fillRect(f.x - 1, f.y, 3, 1);
+        if (fleeing) fg.fillStyle(0xe8f4ff, 0.7).fillRect(f.x - f.dx * 6 - 1, f.y - f.dy * 6 - 1, 2, 2);
+      }
+    }
     barks = new Map<string, { text: Phaser.GameObjects.Text; until: number; next: number; sprite: Phaser.GameObjects.Components.Transform }>();
     patrolStep = new Map<string, number>();
     warband: WarbandState = EMPTY_WARBANDS;
@@ -1306,6 +1331,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(running||this.attacking)this.crouchOn=false;
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const body=p.body as Phaser.Physics.Arcade.Body;body.checkCollision.none=!!input.fly;body.setCollideWorldBounds(!input.fly);const speed=input.fly?420:(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed*limpFactor(this.health); const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
+      this.tickAmbient(time,delta,p,{running:!!running,crouching:this.crouching,moving:moving&&!input.fly});
       if(this.shove&&time<this.shove.until&&!input.fly)p.setVelocity(this.shove.vx,this.shove.vy);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
