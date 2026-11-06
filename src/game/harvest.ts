@@ -1,8 +1,8 @@
 // Regeln für abbaubare Umwelt (Bäume, Felsen) und ihre Beute.
 export type Resource = 'wood' | 'stone' | 'flint' | 'fiber';
 /** Skulls are a trophy material: counted with the stock, but never harvested or stored in the chest. */
-export type Stock = Record<Resource, number> & { skull?: number };
-export type CostKey = Resource | 'skull';
+export type Stock = Record<Resource, number> & { skull?: number; wolfPelt?: number; sabrePelt?: number };
+export type CostKey = Resource | 'skull' | 'wolfPelt' | 'sabrePelt';
 
 export const TREE_HP = 5;
 export const ROCK_HP = 3;
@@ -20,7 +20,7 @@ export const RESOURCE_NAME: Record<Resource, string> = {
 };
 
 export const emptyStock = (): Stock => ({ wood: 0, stone: 0, flint: 0, fiber: 0 });
-export const COST_NAME: Record<CostKey, string> = { ...RESOURCE_NAME, skull: 'Schädel' };
+export const COST_NAME: Record<CostKey, string> = { ...RESOURCE_NAME, skull: 'Schädel', wolfPelt: 'Wolfsfell', sabrePelt: 'Säbelzahnfell' };
 
 /** Schlägt eine Ressource zum Vorrat; gibt den neuen Vorrat zurück. */
 export function gain(stock: Stock, res: Resource, n = 1): Stock {

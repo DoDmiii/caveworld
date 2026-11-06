@@ -27,7 +27,7 @@ const GameSchema = z.object({
   cooked: count,
   jerky: count.default(0),
   tasks: z.record(z.string().max(40), z.object({ kind: z.enum(['none', 'wood', 'stone', 'forage']), since: z.number().min(0).max(10_000_000) })).optional(),
-  stock: z.object({ wood: count, stone: count, flint: count, fiber: count, skull: count.optional() }),
+  stock: z.object({ wood: count, stone: count, flint: count, fiber: count, skull: count.optional(), wolfPelt: count.optional(), sabrePelt: count.optional() }),
   xp: count,
   owned: z.array(z.enum(ITEM_IDS)).max(20),
   // Die Welt wird deterministisch (Seeds) neu erzeugt. Gespeichert wird nur die Abweichung davon.
@@ -80,6 +80,7 @@ const UiSchema = z.object({
   hotbar: z.array(z.string().nullable()).length(3),
   hand: z.string(),
   active: z.number().int().min(0).max(3),
+  armor: z.enum(['wolfArmor', 'sabreArmor']).nullable().optional(),
 });
 
 const SaveSchema = z.object({
