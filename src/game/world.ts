@@ -56,7 +56,7 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { SKINS, SKIN_ANIMS, SKIN_COLS, skinFrame } from './skins';
+import { SKINS, SKIN_ANIMS, skinFrame } from './skins';
 import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, skinFor, type SkinId, PELT_NAME, type ArmorId } from './appearance';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
@@ -910,7 +910,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
     }
-    skinNow(): SkinId | null { return skinFor(this.inputRef?.armor, this.health); }
+    skinNow(): SkinId | null { return skinFor(input.armor, this.health); }
     playDeath(p: Phaser.Physics.Arcade.Sprite) { const s = this.skinNow(); p.play(s ? `anim-skin-${s}-death-${this.lastFacing}` : `anim-death-${this.lastFacing}`); }
     playAttack(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.play(s && w === 'none' ? `anim-skin-${s}-punch-${this.lastFacing}` : `anim-${w}-attack-${this.lastFacing}`); }
     playWalk(p: Phaser.Physics.Arcade.Sprite, w: Weapon, running: boolean) { const s = this.skinNow(); const key = s ? (running && SKINS[s].frames.run > 1 ? `skin-${s}-run-${this.lastFacing}` : `skin-${s}-walk-${this.lastFacing}`) : `${w}-walk-${this.lastFacing}`; if (p.anims.currentAnim?.key !== key || !p.anims.isPlaying) p.play(key); p.anims.timeScale = running && !key.includes('-run-') ? 1.5 : 1; }
