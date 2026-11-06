@@ -46,3 +46,5 @@
 - [x] Lager-Automatisierung: Aufgabe im Optionsrad (Holz/Steine/Sammeln), Erträge in die Vorratskiste, gespeichert
 - [x] Furcht Gruppe 3: Furcht pro Dorf (Töten/Finisher/Hinrichtung/Champion), tägliches Abklingen, Moralbruch der Krieger (nachts früher), Tribut fordern mit Rache nach 3 Zahlungen; gespeichert
 - [ ] Trophäen/Schädel an der Palisade, sobald Grafik vorhanden
+- [x] Rüstungen Wolfspelz (3 Wolfsfelle, schneller, stärkster Kälteschutz) und Säbelzahnpelz (3 Säbelzahnfelle, +20 % Schaden, Kälteschutz); Felle fallen beim Erlegen; Blut-Look ab ≤50 % LP. Platzhalter-Färbung, nicht live geprüft.
+- [ ] Echte Rüstungs-/Blut-Skins, Wolf-Rennanimation und Fell-Icons einbauen (wartet auf Grafiken).

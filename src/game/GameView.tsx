@@ -27,8 +27,9 @@ import iBundle from '../assets/craft/icon-bundle.png.asset.json';
 import iBola from '../assets/craft/icon-bola.png.asset.json';
 import iAxe from '../assets/craft/icon-axe.png.asset.json';
 import iSpear from '../assets/craft/icon-spear.png.asset.json';
-const CRAFT_ICON: Partial<Record<ItemId, string>> = { horn: HORN_ICON, wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url };
+const CRAFT_ICON: Partial<Record<ItemId, string>> = { horn: HORN_ICON, wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url, wolfArmor: iFur.url, sabreArmor: iFur.url };
 import { RESOURCE_NAME, COST_NAME } from './harvest';
+import type { ArmorId } from './appearance';
 import { formatMinutes, isNight } from './survival';
 import { InteractionWheel } from './InteractionWheel';
 import type { TalkTarget } from './world';
@@ -65,6 +66,8 @@ const ITEMS: Item[] = [
   { id: 'spear', name: 'Steinspeer', slot: 'hand', icon: ICON_SPEAR, weapon: 'spear' },
   { id: 'wedge', name: 'Steinkeil', slot: 'hand', icon: ICON_WEDGE, weapon: 'wedge' },
   { id: 'club', name: 'Holzkeule', slot: 'hand', icon: undefined, weapon: 'none' },
+  { id: 'wolfArmor', name: 'Wolfspelz', slot: 'chest', icon: iFur.url, weapon: undefined },
+  { id: 'sabreArmor', name: 'Säbelzahnpelz', slot: 'chest', icon: iFur.url, weapon: undefined },
 ];
 const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', chest: 'Brust', feet: 'Füße' };
 
@@ -118,16 +121,17 @@ export default function GameView(){
    const ok=(id:string|null):id is string=>!!id&&ITEMS.some(i=>i.id===id)&&(id==='fists'||owned.includes(id));
    const hb=ui.hotbar.map(id=>ok(id)?id:null);const hand=ok(ui.hand)?ui.hand:'fists';
    const it=ITEMS.find(i=>i.id===hand)??ITEMS[0];if(!it)return;
-   setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
+   const armor=ui.armor&&owned.includes(ui.armor)?ui.armor:null;input.current.armor=armor;setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand,chest:armor}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
   }
   setUiRestored(true);
  };
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
- useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active}});},[uiRestored,hotbar,equipped.hand,active]);
+ useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active,armor:(equipped.chest as ArmorId|null)??null}});},[uiRestored,hotbar,equipped.hand,equipped.chest,active]);
  useEffect(()=>{input.current.paused=paused||heroName===''||panel!==null||talk!==null||!!status.chestOpen;input.current.x=0;input.current.y=0;input.current.sprint=false;input.current.crouch=false;input.current.focus=false;input.current.throwSpear=false;},[paused,panel,talk,status.chestOpen,heroName]);
  useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const equip=(item:Item)=>{
+   if(item.slot==='chest'){const off=equipped.chest===item.id;setEquipped(e=>({...e,chest:off?null:item.id}));input.current.armor=off?null:item.id as ArmorId;setOpenSlot(null);return;}
    setEquipped(e=>({...e,[item.slot]:item.id}));
    if(item.weapon){input.current.weapon=item.weapon;input.current.club=item.id==='club';const hs=hotbar.indexOf(item.id);setActive(item.id==='fists'?0:hs>=0?hs+1:active);}
    setOpenSlot(null);
@@ -211,7 +215,7 @@ export default function GameView(){
      {panel==='gear'?<>
       <h2>{tab==='craft'?'Handwerk':'Ausrüstung'}</h2>
       <div className="gear-tabs"><button className={tab==='inv'?'is-on':''} onClick={()=>setTab('inv')}>Rucksack</button><button className={tab==='craft'?'is-on':''} onClick={()=>{setTab('craft');setOpenSlot(null);}}>Handwerk</button></div>
-      {tab==='craft'?<div className="gear-items"><p className="gear-items-title">Stufe {status.level} · {status.xp} EP</p>{RECIPES.map(base=>{const rc=discountedRecipe(base,{...NO_BONUS,craftDiscount:!!status.craftDiscount});const ok=canCraft(rc,status,status.level,status.owned);const have=status.owned.includes(rc.id);const locked=status.level<rc.level;return <div key={rc.id} className={`recipe ${ok?'is-ready':''}`}>{CRAFT_ICON[rc.id]&&<img src={CRAFT_ICON[rc.id]} alt="" style={{width:32,height:32,imageRendering:'pixelated'}}/>}<div><strong>{rc.name}</strong>{rc.effect&&<small>{rc.effect}</small>}<small>{locked?`Ab Stufe ${rc.level}`:have?'Bereits im Besitz':''}</small><span className="recipe-cost">{Object.entries(rc.cost).map(([k,n])=><i key={k} className={status[k as keyof typeof RESOURCE_NAME]>=n?'ok':''}>{RESOURCE_NAME[k as keyof typeof RESOURCE_NAME]} {status[k as keyof typeof RESOURCE_NAME]}/{n}</i>)}</span></div><Button size="sm" disabled={!ok} onClick={()=>{input.current.craft=rc.id;}}>Herstellen</Button></div>;})}</div>:<>
+      {tab==='craft'?<div className="gear-items"><p className="gear-items-title">Stufe {status.level} · {status.xp} EP</p>{RECIPES.map(base=>{const rc=discountedRecipe(base,{...NO_BONUS,craftDiscount:!!status.craftDiscount});const ok=canCraft(rc,status,status.level,status.owned);const have=status.owned.includes(rc.id);const locked=status.level<rc.level;return <div key={rc.id} className={`recipe ${ok?'is-ready':''}`}>{CRAFT_ICON[rc.id]&&<img src={CRAFT_ICON[rc.id]} alt="" style={{width:32,height:32,imageRendering:'pixelated'}}/>}<div><strong>{rc.name}</strong>{rc.effect&&<small>{rc.effect}</small>}<small>{locked?`Ab Stufe ${rc.level}`:have?'Bereits im Besitz':''}</small><span className="recipe-cost">{Object.entries(rc.cost).map(([k,n])=><i key={k} className={(status[k as keyof typeof COST_NAME]??0)>=n?'ok':''}>{COST_NAME[k as keyof typeof COST_NAME]} {status[k as keyof typeof COST_NAME]??0}/{n}</i>)}</span></div><Button size="sm" disabled={!ok} onClick={()=>{input.current.craft=rc.id;}}>Herstellen</Button></div>;})}</div>:<>
       <div className="gear-layout">
        <div className="gear-slots">
         {(['head','chest','feet'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">{s==='head'?'◯':s==='chest'?'▣':'▽'}</span>}<em>{SLOT_LABEL[s]}</em></button>;})}
