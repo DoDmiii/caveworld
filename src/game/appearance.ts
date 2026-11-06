@@ -40,8 +40,14 @@ export const BLOODY_AT = 50;
 export const isBloodied = (health: number, max = 100) => health <= max * (BLOODY_AT / 100);
 
 export const BLOOD_TINT = 0xd98080;
-/** Placeholder look: blood wins over armor tint; null = original sprite. */
+export type SkinId = 'wolf' | 'sabre' | 'blood';
+/** Worn armor shows its own skin; without armor the blood skin appears at ≤50 % health. */
+export function skinFor(armor: ArmorId | null | undefined, health: number): SkinId | null {
+  if (armor === 'wolfArmor') return 'wolf';
+  if (armor === 'sabreArmor') return 'sabre';
+  return isBloodied(health) ? 'blood' : null;
+}
+/** Extra tint on top of the skin: armor skins have no blood variant yet, so they redden when bloodied. */
 export function playerTint(armor: ArmorId | null | undefined, health: number): number | null {
-  if (isBloodied(health)) return BLOOD_TINT;
-  return def(armor)?.tint ?? null;
+  return armor && isBloodied(health) ? BLOOD_TINT : null;
 }

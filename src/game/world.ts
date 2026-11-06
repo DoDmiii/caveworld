@@ -56,7 +56,8 @@ import walkWest from '@/assets/walk-west.png.asset.json';
 import walkNorthWest from '@/assets/walk-north-west.png.asset.json';
 import walkNorth from '@/assets/walk-north.png.asset.json';
 import walkNorthEast from '@/assets/walk-north-east.png.asset.json';
-import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, PELT_NAME, type ArmorId } from './appearance';
+import { SKINS, SKIN_ANIMS, skinFrame } from './skins';
+import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, skinFor, type SkinId, PELT_NAME, type ArmorId } from './appearance';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
 import { TIGER, GAZELLE, SNOW, WOLF_EAT, type SnowKind } from './wildlife';
@@ -230,7 +231,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const k=this.keys,dt=Math.min(delta,100)/1000;
       if(input.save!==this.lastSaveReq){this.lastSaveReq=input.save;this.persist();this.message='Spielstand gespeichert';this.messageUntil=time+1800;}
       else if(time-this.lastAutosave>15000){this.lastAutosave=time;this.persist();}
-      if(this.health<=0&&!this.dead){this.dead=true;p.play(`anim-death-${this.lastFacing}`);}
+      if(this.health<=0&&!this.dead){this.dead=true;this.playDeath(p);}
       if(this.dead){p.setVelocity(0,0);if(input.respawn!==this.lastRespawn){this.lastRespawn=input.respawn;this.dead=false;this.health=100;this.hunger=50;this.warmth=80;this.exitCave();p.setPosition(CAMP.x,CAMP.y-30);p.anims.stop();this.persist();}this.report(time,p);return;}
       let dx=input.x,dy=input.y;
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
@@ -242,12 +243,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.craft){const r=RECIPES.find(r=>r.id===input.craft);const next=r&&craft(r,this.stock,levelFromXp(this.xp),this.owned);if(r&&next){this.stock=next;this.owned.push(r.id);this.addXp(XP.craft);this.message=`${r.name} hergestellt`;this.messageUntil=time+2000;}input.craft=null;}
       if(input.weapon!==this.weapon)this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';
       const attackKey=k?.['Q'];const attackNow=this.clickAttack||(attackKey&&Phaser.Input.Keyboard.JustDown(attackKey));this.clickAttack=false;
-      if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||attackNow)){this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);
+      if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||attackNow)){this.lastAttack=input.attack;this.attacking=true;p.setVelocity(0,0);this.playAttack(p,this.held);
         const a=this.lastFacing*Math.PI/4;
         const d=caveDeposits(id).find(d=>!this.caves.mined.includes(d.id)&&Math.hypot(d.x-p.x,d.y-p.y)<48&&((d.x-p.x)*Math.cos(a)+(d.y-p.y)*Math.sin(a))/Math.max(1,Math.hypot(d.x-p.x,d.y-p.y))>0.25);
         if(d){if(this.held!=='axe'){this.message='Dafür brauchst du die Steinaxt';}else{const hits=(this.caveOreHits.get(d.id)??0)+1;this.caveOreHits.set(d.id,hits);if(hits>=3){const next=mineDeposit(this.caves,d.id);if(next){this.caves=next;this.caveView?.ore.get(d.id)?.destroy();this.addXp(15);this.message=`+${d.yield} ${d.kind==='obsidian'?'Obsidian':'Erd-Pigmente'} · +15 EP`;this.persist();}}else this.message='Die Mineralader bröckelt …';}this.messageUntil=time+2200;}
       }else this.lastAttack=input.attack;
-      if(!this.attacking){if(moving){this.lastFacing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;p.play(`${this.held}-walk-${this.lastFacing}`,true);}else{p.anims.stop();p.setTexture(`${this.held}-idle-${this.lastFacing}`);}}p.setDepth(60000+p.y);
+      if(!this.attacking){if(moving){this.lastFacing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;this.playWalk(p,this.held,running);}else this.setIdle(p,this.held);}p.setDepth(60000+p.y);
       const e=k?.['E'];const actionNow=e&&Phaser.Input.Keyboard.JustDown(e);
       if(!input.paused&&!this.attacking&&(input.action!==this.lastAction||actionNow)){this.lastAction=input.action;this.caveAction(time);if(!this.caves.current){this.report(time,p);return;}}else this.lastAction=input.action;
       const food=input.eat;input.eat=null;if(food){const r=eat(this.pantry(),food);if(r){this.setPantry(r);this.healPulse++;}}
@@ -909,6 +910,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
     }
+    skinNow(): SkinId | null { return skinFor(input.armor, this.health); }
+    playDeath(p: Phaser.Physics.Arcade.Sprite) { const s = this.skinNow(); p.play(s ? `anim-skin-${s}-death-${this.lastFacing}` : `anim-death-${this.lastFacing}`); }
+    playAttack(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.play(s && w === 'none' ? `anim-skin-${s}-punch-${this.lastFacing}` : `anim-${w}-attack-${this.lastFacing}`); }
+    playWalk(p: Phaser.Physics.Arcade.Sprite, w: Weapon, running: boolean) { const s = this.skinNow(); const key = s ? (running && SKINS[s].frames.run > 1 ? `skin-${s}-run-${this.lastFacing}` : `skin-${s}-walk-${this.lastFacing}`) : `${w}-walk-${this.lastFacing}`; if (p.anims.currentAnim?.key !== key || !p.anims.isPlaying) p.play(key); p.anims.timeScale = running && !key.includes('-run-') ? 1.5 : 1; }
+    setIdle(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.anims.stop(); if (s) p.setTexture(`skin-${s}`, skinFrame('idle', this.lastFacing)); else p.setTexture(`${w}-idle-${this.lastFacing}`); }
+    playCrouch(p: Phaser.Physics.Arcade.Sprite, moving: boolean) { const s = this.skinNow(); const ck = s ? `skin-${s}-crouch-${this.lastFacing}` : `anim-crouch-${this.lastFacing}`; if (moving) { if (p.anims.currentAnim?.key !== ck || !p.anims.isPlaying) p.play(ck); } else { p.anims.stop(); if (s) p.setTexture(`skin-${s}`, skinFrame('crouch', this.lastFacing, 3)); else p.setTexture(`crouch-${this.lastFacing}`, 4); } }
     preload() {
       preloadCampers(this);
       preloadFolk(this);
@@ -921,6 +928,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       FINISHER.forEach((u,i)=>this.load.spritesheet(`finisher-${i}`,u,{frameWidth:32,frameHeight:32}));
       BEHEAD.forEach((u,i)=>this.load.spritesheet(`behead-${i}`,u,{frameWidth:32,frameHeight:32}));
+      for(const [k,sk] of Object.entries(SKINS))this.load.spritesheet(`skin-${k}`,sk.url,{frameWidth:32,frameHeight:32});
       DEATH.forEach((u,i)=>this.load.spritesheet(`death-${i}`,u,{frameWidth:32,frameHeight:32}));
       CROUCH.forEach((u,i)=>this.load.spritesheet(`crouch-${i}`,u,{frameWidth:32,frameHeight:32}));
       this.load.image('sleep', SLEEP);
@@ -970,6 +978,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
       });
       for (let i = 0; i < 8; i++) {
+        for(const [k,sk] of Object.entries(SKINS))for(const a of SKIN_ANIMS){const n=sk.frames[a];if(n<2)continue;const st=skinFrame(a,i);const key=a==='walk'||a==='run'||a==='crouch'?`skin-${k}-${a}-${i}`:a==='finisher'?`anim-finisher-${k}-${i}`:`anim-skin-${k}-${a}-${i}`;this.anims.create({key,frames:this.anims.generateFrameNumbers(`skin-${k}`,{start:st,end:st+n-1}),frameRate:a==='walk'?10:a==='run'?10:a==='crouch'?7:a==='death'?9:a==='punch'?12:10,repeat:a==='walk'||a==='run'||a==='crouch'?-1:0});}
         this.anims.create({ key: `anim-finisher-${i}`, frames: this.anims.generateFrameNumbers(`finisher-${i}`), frameRate: 10, repeat: 0 });
         this.anims.create({ key: `anim-behead-${i}`, frames: this.anims.generateFrameNumbers(`behead-${i}`), frameRate: 11, repeat: 0 });
         this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
@@ -1273,7 +1282,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       this.lastRespawn=input.respawn;
       if(this.health<=0){
-        this.finisher=undefined;this.attackPending=false;this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;p.play(`anim-death-${this.lastFacing}`);
+        this.finisher=undefined;this.attackPending=false;this.dead=true;this.attacking=false;this.target=undefined;p.setVelocity(0,0);p.clearTint();p.setAlpha(1);p.anims.timeScale=1;this.playDeath(p);
         this.report(time,p);return;
       }
       if(this.sleeping){this.clock+=SLEEP_CLOCK_PER_SEC*Math.min(delta,100)/1000; this.tickTrust(0); this.tickTasks();}
@@ -1373,25 +1382,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(helpless&&this.executeCaptive(helpless)){this.report(time,p);return;}
         this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
-        p.anims.timeScale=1;p.play(`anim-${w}-attack-${this.lastFacing}`);
+        p.anims.timeScale=1;this.playAttack(p,w);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
       if(this.attacking){/* attack animation plays out; facing stays locked */}
       else if(this.crouching) {
         if(moving)this.lastFacing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;
         else if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
-        const ck=`anim-crouch-${this.lastFacing}`;
-        if(moving){if(p.anims.currentAnim?.key!==ck||!p.anims.isPlaying)p.play(ck);}
-        else{p.anims.stop();p.setTexture(`crouch-${this.lastFacing}`,4);}
+        this.playCrouch(p,moving);
       }
       else if(moving) {
         const angle=Math.atan2(dy,dx);this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
-        const animKey=`${w}-walk-${this.lastFacing}`;
-        if(p.anims.currentAnim?.key!==animKey||!p.anims.isPlaying)p.play(animKey);
-        p.anims.timeScale=running?1.5:1;
+        this.playWalk(p,w,!!running);
       } else {
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
-        p.anims.stop();
-        p.setTexture(`${w}-idle-${this.lastFacing}`);
+        this.setIdle(p,w);
       }
       p.setDepth(p.y);
       if(this.carried&&this.carryImg){
@@ -2004,7 +2008,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
       this.target=undefined;this.finisher=f;this.beheading=finisherStyle(this.held)==='behead';this.attacking=true;this.attackPending=false;this.crouchOn=false;
       p.setPosition(f.sprite.x-Math.cos(angle)*14,f.sprite.y-Math.sin(angle)*14).setVelocity(0,0).setDepth(f.sprite.y+1);
-      p.anims.timeScale=1;p.play(`anim-${this.beheading?'behead':'finisher'}-${this.lastFacing}`);
+      p.anims.timeScale=1;{const s=this.skinNow();p.play(!this.beheading&&s&&SKINS[s].frames.finisher>1?`anim-finisher-${s}-${this.lastFacing}`:`anim-${this.beheading?'behead':'finisher'}-${this.lastFacing}`);}
       this.message=this.beheading?'Enthauptung!':'Finisher!';this.messageUntil=this.time.now+1800;return true;
     }
     executing = false;

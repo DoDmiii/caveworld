@@ -1,0 +1,18 @@
+// Uploaded player skins, packed as one atlas per skin: row = anim*8 + direction (E,SE,S,SW,W,NW,N,NE), 9 columns of 32×32.
+import wolf from '@/assets/skins/skin-wolf.png.asset.json';
+import sabre from '@/assets/skins/skin-sabre.png.asset.json';
+import blood from '@/assets/skins/skin-blood.png.asset.json';
+import wolfP from '@/assets/skins/skin-wolf-portrait.png.asset.json';
+import sabreP from '@/assets/skins/skin-sabre-portrait.png.asset.json';
+import bloodP from '@/assets/skins/skin-blood-portrait.png.asset.json';
+import type { SkinId } from './appearance';
+
+export const SKIN_ANIMS = ['idle', 'walk', 'run', 'crouch', 'death', 'punch', 'finisher'] as const;
+export type SkinAnim = (typeof SKIN_ANIMS)[number];
+export const SKIN_COLS = 9;
+export const SKINS: Record<SkinId, { url: string; portrait: string; frames: Record<SkinAnim, number> }> = {
+  wolf: { url: wolf.url, portrait: wolfP.url, frames: { idle: 1, walk: 8, run: 4, crouch: 6, death: 7, punch: 6, finisher: 9 } },
+  sabre: { url: sabre.url, portrait: sabreP.url, frames: { idle: 1, walk: 8, run: 0, crouch: 6, death: 7, punch: 6, finisher: 9 } },
+  blood: { url: blood.url, portrait: bloodP.url, frames: { idle: 1, walk: 8, run: 0, crouch: 6, death: 7, punch: 6, finisher: 0 } },
+};
+export const skinFrame = (a: SkinAnim, dir: number, f = 0) => (SKIN_ANIMS.indexOf(a) * 8 + dir) * SKIN_COLS + f;
