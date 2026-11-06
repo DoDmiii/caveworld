@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { armorSpeed, armorDamage, armorCold, isBloodied, peltFor, playerTint, BLOOD_TINT } from '../game/appearance';
+import { armorSpeed, armorDamage, armorCold, isBloodied, peltFor, playerTint, BLOOD_TINT, skinFor } from '../game/appearance';
 import { RECIPES, canCraft } from '../game/progress';
 
 describe('Rüstungen und Blut-Zustand', () => {
@@ -7,6 +7,12 @@ describe('Rüstungen und Blut-Zustand', () => {
     expect(isBloodied(50)).toBe(true);
     expect(isBloodied(51)).toBe(false);
     expect(playerTint('wolfArmor', 40)).toBe(BLOOD_TINT);
+  });
+  it('Pelz zeigt eigenen Skin, sonst Blut-Skin ab halber Lebensanzeige', () => {
+    expect(skinFor('wolfArmor', 100)).toBe('wolf');
+    expect(skinFor('sabreArmor', 30)).toBe('sabre');
+    expect(skinFor(null, 50)).toBe('blood');
+    expect(skinFor(null, 51)).toBeNull();
   });
   it('Wolf ist schneller, Säbelzahn macht mehr Schaden', () => {
     expect(armorSpeed('wolfArmor')).toBeGreaterThan(1);
