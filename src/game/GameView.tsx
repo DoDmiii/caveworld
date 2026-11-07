@@ -59,7 +59,7 @@ function renderBiomeMap(){
  c.putImageData(img,0,0);return cv.toDataURL();
 }
 
-type Slot = 'hand' | 'head' | 'chest' | 'feet';
+type Slot = 'hand' | 'off' | 'head' | 'chest' | 'feet';
 type Item = { id: string; name: string; slot: Slot; icon: string | undefined; weapon: Weapon | undefined };
 const ITEMS: Item[] = [
   { id: 'fists', name: 'Fäuste', slot: 'hand', icon: undefined, weapon: 'none' },
@@ -67,10 +67,11 @@ const ITEMS: Item[] = [
   { id: 'spear', name: 'Steinspeer', slot: 'hand', icon: ICON_SPEAR, weapon: 'spear' },
   { id: 'wedge', name: 'Steinkeil', slot: 'hand', icon: ICON_WEDGE, weapon: 'wedge' },
   { id: 'club', name: 'Holzkeule', slot: 'hand', icon: undefined, weapon: 'none' },
+  { id: 'torch', name: 'Fackel', slot: 'hand', icon: iTorch.url, weapon: 'none' },
   { id: 'wolfArmor', name: 'Wolfspelz', slot: 'chest', icon: iFur.url, weapon: undefined },
   { id: 'sabreArmor', name: 'Säbelzahnpelz', slot: 'chest', icon: iFur.url, weapon: undefined },
 ];
-const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', head: 'Kopf', chest: 'Brust', feet: 'Füße' };
+const SLOT_LABEL: Record<Slot, string> = { hand: 'Haupthand', off: 'Nebenhand', head: 'Kopf', chest: 'Brust', feet: 'Füße' };
 
 export default function GameView(){
  const host=useRef<HTMLDivElement>(null);
@@ -122,16 +123,19 @@ export default function GameView(){
    const ok=(id:string|null):id is string=>!!id&&ITEMS.some(i=>i.id===id)&&(id==='fists'||owned.includes(id));
    const hb=ui.hotbar.map(id=>ok(id)?id:null);const hand=ok(ui.hand)?ui.hand:'fists';
    const it=ITEMS.find(i=>i.id===hand)??ITEMS[0];if(!it)return;
-   const armor=ui.armor&&owned.includes(ui.armor)?ui.armor:null;input.current.armor=armor;setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand,chest:armor}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
+   const armor=ui.armor&&owned.includes(ui.armor)?ui.armor:null;input.current.armor=armor;setHotbar(hb);setActive(ui.active);setEquipped(e=>({...e,hand,chest:armor,off:ui.off==='torch'&&owned.includes('torch')&&hand!=='torch'?'torch':null}));input.current.weapon=it.weapon??'none';input.current.club=hand==='club';
   }
   setUiRestored(true);
  };
  useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
- useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active,armor:(equipped.chest as ArmorId|null)??null}});},[uiRestored,hotbar,equipped.hand,equipped.chest,active]);
+ useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active,armor:(equipped.chest as ArmorId|null)??null,off:equipped.off??null}});},[uiRestored,hotbar,equipped.hand,equipped.off,equipped.chest,active]);
  useEffect(()=>{input.current.paused=paused||heroName===''||panel!==null||talk!==null||!!status.chestOpen;input.current.x=0;input.current.y=0;input.current.sprint=false;input.current.crouch=false;input.current.focus=false;input.current.throwSpear=false;},[paused,panel,talk,status.chestOpen,heroName]);
  useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if(e.key!=='Tab')return;e.preventDefault();setPanel(p=>p==='gear'?null:p===null?'gear':p);setOpenSlot(null);};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
- const equip=(item:Item)=>{
+ useEffect(()=>{input.current.torch=equipped.hand==='torch'?'main':equipped.off==='torch'?'off':null;},[equipped.hand,equipped.off]);
+ const equip=(item:Item,slot?:Slot)=>{
+   if(slot==='off'){setEquipped(e=>({...e,off:e.off===item.id?null:item.id,hand:e.hand===item.id?'fists':e.hand}));if(equipped.hand===item.id){input.current.weapon='none';input.current.club=false;}setOpenSlot(null);return;}
+   if(item.id==='torch')setEquipped(e=>({...e,off:null}));
    if(item.slot==='chest'){const off=equipped.chest===item.id;setEquipped(e=>({...e,chest:off?null:item.id}));input.current.armor=off?null:item.id as ArmorId;setOpenSlot(null);return;}
    setEquipped(e=>({...e,[item.slot]:item.id}));
    if(item.weapon){input.current.weapon=item.weapon;input.current.club=item.id==='club';const hs=hotbar.indexOf(item.id);setActive(item.id==='fists'?0:hs>=0?hs+1:active);}
@@ -233,10 +237,10 @@ export default function GameView(){
        </div>
        <div className="gear-figure"><span style={{position:'relative',display:'inline-block'}}><img src={heroImg} alt="Charakter"/>{tintCss&&<i aria-hidden style={{position:'absolute',inset:0,background:tintCss,mixBlendMode:'multiply',WebkitMaskImage:`url(${heroImg})`,maskImage:`url(${heroImg})`,WebkitMaskSize:'100% 100%',maskSize:'100% 100%',pointerEvents:'none'}}/>}</span><div className="gear-health"><i style={{width:`${status.health}%`}}/></div></div>
        <div className="gear-slots">
-        {(['hand'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">●</span>}<em>{it?.name??SLOT_LABEL[s]}</em></button>;})}
+        {(['hand','off'] as Slot[]).map(s=>{const it=ITEMS.find(i=>i.id===equipped[s]);return <button key={s} className={`gear-slot ${openSlot===s?'is-open':''}`} onClick={()=>setOpenSlot(openSlot===s?null:s)}>{it?.icon?<img src={it.icon} alt={it.name}/>:<span className="slot-sil">●</span>}<em>{it?.name??SLOT_LABEL[s]}</em></button>;})}
        </div>
       </div>
-      {openSlot?<div className="gear-items"><p className="gear-items-title">{SLOT_LABEL[openSlot]} wählen</p><div className="gear-grid">{ITEMS.filter(i=>i.slot===openSlot&&owns(i.id)).map(i=><button key={i.id} className={`gear-item ${equipped[openSlot]===i.id?'is-equipped':''}`} onClick={()=>equip(i)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>
+      {openSlot?<div className="gear-items"><p className="gear-items-title">{SLOT_LABEL[openSlot]} wählen</p><div className="gear-grid">{ITEMS.filter(i=>(openSlot==='off'?i.id==='torch':i.slot===openSlot)&&owns(i.id)).map(i=><button key={i.id} className={`gear-item ${equipped[openSlot]===i.id?'is-equipped':''}`} onClick={()=>equip(i,openSlot)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}</em></button>)}</div></div>
        :<div className="gear-items"><p className="gear-items-title">Proviant · antippen zum Essen</p><div className="gear-grid">{([['berries','Beeren','✦',status.berries,15],['meat','Rohes Fleisch','🥩',status.meat,20],['cooked','Gebraten','🍖',status.cooked,45]] as const).map(([id,name,ic,n,hp])=><button key={id} className="gear-item" disabled={n<=0} onClick={()=>{input.current.eat=id;}}><span className="slot-sil">{ic}</span><em>{name} ×{n} · +{hp}</em></button>)}</div><p className="gear-items-title">Ressourcen</p><div className="gear-grid">{RESOURCES.map(([id,name,icon])=><div key={id} className="gear-item is-static"><img src={icon} alt={name}/><em>{name} ×{status[id]}</em></div>)}</div>{status.owned.some(id=>PASSIVE.includes(id))&&<><p className="gear-items-title">Hilfsmittel · wirken automatisch</p><div className="gear-grid">{RECIPES.filter(rc=>PASSIVE.includes(rc.id)&&status.owned.includes(rc.id)).map(rc=><div key={rc.id} className="gear-item is-static" title={rc.effect}><img src={CRAFT_ICON[rc.id]} alt={rc.name}/><em>{rc.name}</em></div>)}</div></>}{status.owned.includes('horn')&&<><p className="gear-items-title">Signale</p><div className="gear-grid"><div className="gear-item is-static"><img src={HORN_ICON} alt="Kriegshorn"/><em>Kriegshorn</em></div></div></>}<p className="gear-items-title">Beutel · antippen für Schnellslot</p>{pick&&<div className="assign-row">{ITEMS.find(i=>i.id===pick)?.name} auf Slot: {[0,1,2].map(n=><Button key={n} size="sm" variant="outline" onClick={()=>assign(n,pick)}>{n+1}</Button>)}<Button size="sm" variant="ghost" onClick={()=>{const it=ITEMS.find(i=>i.id===pick);if(it)equip(it);setPick(null);}}>Ausrüsten</Button></div>}<div className="gear-grid">{bag.map(i=><button key={i.id} className={`gear-item ${equipped[i.slot]===i.id?'is-equipped':''}`} style={i.slot==='chest'?{touchAction:'none',cursor:'grab',opacity:drag?.id===i.id?0.4:1}:undefined} title={i.slot==='chest'?'Auf das Brust-Feld ziehen':undefined} onPointerDown={i.slot==='chest'?e=>{e.preventDefault();setPick(null);setDrag({id:i.id,x:e.clientX,y:e.clientY,over:false});}:undefined} onClick={()=>i.slot==='chest'?undefined:i.id==='fists'?equip(i):setPick(i.id)}>{i.icon?<img src={i.icon} alt={i.name}/>:<span className="slot-sil">{i.id==='fists'?'●':'✦'}</span>}<em>{i.name}{hotbar.includes(i.id)?` · ${hotbar.indexOf(i.id)+1}`:''}</em></button>)}</div></div>}</>}
       <Button className="resume-button" onClick={()=>{setPanel(null);setPaused(false);setOpenSlot(null);}}><Play size={16}/> Weiter erkunden</Button>
      </>:panel==='map'?<>
