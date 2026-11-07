@@ -34,3 +34,15 @@ export const ARMED_SKINS: Record<SkinId, Record<ArmedWeapon, { url: string; fram
 };
 export const armedFrame = (a: ArmedAnim, dir: number, f = 0) => (ARMED_ANIMS.indexOf(a) * 8 + dir) * SKIN_COLS + f;
 export const isArmed = (w: string): w is ArmedWeapon => w === 'axe' || w === 'spear';
+
+// Torch held in the main hand: atlas layout like ARMED_SKINS (idle, walk, run, attack), one per look incl. the default player.
+import torchBase from '@/assets/skins/torch-base.png.asset.json';
+import torchWolf from '@/assets/skins/torch-wolf.png.asset.json';
+import torchSabre from '@/assets/skins/torch-sabre.png.asset.json';
+import torchBlood from '@/assets/skins/torch-blood.png.asset.json';
+export const TORCH_SKINS: Record<SkinId | 'base', { url: string } & Record<ArmedAnim, number>> = {
+  base: { url: torchBase.url, idle: 1, walk: 9, run: 0, attack: 9 },
+  wolf: { url: torchWolf.url, idle: 1, walk: 8, run: 8, attack: 9 },
+  sabre: { url: torchSabre.url, idle: 1, walk: 8, run: 0, attack: 9 },
+  blood: { url: torchBlood.url, idle: 1, walk: 8, run: 0, attack: 9 },
+};
