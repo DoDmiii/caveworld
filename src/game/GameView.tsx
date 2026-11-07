@@ -101,7 +101,7 @@ export default function GameView(){
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if((e.key==='b'||e.key==='B')&&!e.repeat){setBuildOpen(o=>{if(o)input.current.build={op:'cancel'};return !o;});}};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|null>(null);
- const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',head:null,chest:null,feet:null});
+ const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',off:null,head:null,chest:null,feet:null});
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  const [tab,setTab]=useState<'inv'|'craft'>('inv');
  const [hotbar,setHotbar]=useState<(string|null)[]>(['axe',null,null]);
