@@ -81,6 +81,7 @@ const UiSchema = z.object({
   hand: z.string(),
   active: z.number().int().min(0).max(3),
   armor: z.enum(['wolfArmor', 'sabreArmor']).nullable().optional(),
+  off: z.string().nullable().optional(),
 });
 
 const SaveSchema = z.object({

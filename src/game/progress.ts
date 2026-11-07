@@ -20,7 +20,7 @@ export const RECIPES: Recipe[] = [
   { id: 'horn', name: 'Kriegshorn', level: 1, cost: { flint: 2, wood: 1, fiber: 2 }, effect: 'Ruft deinen Jagdtrupp zusammen' },
   { id: 'wedge', name: 'Steinkeil', level: 1, cost: { stone: 2, flint: 1 } },
   { id: 'club', name: 'Holzkeule', level: 1, cost: { wood: 3 } },
-  { id: 'torch', name: 'Fackel', level: 1, cost: { wood: 2, fiber: 1 }, effect: 'Nachts halb so viel Kälte' },
+  { id: 'torch', name: 'Fackel', level: 1, cost: { wood: 2, fiber: 1 }, effect: 'Licht und nachts halb so viel Kälte (in eine Hand nehmen)' },
   { id: 'bandage', name: 'Heilwickel', level: 1, cost: { fiber: 3 }, effect: 'Heilt langsam, solange du satt bist' },
   { id: 'spear', name: 'Steinspeer', level: 2, cost: { wood: 4, stone: 1, fiber: 1 } },
   { id: 'bag', name: 'Lederbeutel', level: 2, cost: { fiber: 4, wood: 1 }, effect: 'Doppelte Ressourcen beim Aufheben' },
