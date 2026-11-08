@@ -20,6 +20,7 @@ import type { GameInput, GameStatus } from './world';
 import { discountedRecipe, NO_BONUS } from './bonuses';
 import { RECIPES, PASSIVE, canCraft, xpForLevel, type ItemId } from './progress';
 import iTorch from '../assets/craft/icon-torch.png.asset.json';
+import iClub from '../assets/craft/icon-club.png.asset.json';
 import iBandage from '../assets/craft/icon-bandage.png.asset.json';
 import iBag from '../assets/craft/icon-bag.png.asset.json';
 import iFur from '../assets/craft/icon-fur.png.asset.json';
@@ -27,7 +28,7 @@ import iBundle from '../assets/craft/icon-bundle.png.asset.json';
 import iBola from '../assets/craft/icon-bola.png.asset.json';
 import iAxe from '../assets/craft/icon-axe.png.asset.json';
 import iSpear from '../assets/craft/icon-spear.png.asset.json';
-const CRAFT_ICON: Partial<Record<ItemId, string>> = { horn: HORN_ICON, wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url, wolfArmor: iFur.url, sabreArmor: iFur.url };
+const CRAFT_ICON: Partial<Record<ItemId, string>> = { horn: HORN_ICON, wedge: ICON_WEDGE, axe: iAxe.url, spear: iSpear.url, torch: iTorch.url, club: iClub.url, bandage: iBandage.url, bag: iBag.url, fur: iFur.url, bundle: iBundle.url, bola: iBola.url, wolfArmor: iFur.url, sabreArmor: iFur.url };
 import { RESOURCE_NAME, COST_NAME } from './harvest';
 import { playerTint, skinFor, type ArmorId } from './appearance';
 import { SKINS } from './skins';
@@ -66,7 +67,7 @@ const ITEMS: Item[] = [
   { id: 'axe', name: 'Steinaxt', slot: 'hand', icon: ICON_AXE, weapon: 'axe' },
   { id: 'spear', name: 'Steinspeer', slot: 'hand', icon: ICON_SPEAR, weapon: 'spear' },
   { id: 'wedge', name: 'Steinkeil', slot: 'hand', icon: ICON_WEDGE, weapon: 'wedge' },
-  { id: 'club', name: 'Holzkeule', slot: 'hand', icon: undefined, weapon: 'none' },
+  { id: 'club', name: 'Holzkeule', slot: 'hand', icon: iClub.url, weapon: 'none' },
   { id: 'torch', name: 'Fackel', slot: 'hand', icon: iTorch.url, weapon: 'none' },
   { id: 'wolfArmor', name: 'Wolfspelz', slot: 'chest', icon: iFur.url, weapon: undefined },
   { id: 'sabreArmor', name: 'Säbelzahnpelz', slot: 'chest', icon: iFur.url, weapon: undefined },
