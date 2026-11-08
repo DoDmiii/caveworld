@@ -46,3 +46,4 @@
 - Keep first-contact tension rules (personal space, shove escalation, escorts, kin-crime alarms) engine-free in tension.ts; world.ts only moves folk, applies knockback and raises alarms.
 - Keep witness perception, deed outcomes and rumor spreading engine-free in events.ts; world.ts only collects observers, applies outcomes and saves rumors in the game save, so unseen deeds stay without consequences.
 - Keep armor stats, pelt drops and the bloodied threshold engine-free in appearance.ts; world.ts only multiplies speed/damage/cold and tints the player until real skin atlases replace the placeholder tint.
+- Keep main-hand looks (torch, club) as per-skin atlases in skins.ts sharing the armed layout; world.ts picks them via heldLook() so new hand items only add a table.
