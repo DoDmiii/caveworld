@@ -46,3 +46,15 @@ export const TORCH_SKINS: Record<SkinId | 'base', { url: string } & Record<Armed
   sabre: { url: torchSabre.url, idle: 1, walk: 8, run: 0, attack: 9 },
   blood: { url: torchBlood.url, idle: 1, walk: 8, run: 0, attack: 9 },
 };
+
+// Wooden club in the main hand: same atlas layout as TORCH_SKINS; larger uploaded canvases are centre-cropped to 32×32 without losing pixels.
+import clubBase from '@/assets/skins/club-base.png.asset.json';
+import clubWolf from '@/assets/skins/club-wolf.png.asset.json';
+import clubSabre from '@/assets/skins/club-sabre.png.asset.json';
+import clubBlood from '@/assets/skins/club-blood.png.asset.json';
+export const CLUB_SKINS: typeof TORCH_SKINS = {
+  base: { url: clubBase.url, idle: 1, walk: 8, run: 0, attack: 9 },
+  wolf: { url: clubWolf.url, idle: 1, walk: 8, run: 8, attack: 9 },
+  sabre: { url: clubSabre.url, idle: 1, walk: 8, run: 0, attack: 9 },
+  blood: { url: clubBlood.url, idle: 1, walk: 8, run: 0, attack: 9 },
+};
