@@ -19,6 +19,11 @@ describe('save', () => {
     expect(saveGame({ game: { ...game, fighters } })).toBe(true);
     expect(loadSave()?.game?.fighters).toEqual(fighters);
   });
+  it('retains a finisher rumor carried by an escaped witness', () => {
+    const rumors = { rumors: [{ id: 'finisher@1500', kind: 'finisher' as const, origin: 'frostheim', bornAt: 1500, reached: ['frostheim'] }] };
+    expect(saveGame({ game: { ...game, rumors } })).toBe(true);
+    expect(loadSave()?.game?.rumors).toEqual(rumors);
+  });
   it('retains horn, drum and manual alarm across reload', () => {
     const next = { ...game, owned: [...game.owned, 'horn' as const], structures: [{id:'drum',kind:'drum' as const,x:1000,y:750,dir:0,meat:[]}], signals: {manualAlarm:true,hornReadyAt:1600} };
     expect(saveGame({game:next})).toBe(true);
