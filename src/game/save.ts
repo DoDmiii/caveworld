@@ -53,6 +53,7 @@ const GameSchema = z.object({
     bonds: z.record(z.string().max(80), z.number().int().min(-100).max(100)),
     resolved: z.record(z.string().max(80), z.number().int().min(1).max(10000)),
   }).optional(),
+  couples: z.object({ lure: z.record(z.string().max(40), z.number().min(0).max(100)), affairs: z.record(z.string().max(40), z.number().int().min(0).max(10000)), suspicion: z.record(z.string().max(40), z.number().min(0).max(100)), broken: z.array(z.string().max(40)).max(30) }).optional(),
   trustProgress: z.record(z.string().max(40), z.object({ done: z.array(z.string().max(40)).max(10), since: z.number().min(0), peacefulSince: z.number().min(0), trades: z.number().int().min(0).max(2), watch: z.number().min(0).max(240) })).optional(),
   warband: z.object({
     pending: z.record(z.string().max(4), z.number().min(0)),
