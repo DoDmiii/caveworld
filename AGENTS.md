@@ -48,3 +48,4 @@
 - Keep fleeing-witness rules engine-free in chase.ts; only free non-warrior witnesses run, rumors start when they escape, and witnesses still fleeing at save time count as escaped so reloading cannot hide a deed.
 - Keep armor stats, pelt drops and the bloodied threshold engine-free in appearance.ts; world.ts only multiplies speed/damage/cold and tints the player until real skin atlases replace the placeholder tint.
 - Keep main-hand looks (torch, club) as per-skin atlases in skins.ts sharing the armed layout; world.ts picks them via heldLook() so new hand items only add a table.
+- Keep couples, seduction, secret affairs and jealousy rules engine-free in partners.ts; world.ts only reports witnesses, arms the jealous partner and saves couple state separately from relationships.

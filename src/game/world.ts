@@ -2011,7 +2011,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const reactions: WitnessReaction[] = witnesses.map(w => witnessReaction(this.couples, bond.id, w.id, this.folkAlive));
           const found = discover(this.couples, bond.id, reactions, this.folkAlive); this.couples = found.state;
           if (found.confront) { this.endCloseness('Ertappt!', time); this.confrontPartner(found.confront, time); this.persist(); return false; }
-          if (reactions.includes('gossip')) { this.endCloseness(`Man hat euch gesehen · ${this.personName(COUPLES[bond.id])} wird davon hören`, time); this.persist(); return false; }
+          if (reactions.includes('gossip')) { this.endCloseness(`Man hat euch gesehen · ${this.personName(COUPLES[bond.id] ?? "")} wird davon hören`, time); this.persist(); return false; }
           for (const witness of witnesses) {
             const npc = this.folk.find(o => o.c.id === witness.id); if (!npc) continue;
             this.closenessProtests.set(witness.id, time + 4000);
