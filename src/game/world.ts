@@ -692,11 +692,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.nextCampChat = time + 12000;
     }
     profileView(id: string, portrait: string): ProfileView | undefined {
-      const biography = getProfile(id); if (!biography) return undefined;
+      let biography = getProfile(id); if (!biography) return undefined;
       let state = this.profiles[id];
       if (!state) { state = profileState(biography); this.profiles[id] = state; }
       const couple = relationLabel(this.couples, id, this.personName, this.folkAlive);
-      if (couple) biography.relations = [...biography.relations.filter(r => r.with !== 'couple'), { with: 'couple', note: couple }];
+      if (couple) biography = { ...biography, relations: [...biography.relations, { with: 'couple', note: couple }] };
       return { biography, state: profileState(biography, state), portrait, trustSteps: trustSteps(biography.id, this.trustProgress[id]), bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
     }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();

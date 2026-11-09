@@ -69,4 +69,4 @@ export function profileState(profile: Profile, saved?: ProfileState): ProfileSta
   return saved ? { trust: saved.trust, skills: { ...saved.skills } } : { trust: profile.origin === 'Deine Sippe' ? 100 : 0, skills: { ...profile.skills } };
 }
 export function trustLabel(value: number): string { return value <= 20 ? 'Feindlich' : value <= 50 ? 'Misstrauisch' : value <= 75 ? 'Geduldet' : 'Treu'; }
-export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? (id === 'tindra' ? 'Tindra' : id); }
+export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? (id === 'tindra' ? 'Tindra' : id === 'couple' ? 'Partnerschaft' : id); }
