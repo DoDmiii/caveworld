@@ -67,7 +67,7 @@ const GameSchema = z.object({
     grudge: z.record(z.string().max(40), z.number().int().min(0).max(10)),
     day: z.number().int().min(0),
   }).optional(),
-  rumors: z.object({ rumors: z.array(z.object({ id: z.string().max(80), kind: z.enum(['attack', 'kill', 'steal', 'capture', 'execution', 'champion']), origin: z.string().max(40), bornAt: z.number().min(0), reached: z.array(z.string().max(40)).max(20) })).max(30) }).optional(),
+  rumors: z.object({ rumors: z.array(z.object({ id: z.string().max(80), kind: z.enum(['attack', 'kill', 'finisher', 'steal', 'capture', 'execution', 'champion']), origin: z.string().max(40), bornAt: z.number().min(0), reached: z.array(z.string().max(40)).max(20) })).max(30) }).optional(),
   relationships: z.object({
     village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
     personal: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),

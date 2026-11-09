@@ -2,7 +2,8 @@ import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTING
 import { renderCave } from './cave-render';
 import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
-import { EMPTY_FEAR, addFear, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
+import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
+import { EMPTY_FEAR, addFear, addFearAmount, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
 import { hornReady, recallOrders, alarmThreats, campResponse, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
 import { cameraZoom } from './mobile-controls';
@@ -763,7 +764,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         warband: this.warband,
         fear: this.fear,
-        rumors: this.rumors,
+        rumors: this.savedRumors(),
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
@@ -839,6 +840,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.raid = { ...(g.raid ?? {}) };
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
+      this.carriers = EMPTY_CARRIERS;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
@@ -1259,6 +1261,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.cavePrompt = caveAt(p.x,p.y) ? `Betreten: ${CAVES[caveAt(p.x,p.y) ?? 'home'].name}` : null;
       this.tickSignals(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
+      for (const c of this.carriers.carriers) if (c.status === 'fleeing') controlled.add(c.id);
+      this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       if (this.closeness) controlled.add(this.closeness.id);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
@@ -1560,6 +1564,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const f of this.folk) {
         if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
+        if (isCarrier(this.carriers, f.c.id)) { f.sprite.setDepth(f.sprite.y); continue; }
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
         if (d < bd) { bd = d; best = f; }
         if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
@@ -1784,7 +1789,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (r.relationship) this.rel = changeVillageRelationship(this.rel, r.village, r.relationship);
         if (r.fear) { const vi = FOLK_HOMES.findIndex(v => villageKey(v.name) === r.village); if (vi >= 0) this.frighten(vi, r.village === victimVk && fearEv ? fearEv : r.fear); }
       }
-      if (!out.unwitnessed) this.rumors = startRumor(this.rumors, deed, victimVk);
+      if (!out.unwitnessed) {
+        // Freie Dorfbewohner, die es gesehen haben, rennen heim, um es zu melden. Krieger bleiben und kämpfen.
+        const busy = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) busy.add(this.ilvarEscaping);
+        const runners = this.folk.filter(f => out.carriers.includes(f.c.id) && f.c.state === 'free' && f.combat.phase === 'ready' && !isWarrior(f.t) && !isChampion(f.t) && !busy.has(f.c.id));
+        if (!runners.length) { this.rumors = startRumor(this.rumors, deed, victimVk); return; }
+        const seeds = runners.map(f => { const h = FOLK_HOMES[f.t.village]!; return { id: f.c.id, village: villageKey(h.name), homeX: h.x, homeY: h.y, homeR: h.r }; });
+        this.carriers = startCarriers(this.carriers, seeds, kind, this.clock);
+        if (runners.some(f => { const h = FOLK_HOMES[f.t.village]!; return Math.hypot(f.sprite.x - h.x, f.sprite.y - h.y) > h.r * 0.8; })) this.time.delayedCall(kind === 'attack' ? 0 : 2300, () => { this.message = 'Ein Zeuge rennt los! Halt ihn auf!'; this.messageUntil = this.time.now + 2600; });
+      }
       else if (kind !== 'attack') { this.time.delayedCall(2300, () => { this.message = 'Niemand hat es gesehen …'; this.messageUntil = this.time.now + 2200; }); }
     }
     tickRumors() {
@@ -1797,11 +1810,40 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.rumors = r.state;
       for (const a of r.arrivals) {
         if (a.relationship) this.rel = changeVillageRelationship(this.rel, a.village, a.relationship);
-        if (a.fear) { this.fear = decayFear(this.fear, clockOf(this.clock).day); this.fear = { ...this.fear, fear: { ...this.fear.fear, [a.village]: Math.min(100, (this.fear.fear[a.village] ?? 0) + a.fear) } }; }
+        if (a.fear) this.fear = addFearAmount(decayFear(this.fear, clockOf(this.clock).day), a.village, a.fear);
         const name = FOLK_HOMES.find(v => villageKey(v.name) === a.village)?.name;
-        if (name) { this.message = `Gerüchte erreichen ${name}`; this.messageUntil = this.time.now + 2600; }
+        if (name) { this.message = `Gerüchte über deine Taten erreichen ${name}`; this.messageUntil = this.time.now + 2600; }
       }
       if (r.arrivals.length) this.persist();
+    }
+    /** Fliehende Zeugen sind flüchtig; wer beim Speichern noch rennt, gilt als entkommen, damit Neuladen keine Tat verschweigt. */
+    carriers: CarrierState = EMPTY_CARRIERS;
+    savedRumors(): RumorState {
+      let r = this.rumors;
+      for (const c of this.carriers.carriers) if (c.status === 'fleeing') r = startRumor(r, { kind: c.kind, actorId: 'player', x: 0, y: 0, clock: c.deedClock, night: false, crouching: false }, c.village);
+      return r;
+    }
+    /** Zeugen rennen heim, um die Tat zu melden. Wer sie einholt und ausschaltet, hält sie geheim. */
+    tickCarriers(time: number, stop: boolean) {
+      const p = this.player; if (!p || !this.carriers.carriers.length) return;
+      const views = new Map<string, CarrierView>();
+      for (const c of this.carriers.carriers) { const f = this.folk.find(o => o.c.id === c.id); if (f) views.set(c.id, { id: c.id, x: f.sprite.x, y: f.sprite.y, alive: f.combat.phase === 'ready', free: f.c.state === 'free', child: false }); }
+      const r = stepCarriers(this.carriers, views, { x: p.x, y: p.y }, stop ? 0 : Math.min(this.game.loop.delta, 100) / 1000);
+      for (const st of r.steps) {
+        const f = this.folk.find(o => o.c.id === st.id); if (!f) continue;
+        const s = f.sprite;
+        if (stop) { s.setVelocity(0, 0); continue; }
+        s.setVelocity(st.vx, st.vy); f.facing = (Math.round(Math.atan2(st.vy, st.vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
+        const m = this.folkMood.get(f.c.id); if (m) { m.icon.setText('!!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true); m.weapon?.setVisible(false); }
+      }
+      for (const c of [...r.escaped, ...r.silenced]) { const f = this.folk.find(o => o.c.id === c.id); this.folkMood.get(c.id)?.icon.setVisible(false); if (f && f.combat.phase === 'ready' && f.c.state === 'free') { f.sprite.setVelocity(0, 0); f.sprite.anims.stop(); poseFolk(f); } }
+      for (const c of r.escaped) {
+        this.rumors = startRumor(this.rumors, { kind: c.kind, actorId: 'player', x: 0, y: 0, clock: c.deedClock, night: false, crouching: false }, c.village);
+        this.message = 'Ein Zeuge ist entkommen · bald weiß es die Gegend'; this.messageUntil = time + 3000;
+      }
+      if (r.silenced.length && !r.escaped.length) { this.message = 'Der Zeuge schweigt · niemand erfährt davon'; this.messageUntil = time + 2600; }
+      this.carriers = pruneCarriers(r.state);
+      if (r.escaped.length) this.persist();
     }
     villageFear(village: number) { this.fear = decayFear(this.fear, clockOf(this.clock).day); return fearOf(this.fear, villageKey(FOLK_HOMES[village]!.name)); }
     tickRaid(time: number) {
@@ -2034,7 +2076,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village as 0]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
       {const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,40);if(this.beheading)this.severHead(f,fx,fy);}this.beheading=false;this.punch(40,true);
-      this.witnessDeed(f,isChampion(f.t)?'champion':this.executing?'execution':'kill',isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
+      this.witnessDeed(f,isChampion(f.t)?'champion':this.executing?'execution':'finisher',isChampion(f.t)?'champion':this.executing?'execution':'finisher');this.executing=false;
       this.message='Gegner besiegt';this.messageUntil=this.time.now+2200;this.persist();
     }
     /** Split the victim's own lying artwork at the neck, then throw that exact head. */
