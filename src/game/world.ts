@@ -840,6 +840,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.raid = { ...(g.raid ?? {}) };
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
+      this.carriers = EMPTY_CARRIERS;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
@@ -1835,7 +1836,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         s.setVelocity(st.vx, st.vy); f.facing = (Math.round(Math.atan2(st.vy, st.vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
         const m = this.folkMood.get(f.c.id); if (m) { m.icon.setText('!!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true); m.weapon?.setVisible(false); }
       }
-      for (const c of [...r.escaped, ...r.silenced]) { const f = this.folk.find(o => o.c.id === c.id); this.folkMood.get(c.id)?.icon.setVisible(false); if (f && f.combat.phase === 'ready' && f.c.state === 'free') { f.sprite.setVelocity(0, 0); f.sprite.play(`${f.t.tex}-idle-${f.facing}`, true); } }
+      for (const c of [...r.escaped, ...r.silenced]) { const f = this.folk.find(o => o.c.id === c.id); this.folkMood.get(c.id)?.icon.setVisible(false); if (f && f.combat.phase === 'ready' && f.c.state === 'free') { f.sprite.setVelocity(0, 0); f.sprite.anims.stop(); poseFolk(f); } }
       for (const c of r.escaped) {
         this.rumors = startRumor(this.rumors, { kind: c.kind, actorId: 'player', x: 0, y: 0, clock: c.deedClock, night: false, crouching: false }, c.village);
         this.message = 'Ein Zeuge ist entkommen · bald weiß es die Gegend'; this.messageUntil = time + 3000;
