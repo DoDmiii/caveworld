@@ -15,6 +15,7 @@ import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
+import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
@@ -653,6 +654,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.persist();
     }
     campSocial: CampSocial = emptyCampSocial();
+    couples: CouplesState = EMPTY_COUPLES;
+    folkAlive = (id: string) => { const f = this.folk.find(o => o.c.id === id); return !!f && f.combat.phase !== 'dead'; };
+    personName = (id: string) => getProfile(id)?.name ?? id;
+    /** Jealous partner draws his weapon on the player. */
+    confrontPartner(id: string, time: number) {
+      const f = this.folk.find(o => o.c.id === id); if (!f || f.combat.phase !== 'ready' || f.c.state !== 'free') return;
+      this.armFolk(f, time); this.bark(id, f.sprite, 'alarm', time, true, 'Du Hund! Sie gehört zu mir!');
+      this.message = `${this.personName(id)} weiß Bescheid · er will Blut sehen!`; this.messageUntil = time + 3000;
+    }
     nextCampChat = 0;
     campPeople() {
       return this.companionActors().filter(a => Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y - FIRE_DY) < 220 && !allyDowned(this.allyHealth(a.id)));
@@ -682,9 +692,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.nextCampChat = time + 12000;
     }
     profileView(id: string, portrait: string): ProfileView | undefined {
-      const biography = getProfile(id); if (!biography) return undefined;
+      let biography = getProfile(id); if (!biography) return undefined;
       let state = this.profiles[id];
       if (!state) { state = profileState(biography); this.profiles[id] = state; }
+      const couple = relationLabel(this.couples, id, this.personName, this.folkAlive);
+      if (couple) biography = { ...biography, relations: [...biography.relations, { with: 'couple', note: couple }] };
       return { biography, state: profileState(biography, state), portrait, trustSteps: trustSteps(biography.id, this.trustProgress[id]), bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
     }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
@@ -755,6 +767,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         signals: { manualAlarm: this.manualAlarm, hornReadyAt: this.hornReadyAt },
         tutorial: { ...this.tutorial },
         campSocial: { bonds: { ...this.campSocial.bonds }, resolved: { ...this.campSocial.resolved } },
+        couples: { lure: { ...this.couples.lure }, affairs: { ...this.couples.affairs }, suspicion: { ...this.couples.suspicion }, broken: [...this.couples.broken] },
         trustProgress: this.trustProgress,
         profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
@@ -820,6 +833,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.rel = g.relationships;
       this.manualAlarm=g.signals?.manualAlarm??false;this.hornReadyAt=g.signals?.hornReadyAt??0;
       this.campSocial = g.campSocial ?? emptyCampSocial();
+      this.couples = g.couples ? { lure: { ...g.couples.lure }, affairs: { ...g.couples.affairs }, suspicion: { ...g.couples.suspicion }, broken: [...g.couples.broken] } : EMPTY_COUPLES;
       this.trustProgress = g.trustProgress ?? {};
       this.profiles = Object.fromEntries(Object.entries(g.profiles ?? {}).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }]));
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
@@ -1960,7 +1974,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     startCloseness(id: string, time: number) {
       const refusal = closenessRefusal(this.closenessContext(id));
-      if (refusal) { this.message = refusal; this.messageUntil = time + 2000; return; }
+      const seduction = refusal ? null : seductionRefusal(this.couples, id, COUPLES[id] ? this.personName(COUPLES[id]) : undefined, this.folkAlive);
+      if (refusal || seduction) { this.message = refusal ?? seduction!; this.messageUntil = time + 2600; return; }
       const sprite = this.folk.find(f => f.c.id === id)?.sprite ?? this.campers.find(c => c.template.id === id)?.sprite;
       if (!sprite || !this.player) return;
       const bubble = this.add.text(sprite.x, sprite.y - 24, '♥', { fontFamily: 'monospace', fontSize: '12px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5).setResolution(3).setDepth(sprite.y + 2000);
@@ -1993,6 +2008,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           return !!body && blocksSight(ax, ay + 10, bx, by + 10, body);
         }));
         if (witnesses.length) {
+          const reactions: WitnessReaction[] = witnesses.map(w => witnessReaction(this.couples, bond.id, w.id, this.folkAlive));
+          const found = discover(this.couples, bond.id, reactions, this.folkAlive); this.couples = found.state;
+          if (found.confront) { this.endCloseness('Ertappt!', time); this.confrontPartner(found.confront, time); this.persist(); return false; }
+          if (reactions.includes('gossip')) { this.endCloseness(`Man hat euch gesehen · ${this.personName(COUPLES[bond.id] ?? "")} wird davon hören`, time); this.persist(); return false; }
           for (const witness of witnesses) {
             const npc = this.folk.find(o => o.c.id === witness.id); if (!npc) continue;
             this.closenessProtests.set(witness.id, time + 4000);
@@ -2007,7 +2026,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       p.setTexture(`none-idle-${this.lastFacing}`).setDepth(p.y); s.setFrame(facing).setDepth(s.y);
       bond.bubble.setPosition((p.x + s.x) / 2, Math.min(p.y, s.y) - 23 - Math.sin(time / 200) * 2);
       bond.elapsed += Math.min(delta, 100);
-      if (bond.elapsed >= CLOSENESS_MS) { this.endCloseness('Ein ruhiger Moment zu zweit', time); return false; }
+      if (bond.elapsed >= CLOSENESS_MS) {
+        if (COUPLES[bond.id] && f) {
+          const r = secretAffair(this.couples, bond.id, this.folkAlive); const had = r.state !== this.couples; this.couples = r.state;
+          this.endCloseness(had ? 'Niemand hat es gesehen · eine heimliche Affäre' : 'Ein ruhiger Moment zu zweit', time);
+          if (r.confront) this.confrontPartner(r.confront, time);
+          this.persist(); return false;
+        }
+        this.endCloseness('Ein ruhiger Moment zu zweit', time); return false;
+      }
       return true;
     }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
@@ -2035,6 +2062,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
+      if ((id === 'gift' || id === 'greet') && COUPLES[f.c.id] && f.c.state === 'free' && o.rel && o.rel > 0) { this.couples = addLure(this.couples, f.c.id, id === 'gift' ? GIFT_LURE : GREET_LURE); o.message += ` · sie lächelt dich an (${this.couples.lure[f.c.id]}/40)`; }
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
       if (id === 'trade' && o.goods.cooked > this.cooked && this.tribePids().includes('ymra')) { const ymra = this.folk.find(f => PROFILE_IDS[f.c.id] === 'ymra' && f.c.state === 'camp'); if (ymra) this.trustEvent(ymra.c.id, 'trade'); if (ymra && (this.profiles[ymra.c.id]?.trust ?? 0) >= 60) { const y = bonusYield(o.goods.cooked - this.cooked, YMRA_TRADE_BONUS, this.tradeCarry); this.tradeCarry = y.carry; if (y.amount > o.goods.cooked - this.cooked) o.message += ' · Ymra handelt 1 extra heraus'; o.goods.cooked = this.cooked + y.amount; } }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;
