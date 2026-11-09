@@ -5,7 +5,8 @@
 import type { FearEvent } from "./fear";
 import { FEAR_GAIN } from "./fear";
 
-export type DeedKind = "attack" | "kill" | "steal" | "capture" | "execution" | "champion";
+export type DeedKind =
+  "attack" | "kill" | "finisher" | "steal" | "capture" | "execution" | "champion";
 
 export type Deed = {
   kind: DeedKind;
@@ -39,6 +40,7 @@ export const CROUCH_SIGHT = 0.6;
 export const NOISE: Record<DeedKind, number> = {
   attack: 160,
   kill: 120,
+  finisher: 150,
   steal: 40,
   capture: 90,
   execution: 180,
@@ -81,6 +83,7 @@ export function witnessesOf(
 const FEAR_OF: Record<DeedKind, FearEvent | null> = {
   attack: null,
   kill: "kill",
+  finisher: "finisher",
   steal: null,
   capture: null,
   execution: "execution",
@@ -88,7 +91,8 @@ const FEAR_OF: Record<DeedKind, FearEvent | null> = {
 };
 export const REL_DELTA: Record<DeedKind, number> = {
   attack: -35,
-  kill: -50,
+  kill: -20,
+  finisher: -35,
   steal: -25,
   capture: -40,
   execution: -45,

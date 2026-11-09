@@ -21,6 +21,10 @@ export const fearOf = (s: FearState, vk: string) => s.fear[vk] ?? 0;
 export function addFear(s: FearState, vk: string, ev: FearEvent): FearState {
   return { ...s, fear: { ...s.fear, [vk]: clamp(fearOf(s, vk) + FEAR_GAIN[ev]) } };
 }
+/** Furcht um einen festen Betrag erhöhen (z. B. durch Gerüchte). */
+export function addFearAmount(s: FearState, vk: string, amount: number): FearState {
+  return { ...s, fear: { ...s.fear, [vk]: clamp(fearOf(s, vk) + amount) } };
+}
 /** Applies decay for every game day passed since the last call. */
 export function decayFear(s: FearState, day: number): FearState {
   const days = day - s.day;
