@@ -57,9 +57,36 @@ export const PROFILES: Profile[] = [
 /** Identity is assigned to a person, never to a reused sprite texture. */
 export const PROFILE_IDS: Record<string, string> = { 'ally-0': 'tamo', 'ally-1': 'bruk', 'ally-2': 'kuruk', 'ally-3': 'orka', 'ally-4': 'ura', 'ally-5': 'nuka', 'nordic-m0': 'ilvar', 'nordic-m2-f': 'torvik', 'nordic-w3': 'ymra', 'nordic-w3-g': 'skorra' };
 const OTHER_NAMES: Record<string, string> = { 'nordic-w0': 'Tindra', 'nordic-w1': 'Frenja', 'nordic-m2': 'Eskir', 'nordic-w0-g': 'Hallvi', 'nordic-m0-g': 'Valdrik', 'nordic-w1-g': 'Isvane', 'nordic-m2-g': 'Hildar', 'nordic-m0-gw': 'Svenrik', 'nordic-w1-e': 'Nevra', 'nordic-m0-e': 'Felvir', 'nordic-w0-e': 'Silra', 'nordic-m2-e': 'Vindir' };
+/** Dragon-people biographies: descriptive only, no gameplay bonuses. */
+type DragonBio = { name: string; epithet: string; role: string; background: string; relations: { with: string; note: string }[]; skills: Skills };
+const DRAGON_BIOS: Record<string, DragonBio> = {
+  'dragon-m0': { name: 'Taro-Ka', epithet: 'Steinfaust', role: 'Krieger mit der Steinkeule', skills: skills(3,4,1,2,1),
+    background: 'Schweigsam und stolz, er hütet die Terrassenfelder seiner Sippe. Wer den Hang heraufkommt, muss zuerst an ihm vorbei.',
+    relations: [{ with: 'dragon-w0', note: 'Gefährte von Mei-Ra. Er wacht eifersüchtig über sie.' }, { with: 'dragon-m2', note: 'Folgt Gorun in jeden Kampf.' }] },
+  'dragon-m1': { name: 'Bao', epithet: 'Bachspeer', role: 'Speerkämpfer und Fischer', skills: skills(4,2,2,3,1),
+    background: 'Flink und gutgelaunt, er sticht Forellen aus den eisigen Bächen und prahlt gern damit. Fremden lächelt er zu, während seine Hand am Speer bleibt.',
+    relations: [{ with: 'dragon-w1', note: 'Gefährte von Suli. Sie streiten oft und versöhnen sich laut.' }, { with: 'dragon-m3', note: 'Wettstreit mit Teng, wer die meisten Fische fängt.' }] },
+  'dragon-m2': { name: 'Gorun', epithet: 'Felsaxt', role: 'Anführer der Terrassenwache', skills: skills(2,5,1,4,1),
+    background: 'Breit und vernarbt, er hat die Drachenterrasse gegen Bären und Nordleute gehalten. Seine Axt ist älter als die meisten Hütten im Tal.',
+    relations: [{ with: 'dragon-w2', note: 'Duldet Yuri und ihre Wölfe, aber nur knapp.' }] },
+  'dragon-m3': { name: 'Teng', epithet: 'Nebelläufer', role: 'Speerkämpfer und Späher', skills: skills(3,2,2,4,1),
+    background: 'Jung und rastlos, er klettert über die Grate, bevor der Nebel steigt. Er kennt jeden Pfad zwischen den Schieferhängen.',
+    relations: [{ with: 'dragon-m1', note: 'Wettstreit mit Bao am Bach.' }, { with: 'dragon-w2', note: 'Bewundert Yuri heimlich.' }] },
+  'dragon-w0': { name: 'Mei-Ra', epithet: 'Jadeblick', role: 'Sammlerin und Steinschleiferin', skills: skills(1,2,4,2,2),
+    background: 'Ruhig und wachsam, sie schleift Jade zu kleinen Anhängern. Hinter ihrer Zurückhaltung steckt Neugier auf die Welt jenseits der Pässe.',
+    relations: [{ with: 'dragon-m0', note: 'Gefährtin von Taro-Ka. Sie fühlt sich von ihm mehr bewacht als geliebt.' }] },
+  'dragon-w1': { name: 'Suli', epithet: 'Rauchlied', role: 'Feuerhüterin und Kräutersammlerin', skills: skills(1,1,3,2,4),
+    background: 'Laut lachend und schnell gereizt, sie singt beim Räuchern der Fische. Sie sagt jedem ins Gesicht, was sie denkt.',
+    relations: [{ with: 'dragon-m1', note: 'Gefährtin von Bao. Sie streiten oft und versöhnen sich laut.' }] },
+  'dragon-w2': { name: 'Yuri', epithet: 'das Wolfsmädchen', role: 'Wolfsjägerin', skills: skills(5,3,1,4,1),
+    background: 'Wild, frei und an keinen Mann gebunden. Sie trägt das Fell des Wolfes, der sie als Kind fast tötete, und streift mit den Rudeln durch die Hochtäler. Im Dorf bleibt sie eine Fremde unter den eigenen Leuten.',
+    relations: [{ with: 'dragon-m2', note: 'Gorun duldet sie nur knapp.' }, { with: 'dragon-m3', note: 'Teng bewundert sie heimlich, sie bemerkt es nicht.' }] },
+};
 export function getProfile(actorId: string): Profile | undefined {
   const detailed = PROFILES.find(p => p.id === PROFILE_IDS[actorId]);
   if (detailed) return detailed;
+  const dragon = DRAGON_BIOS[actorId];
+  if (dragon) return { id: actorId, ...dragon, origin: 'Drachenterrasse', strength: { label: 'Bergvolk', effect: 'Kennt die Pässe und Bäche der Drachenterrasse.' }, quirk: { label: 'Misstrauisch', effect: 'Begegnet Fremden aus dem Tal mit Vorsicht.' } };
   const name = OTHER_NAMES[actorId]; if (!name) return undefined;
   const origin = actorId.endsWith('-e') || actorId === 'nordic-m2' ? 'Eisfurt' : actorId.includes('-g') ? 'Gipfelwacht' : 'Frostheim';
   const guard = ['nordic-m2-g','nordic-m0-gw','nordic-m2-e'].includes(actorId);
@@ -69,4 +96,4 @@ export function profileState(profile: Profile, saved?: ProfileState): ProfileSta
   return saved ? { trust: saved.trust, skills: { ...saved.skills } } : { trust: profile.origin === 'Deine Sippe' ? 100 : 0, skills: { ...profile.skills } };
 }
 export function trustLabel(value: number): string { return value <= 20 ? 'Feindlich' : value <= 50 ? 'Misstrauisch' : value <= 75 ? 'Geduldet' : 'Treu'; }
-export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? (id === 'tindra' ? 'Tindra' : id === 'couple' ? 'Partnerschaft' : id); }
+export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? DRAGON_BIOS[id]?.name ?? (id === 'tindra' ? 'Tindra' : id === 'couple' ? 'Partnerschaft' : id); }

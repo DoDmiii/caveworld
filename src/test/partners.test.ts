@@ -28,3 +28,16 @@ describe('partners', () => {
     expect(r.state.affairs['nordic-w1']).toBe(1); expect(r.state.suspicion['nordic-m2']).toBe(10);
   });
 });
+
+import { getProfile } from '@/game/profiles';
+describe('dragon profiles', () => {
+  it('the wolf girl is Yuri das Wolfsmädchen and single', () => {
+    const y = getProfile('dragon-w2');
+    expect(y?.name).toBe('Yuri'); expect(y?.epithet).toBe('das Wolfsmädchen');
+    expect(partnerOf(EMPTY_COUPLES, 'dragon-w2')).toBeUndefined();
+  });
+  it('dragon couples are Mei-Ra & Taro-Ka and Suli & Bao', () => {
+    expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w0')!)?.name).toBe('Taro-Ka');
+    expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w1')!)?.name).toBe('Bao');
+  });
+});
