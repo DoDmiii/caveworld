@@ -1300,6 +1300,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tickSignals(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
       for (const c of this.carriers.carriers) if (c.status === 'fleeing') controlled.add(c.id);
+      this.tickRepro(time);
       this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       if (this.closeness) controlled.add(this.closeness.id);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
