@@ -73,6 +73,7 @@ import resStone from '@/assets/res-stone.png.asset.json';
 import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
+import { preloadChildren, syncChildren, tickChildren, type Kid } from './child-folk';
 import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
@@ -657,6 +658,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     campSocial: CampSocial = emptyCampSocial();
     couples: CouplesState = EMPTY_COUPLES;
     repro: ReproState = EMPTY_REPRO;
+    kids: Kid[] = [];
     /** Daily pregnancy/birth step; cuckoo births feed the social father's suspicion. */
     tickRepro(time: number) {
       const day = clockOf(this.clock).day; if (day <= this.repro.day) return;
@@ -961,6 +963,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     preload() {
       preloadCampers(this);
       preloadFolk(this);
+      preloadChildren(this);
       sprites.forEach((asset, i) => this.load.image(`human${i}`, asset.url));
       walkSheets.forEach((asset, i) => this.load.spritesheet(`walk${i}`, asset.url, { frameWidth: 28, frameHeight: 28 }));
       (['none','axe','spear','wedge'] as Weapon[]).forEach(w => {
@@ -1306,6 +1309,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
+      if (this.kids.length !== this.repro.children.length) this.kids = syncChildren(this, this.kids, this.repro.children, this.folk);
+      tickChildren(this.kids, this.folk, this.obstacles, time, delta, input.paused || this.dead || this.health <= 0 || this.sleeping, p);
       this.tickIlvar(time, input.paused || this.dead || this.health <= 0);
       const blocks: Block[] = (this.obstacles?.getChildren() ?? []).flatMap(o => {
         const body = (o as Phaser.Physics.Arcade.Sprite).body;
