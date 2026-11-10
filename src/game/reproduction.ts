@@ -1,7 +1,7 @@
 /** Pregnancy, birth, real vs. social fathers and cuckoo suspicion. Engine-free. */
 export type Hair = 'blond' | 'dunkel' | 'schwarz';
 export type Pregnancy = { father: string; social?: string | undefined; day: number };
-export type Child = { id: string; name: string; mother: string; father: string; social?: string | undefined; born: number; hair: Hair };
+export type Child = { id: string; name: string; mother: string; father: string; social?: string | undefined; born: number; hair: Hair; girl?: boolean | undefined };
 export type ReproState = { pregnant: Record<string, Pregnancy>; children: Child[]; day: number };
 export const EMPTY_REPRO: ReproState = { pregnant: {}, children: [], day: -1 };
 
@@ -13,7 +13,8 @@ export const GESTATION_DAYS = 3;
 export const EXPOSE_AT = 50;
 export const DOUBT_SUSPICION = 70;
 
-const NAMES: Record<string, string[]> = {
+/** Name lists alternate boy/girl, so an odd index is a girl. */
+export const NAMES: Record<string, string[]> = {
   nordic: ['Keno', 'Alva', 'Brann', 'Sigra', 'Torin', 'Yrsa', 'Haki', 'Runa'],
   dragon: ['Hu', 'Lin', 'Khao', 'Toma', 'Yuk', 'Hiko', 'Dorin', 'Neya'],
 };
@@ -48,7 +49,7 @@ export function advanceDay(s: ReproState, day: number, couples: Record<string, s
     delete pregnant[mother];
     const tribe = tribeOf(mother) === 'dragon' ? 'dragon' : 'nordic', list = NAMES[tribe]!;
     const n = next.children.filter(c => tribeOf(c.mother) === tribeOf(mother)).length;
-    const child: Child = { id: `child-${mother}-${day}`, name: list[n % list.length]!, mother, father: preg.father, social: preg.social, born: day, hair: hairFor(mother, preg.father) };
+    const child: Child = { id: `child-${mother}-${day}`, name: list[n % list.length]!, mother, father: preg.father, social: preg.social, born: day, hair: hairFor(mother, preg.father), girl: n % list.length % 2 === 1 };
     births.push({ child, cuckoo: !!preg.social && preg.social !== preg.father, foreign: looksForeign(child) });
   }
   next = { ...next, pregnant, children: [...next.children, ...births.map(b => b.child)] };
