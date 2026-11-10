@@ -71,12 +71,14 @@ export function tickChildren(kids: Kid[], folk: Folk[], obstacles: Phaser.Physic
       return b && px + 4 > b.x && px - 4 < b.x + b.width && py + 2 > b.y && py - 2 < b.y + b.height;
     });
     const outside = Math.hypot(a.x - x, a.y - y) > a.r;
+    // Spawned or pushed into a hut footprint: let the child walk out instead of freezing.
+    const stuck = !clear(x, y);
     if (time > k.next || (outside && time > k.until)) {
       k.tx = x; k.ty = y;
       for (let t = 0; t < 12; t++) {
         const ang = rnd() * Math.PI * 2, r = rnd() * a.r * 0.8;
         const nx = a.x + Math.cos(ang) * r, ny = a.y + 10 + Math.sin(ang) * r * 0.7;
-        if ([0.33, 0.66, 1].every(f => clear(x + (nx - x) * f, y + (ny - y) * f))) { k.tx = nx; k.ty = ny; break; }
+        if ([0.33, 0.66, 1].every(f => (stuck && f < 1) || clear(x + (nx - x) * f, y + (ny - y) * f))) { k.tx = nx; k.ty = ny; break; }
       }
       k.until = time + 2600; k.next = time + 2500 + rnd() * 3500;
     }
@@ -84,7 +86,7 @@ export function tickChildren(kids: Kid[], folk: Folk[], obstacles: Phaser.Physic
     if (time < k.until && d > 2) {
       const step = Math.min(d, CHILD_SPEED * (outside ? 2.2 : 1) * dt / 1000);
       const nx = x + dx / d * step, ny = y + dy / d * step;
-      if (!clear(nx, ny) && !outside) { k.until = 0; s.anims.stop(); s.setFrame(k.facing); continue; }
+      if (!clear(nx, ny) && !outside && !stuck) { k.until = 0; s.anims.stop(); s.setFrame(k.facing); continue; }
       s.setPosition(nx, ny + FEET);
       k.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
       if (CHILD_WALKS[k.look]) s.play(`child-${k.look}-walk-${k.facing}`, true);
