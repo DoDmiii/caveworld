@@ -48,7 +48,8 @@ export function advanceDay(s: ReproState, day: number, couples: Record<string, s
     if (day - preg.day < GESTATION_DAYS) continue;
     delete pregnant[mother];
     const tribe = tribeOf(mother) === 'dragon' ? 'dragon' : 'nordic', list = NAMES[tribe]!;
-    const n = next.children.filter(c => tribeOf(c.mother) === tribeOf(mother)).length;
+    // Count same-day births too, so twins of a tribe never share a name or sex slot.
+    const n = [...next.children, ...births.map(b => b.child)].filter(c => tribeOf(c.mother) === tribeOf(mother)).length;
     const child: Child = { id: `child-${mother}-${day}`, name: list[n % list.length]!, mother, father: preg.father, social: preg.social, born: day, hair: hairFor(mother, preg.father), girl: n % list.length % 2 === 1 };
     births.push({ child, cuckoo: !!preg.social && preg.social !== preg.father, foreign: looksForeign(child) });
   }
