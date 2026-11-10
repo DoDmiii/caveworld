@@ -49,3 +49,4 @@
 - Keep armor stats, pelt drops and the bloodied threshold engine-free in appearance.ts; world.ts only multiplies speed/damage/cold and tints the player until real skin atlases replace the placeholder tint.
 - Keep main-hand looks (torch, club) as per-skin atlases in skins.ts sharing the armed layout; world.ts picks them via heldLook() so new hand items only add a table.
 - Keep couples, seduction, secret affairs and jealousy rules engine-free in partners.ts; world.ts only reports witnesses, arms the jealous partner and saves couple state separately from relationships.
+- Keep pregnancy, birth, real vs. social fathers and cuckoo suspicion engine-free in reproduction.ts; world.ts only rolls per game day, shows births and saves repro state separately from couples so reloads cannot reroll children.

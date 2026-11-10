@@ -7,8 +7,8 @@ describe('reproduction', () => {
     expect(hairFor('nordic-w1', PLAYER)).toBe('dunkel');
   });
   it('conceives at under 50 % roll only', () => {
-    expect(conceive(EMPTY_REPRO, 'w', PLAYER, 'm', 1, 0.6).pregnant.w).toBeUndefined();
-    expect(conceive(EMPTY_REPRO, 'w', PLAYER, 'm', 1, 0.4).pregnant.w?.father).toBe(PLAYER);
+    expect(conceive(EMPTY_REPRO, 'w', PLAYER, 'm', 1, 0.6).pregnant['w']).toBeUndefined();
+    expect(conceive(EMPTY_REPRO, 'w', PLAYER, 'm', 1, 0.4).pregnant['w']?.father).toBe(PLAYER);
   });
   it('is born after 3 days as cuckoo', () => {
     let s = { ...conceive(EMPTY_REPRO, 'nordic-w1', PLAYER, 'nordic-m2', 1, 0), day: 1 };
