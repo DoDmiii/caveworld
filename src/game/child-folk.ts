@@ -54,10 +54,12 @@ export function syncChildren(scene: Phaser.Scene, kids: Kid[], children: readonl
 }
 
 export function tickChildren(kids: Kid[], folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, dt: number, stopped: boolean, player: { x: number; y: number }) {
+  // Only the nearest child within reach shows its name, so names never stack.
+  let nearest: Kid | undefined, best = NAME_RADIUS;
+  for (const k of kids) { const d = Math.hypot(player.x - k.sprite.x, player.y - (k.sprite.y - FEET)); if (d < best) { best = d; nearest = k; } }
   for (const k of kids) {
     const s = k.sprite, x = s.x, y = s.y - FEET;
-    const near = Math.hypot(player.x - x, player.y - y) < NAME_RADIUS;
-    k.label.setVisible(near).setPosition(x, y - 9).setDepth(y + 3000);
+    k.label.setVisible(k === nearest).setPosition(x, y - 9).setDepth(y + 3000);
     if (stopped) { s.anims.stop(); s.setFrame(k.facing); continue; }
     const m = motherOf(folk, k.c.mother), home = FOLK_HOMES[m?.f.t.village ?? 0];
     const a = childAnchor(m?.spot, home);
