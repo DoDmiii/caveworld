@@ -50,3 +50,4 @@
 - Keep main-hand looks (torch, club) as per-skin atlases in skins.ts sharing the armed layout; world.ts picks them via heldLook() so new hand items only add a table.
 - Keep couples, seduction, secret affairs and jealousy rules engine-free in partners.ts; world.ts only reports witnesses, arms the jealous partner and saves couple state separately from relationships.
 - Keep pregnancy, birth, real vs. social fathers and cuckoo suspicion engine-free in reproduction.ts; world.ts only rolls per game day, shows births and saves repro state separately from couples so reloads cannot reroll children.
+- Keep child look selection (hair + sex) and follow/home anchoring engine-free in children.ts; child-folk.ts only draws one packed 16×16 atlas per look, and children stay non-physical so they never become combat or capture targets.

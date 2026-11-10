@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Sichtbare Kinder: sechs Kinder-Looks (blond/dunkel/schwarz × Junge/Mädchen), folgen der Mutter, Name beim Näherkommen; live in Eisfurt geprüft. Tod/Fesseln der Kinder noch nicht.
 - [x] Freiwillige, nicht explizite Nähe zwischen erwachsenen Frauen und der erwachsenen Spielfigur; Gefangene ausgeschlossen, sichtbare fremde Stammeszeugen unterbrechen, noch keine Boni; Annehmen, Abschluss, Bewegungsabbruch und Drachenzeugen live geprüft, 301 Tests grün.
 - [x] Vollständige Animationen der sieben Drachenmenschen neu gepackt; Knien, echte Angriffe und acht Todesrichtungen ergänzt, Identitäten/Verhalten erhalten; 49 relevante Tests grün, Dorf und Gegenangriff live geprüft.
 - [x] Verwesung: abgetrennte Köpfe werden nach 3 Spieltagen zu aufhebbaren Schädeln; Schandpfahl (1 Schädel + 4 Holz) erschreckt nahe Dörfer. Tests grün, nicht live durchgespielt.
