@@ -54,6 +54,11 @@ const GameSchema = z.object({
     resolved: z.record(z.string().max(80), z.number().int().min(1).max(10000)),
   }).optional(),
   couples: z.object({ lure: z.record(z.string().max(40), z.number().min(0).max(100)), affairs: z.record(z.string().max(40), z.number().int().min(0).max(10000)), suspicion: z.record(z.string().max(40), z.number().min(0).max(100)), broken: z.array(z.string().max(40)).max(30) }).optional(),
+  repro: z.object({
+    pregnant: z.record(z.string().max(40), z.object({ father: z.string().max(40), social: z.string().max(40).optional(), day: z.number().int().min(0) })),
+    children: z.array(z.object({ id: z.string().max(80), name: z.string().max(30), mother: z.string().max(40), father: z.string().max(40), social: z.string().max(40).optional(), born: z.number().int().min(0), hair: z.enum(['blond', 'dunkel', 'schwarz']) })).max(200),
+    day: z.number().int().min(-1),
+  }).optional(),
   trustProgress: z.record(z.string().max(40), z.object({ done: z.array(z.string().max(40)).max(10), since: z.number().min(0), peacefulSince: z.number().min(0), trades: z.number().int().min(0).max(2), watch: z.number().min(0).max(240) })).optional(),
   warband: z.object({
     pending: z.record(z.string().max(4), z.number().min(0)),
