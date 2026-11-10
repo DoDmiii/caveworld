@@ -15,6 +15,7 @@ import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
+import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
@@ -655,6 +656,25 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     campSocial: CampSocial = emptyCampSocial();
     couples: CouplesState = EMPTY_COUPLES;
+    repro: ReproState = EMPTY_REPRO;
+    /** Daily pregnancy/birth step; cuckoo births feed the social father's suspicion. */
+    tickRepro(time: number) {
+      const day = clockOf(this.clock).day; if (day <= this.repro.day) return;
+      const couples = Object.fromEntries(Object.keys(COUPLES).map(w => [w, this.folkAlive(w) && !this.couples.broken.includes(w) && this.folkAlive(COUPLES[w]!) ? COUPLES[w] : undefined]));
+      const r = advanceDay(this.repro, day, couples, Math.random); this.repro = r.state;
+      for (const b of r.births) {
+        let msg = `${this.personName(b.child.mother)} hat ein Kind geboren · ${b.child.name}`;
+        const social = b.child.social;
+        if (b.foreign && social && this.folkAlive(social)) {
+          const sus = birthSuspicion(b, this.couples.suspicion[social] ?? 0);
+          this.couples = { ...this.couples, suspicion: { ...this.couples.suspicion, [social]: sus.suspicion }, broken: sus.exposed && !this.couples.broken.includes(b.child.mother) ? [...this.couples.broken, b.child.mother] : this.couples.broken };
+          msg += sus.exposed ? ` · ${this.personName(social)} erkennt das fremde Haar!` : ` · ${this.personName(social)} zweifelt: „Das Kind sieht mir nicht ähnlich…“`;
+          if (sus.exposed) this.confrontPartner(social, time);
+        }
+        this.message = msg; this.messageUntil = time + 4000;
+      }
+      if (r.births.length || r.state !== this.repro) this.persist();
+    }
     folkAlive = (id: string) => { const f = this.folk.find(o => o.c.id === id); return !!f && f.combat.phase !== 'dead'; };
     personName = (id: string) => getProfile(id)?.name ?? id;
     /** Jealous partner draws his weapon on the player. */
@@ -697,6 +717,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (!state) { state = profileState(biography); this.profiles[id] = state; }
       const couple = relationLabel(this.couples, id, this.personName, this.folkAlive);
       if (couple) biography = { ...biography, relations: [...biography.relations, { with: 'couple', note: couple }] };
+      const kin = reproLabels(this.repro, id, clockOf(this.clock).day, this.personName);
+      if (kin.length) biography = { ...biography, relations: [...biography.relations, ...kin.map(note => ({ with: 'kin', note }))] };
       return { biography, state: profileState(biography, state), portrait, trustSteps: trustSteps(biography.id, this.trustProgress[id]), bonds: biography.relations.map(r => ({ with: r.with, value: pairBond(this.campSocial, biography.id, r.with), label: bondLabel(pairBond(this.campSocial, biography.id, r.with)) })) };
     }
     folkMood = new Map<string, { icon: Phaser.GameObjects.Text; next: number; dec?: BehaviorDecision | undefined; armedUntil?: number; weapon?: Phaser.GameObjects.Image }>();
@@ -768,6 +790,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         tutorial: { ...this.tutorial },
         campSocial: { bonds: { ...this.campSocial.bonds }, resolved: { ...this.campSocial.resolved } },
         couples: { lure: { ...this.couples.lure }, affairs: { ...this.couples.affairs }, suspicion: { ...this.couples.suspicion }, broken: [...this.couples.broken] },
+        repro: { pregnant: { ...this.repro.pregnant }, children: [...this.repro.children], day: this.repro.day },
         trustProgress: this.trustProgress,
         profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
@@ -834,6 +857,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.manualAlarm=g.signals?.manualAlarm??false;this.hornReadyAt=g.signals?.hornReadyAt??0;
       this.campSocial = g.campSocial ?? emptyCampSocial();
       this.couples = g.couples ? { lure: { ...g.couples.lure }, affairs: { ...g.couples.affairs }, suspicion: { ...g.couples.suspicion }, broken: [...g.couples.broken] } : EMPTY_COUPLES;
+      this.repro = g.repro ? { pregnant: { ...g.repro.pregnant }, children: [...g.repro.children], day: g.repro.day } : EMPTY_REPRO;
       this.trustProgress = g.trustProgress ?? {};
       this.profiles = Object.fromEntries(Object.entries(g.profiles ?? {}).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }]));
       for (const id of this.lootedHouses) { this.villageSupplies.get(id)?.destroy(); this.villageSupplies.delete(id); }
@@ -1276,6 +1300,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tickSignals(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
       for (const c of this.carriers.carriers) if (c.status === 'fleeing') controlled.add(c.id);
+      this.tickRepro(time);
       this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       if (this.closeness) controlled.add(this.closeness.id);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
@@ -2029,10 +2054,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (bond.elapsed >= CLOSENESS_MS) {
         if (COUPLES[bond.id] && f) {
           const r = secretAffair(this.couples, bond.id, this.folkAlive); const had = r.state !== this.couples; this.couples = r.state;
+          this.repro = conceive(this.repro, bond.id, PLAYER, COUPLES[bond.id] && !this.couples.broken.includes(bond.id) && this.folkAlive(COUPLES[bond.id]!) ? COUPLES[bond.id] : undefined, clockOf(this.clock).day, Math.random());
           this.endCloseness(had ? 'Niemand hat es gesehen · eine heimliche Affäre' : 'Ein ruhiger Moment zu zweit', time);
           if (r.confront) this.confrontPartner(r.confront, time);
           this.persist(); return false;
         }
+        if (f) { this.repro = conceive(this.repro, bond.id, PLAYER, undefined, clockOf(this.clock).day, Math.random()); this.persist(); }
         this.endCloseness('Ein ruhiger Moment zu zweit', time); return false;
       }
       return true;
