@@ -1,4 +1,6 @@
 # Roadmap
+- [x] Brandstiftung: Fackel in der Haupthand + [E] 1,5 s stillhalten zündet Hütten aller Völker an; Glimmen, Vollbrand (halber Spieltag) mit Flammen/Rauch/Licht und Hitzeschaden, dann Ruine. Fremde Dörfer bauen 2 Tage später wieder auf (besiegte Dörfer kehren erst nach 3,5 + 2 Tagen zurück); eigene Hütten nur teuer mit Steinaxt reparierbar. Lagerhütte und Frostheim live geprüft.
+- [ ] Feindliche Kriegstrupps zünden das Lager an (Nutzer liefert Ablauf).
 - [x] Notizbuch (Taste N / Buch-Knopf): Völker-Steckbriefe schalten sich durch Begegnung, Kontakt und Champion frei; gespeichert. Öffnen und Freischalten bei Frostheim live geprüft.
 - [x] Sichtbare Kinder: sechs Kinder-Looks (blond/dunkel/schwarz × Junge/Mädchen), folgen der Mutter, Name beim Näherkommen; live in Eisfurt geprüft. Tod/Fesseln der Kinder noch nicht.
 - [x] Freiwillige, nicht explizite Nähe zwischen erwachsenen Frauen und der erwachsenen Spielfigur; Gefangene ausgeschlossen, sichtbare fremde Stammeszeugen unterbrechen, noch keine Boni; Annehmen, Abschluss, Bewegungsabbruch und Drachenzeugen live geprüft, 301 Tests grün.

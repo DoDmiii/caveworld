@@ -31,6 +31,8 @@ import west from '@/assets/west.png.asset.json';
 import northWest from '@/assets/north-west.png.asset.json';
 import campfire from '@/assets/campfire.png.asset.json';
 import { CAMP_TEXTURES, CAMP_LAYOUT } from './camp';
+import { EMPTY_FIRES, IGNITE_MS, IGNITE_RANGE, HEAT_DAMAGE_PER_SEC, firePhase, ruinSmoking, isBurning, ignite, inHeat, rebuildDue, respawnExtra, clearVillageFires, removeFires, repairHut, repairBlock, repairCostText, type FireState } from './arson';
+import { RUIN_TEXTURES, FLAME_SHEET, SMOKE_SHEET, FLAMMABLE_HOUSES, doorPoint, ruinKey, type FlammableHouse } from './fire-art';
 import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
 import { lootHouse } from './village-loot';
 import tree0 from '@/assets/tree-east.png.asset.json';
@@ -801,6 +803,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
         raid: { ...this.raid },
+        fires: { ...this.fires },
         warband: this.warband,
         fear: this.fear,
         lore: this.lore,
@@ -880,6 +883,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       this.raid = { ...(g.raid ?? {}) };
+      this.fires = { ...(g.fires ?? {}) };
       this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
@@ -950,7 +954,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (this.caves.current) {
         for (const b of this.caves.builds[this.caves.current] ?? []) if(b.kind==='fire') hole(b.x,b.y,140,0.98);
         hole(p.x,p.y,(this.owned.includes('torch')&&!!input.torch)?120+Math.sin(this.time.now/120)*3:22,(this.owned.includes('torch')&&!!input.torch)?0.98:0.28);
-      } else { hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); hole(p.x, p.y, (this.owned.includes('torch')&&!!input.torch)?120:70, (this.owned.includes('torch')&&!!input.torch)?0.9:0.35); }                  // Restlicht um den Spieler
+      } else { for (const h of FLAMMABLE_HOUSES) { const f = this.fires[h.id]; if (!f) continue; const ph = firePhase(f, this.clock); if (ph === 'blaze') hole(h.x, h.y, 160 + Math.sin(this.time.now / 90 + h.x) * 6, 0.95); else if (ph === 'smolder') hole(h.x, h.y, 55, 0.6); }
+        hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); hole(p.x, p.y, (this.owned.includes('torch')&&!!input.torch)?120:70, (this.owned.includes('torch')&&!!input.torch)?0.9:0.35); }                  // Restlicht um den Spieler
       ctx.globalCompositeOperation = 'source-over';
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
@@ -996,7 +1001,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
-      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES})) this.load.image(k,u);
+      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES,...RUIN_TEXTURES})) this.load.image(k,u);
+      this.load.spritesheet('house-flame',FLAME_SHEET.url,{frameWidth:FLAME_SHEET.w,frameHeight:FLAME_SHEET.h});this.load.spritesheet('smoke-column',SMOKE_SHEET.url,{frameWidth:SMOKE_SHEET.w,frameHeight:SMOKE_SHEET.h});
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
         this.load.spritesheet(`tiger-walk-${i}`, TIGER.walk[i]!, { frameWidth: 64, frameHeight: 64 });
@@ -1121,6 +1127,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.add.image(0,0,'ground').setOrigin(0).setDepth(MAP.y-199);
       this.physics.world.setBounds(MAP.x,MAP.y,MAP.w,MAP.h);
       this.obstacles=this.physics.add.staticGroup();
+      if(!this.anims.exists('house-flame'))this.anims.create({key:'house-flame',frames:this.anims.generateFrameNumbers('house-flame',{start:0,end:FLAME_SHEET.frames-1}),frameRate:FLAME_SHEET.fps,repeat:-1});
+      if(!this.anims.exists('smoke-column'))this.anims.create({key:'smoke-column',frames:this.anims.generateFrameNumbers('smoke-column',{start:0,end:SMOKE_SHEET.frames-1}),frameRate:SMOKE_SHEET.fps,repeat:-1});
       // Dragon mountain terraces: height shading, cliff faces and blocking edges with open passes.
       {const T0=TERRACES[0]!,ox=Math.floor(T0.cx-T0.rx-40),oy=Math.floor(T0.cy-T0.ry-40),tw=Math.ceil(T0.rx*2+80),th=Math.ceil(T0.ry*2+80+CLIFF_H);
         const tt=this.textures.createCanvas('terraces',tw,th);
@@ -1167,7 +1175,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(const [x,y] of [[800,610],[1200,615]] as const) mineable(x,y);
       for(const [x,y] of [[790,770],[1215,775],[900,870],[1110,875]] as const) choppable(x,y,(x+y)%8);
       // Main camp: huts and palisade.
-      for(const pc of CAMP_LAYOUT){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
+      for(const [i,pc] of CAMP_LAYOUT.entries()){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o&&pc.key.startsWith('hut-'))this.houseSprites.set(`camp:${i}`,o);}
       // Outer biomes beyond the start region, density driven by each biome's flora.
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
@@ -1176,12 +1184,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       // Nordic villages.
       for(const pc of NORDIC_LAYOUT){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
-        const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
+        const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o&&'id' in pc)this.houseSprites.set((pc as {id:string}).id,o);
       }
       for(const t of TERRACES)for(const pt of cliffPoints(t,14)){if(pt.open)continue;const yy=pt.y+(pt.ny>0.25?CLIFF_H*Math.min(1,pt.ny*1.3)/2:0);
         const o=this.obstacles?.create(pt.x,yy,'__DEFAULT') as Phaser.Physics.Arcade.Sprite|undefined;if(o){o.setVisible(false);(o.body as Phaser.Physics.Arcade.StaticBody).setSize(18,pt.ny>0.25?CLIFF_H:18);}}
       // Dragon-people terrace village.
-      for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
+      for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o)this.houseSprites.set(pc.id,o);}
       for(const pc of DRAGON_FENCES){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
         const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
@@ -1349,6 +1357,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(this.tutorial.step<TUTORIAL_DONE){const l=this.tutLast;if(l){const d=Math.hypot(p.x-l.x,p.y-l.y);if(d>0&&d<40)this.tut({kind:'move',dist:d},time);}this.tutLast={x:p.x,y:p.y};if(Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70)this.tut({kind:'fire'},time);}
         this.clock=advanceClock(this.clock,dt);
         this.tickRaid(time);
+        this.tickFires(time, dt, p);
         this.tickRumors();
         this.tickTasks();
         this.tickTrust(dt * 2);
@@ -1400,6 +1409,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
       const body=p.body as Phaser.Physics.Arcade.Body;body.checkCollision.none=!!input.fly;body.setCollideWorldBounds(!input.fly);const speed=input.fly?420:(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed*limpFactor(this.health)*(input.fly?1:armorSpeed(input.armor)); const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.tickAmbient(time,delta,p,{running:!!running,crouching:this.crouching,moving:moving&&!input.fly});
+      if(this.igniting){const ig=this.igniting;if(moving||input.torch!=='main'||input.paused||this.attacking){this.igniting=undefined;if(!input.paused){this.message='Feuerlegen abgebrochen';this.messageUntil=time+1200;}}
+        else{p.setVelocity(0,0);const left=ig.until-time;if(left<=0){this.igniting=undefined;this.igniteHouse(ig.house,time);}else{const n=Math.min(5,Math.ceil((1-left/IGNITE_MS)*5));this.message=`Fackel ans Dach halten … ${'▮'.repeat(n)}${'▯'.repeat(5-n)}`;this.messageUntil=time+300;}}}
+      else if(time>=this.messageUntil&&!input.paused){const h=this.fireHouseNear(p);const f=h&&this.fires[h.id];
+        if(h&&!f&&input.torch==='main'&&this.owned.includes('torch')){this.message=h.owner==='camp'?'[E] Deine eigene Hütte anzünden':'[E] Hütte anzünden';this.messageUntil=time+500;}
+        else if(h&&f&&h.owner==='camp'&&firePhase(f,this.clock)==='ruin'){this.message=`[E] Hütte wieder aufbauen · ${repairCostText()}`;this.messageUntil=time+500;}}
       if(this.shove&&time<this.shove.until&&!input.fly)p.setVelocity(this.shove.vx,this.shove.vy);
       this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);
       const w=this.held;
@@ -1486,6 +1500,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const res=this.resPickups.find(r=>Math.hypot(p.x-r.x,p.y-r.y)<30);
         const sg=this.spearOnGround&&Math.hypot(p.x-this.spearOnGround.x,p.y-this.spearOnGround.y)<34?this.spearOnGround:undefined;
         const house = NORDIC_HOUSES.find(h => Math.hypot(p.x-h.x,p.y-h.y-38)<28);
+        const fireHouse = this.fireHouseNear(p);
         const captive = this.carried ? undefined : this.folk.find(f=>(f.c.state==='surrender'||f.c.state==='bound')&&Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)<30);
         if(this.carried){
           const f=this.carried;const inCamp=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-50)<130;
@@ -1508,6 +1523,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         else if(sg){sg.img.destroy();this.spearOnGround=undefined;this.hasSpear=true;this.message='Speer aufgehoben';}
         else if(meat){meat.sprite.destroy();this.meatPickups=this.meatPickups.filter(m=>m!==meat);{const y=bonusYield(1,this.party().meat,this.meatCarry);this.meatCarry=y.carry;this.meat+=y.amount;this.message=`Fleisch aufgehoben · +${y.amount}`; if (meat.skorra && this.standingAllies().some(a => a.id === meat.skorra && Math.hypot(a.x - p.x, a.y - p.y) < 160)) { this.meat--; this.trustEvent(meat.skorra, 'hunt'); this.persist(); }}}
         else if(res){res.sprite.destroy();this.resPickups=this.resPickups.filter(r=>r!==res);{const n=pickupAmount(this.owned);for(let i=0;i<n;i++)this.stock=gain(this.stock,res.kind);this.message=`${RESOURCE_NAME[res.kind]} aufgehoben · +${n}`;}}
+        else if(fireHouse&&((input.torch==='main'&&this.owned.includes('torch'))||this.fires[fireHouse.id])){this.fireAction(fireHouse,time);if(this.igniting){this.report(time,p);return;}}
+        else if(house&&this.fires[house.id]){this.message='Nur noch Asche und verkohlte Balken';}
         else if(house){
           const next = lootHouse({ stock:this.stock, berries:this.count, meat:this.meat, cooked:this.cooked, owned:this.owned, lootedHouses:this.lootedHouses }, house.id);
           if(next){
@@ -1816,6 +1833,82 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
     }
     raid: RaidState = {};
+    /** Burning and burnt huts (arson.ts); visuals are rebuilt from the clock each tick. */
+    fires: FireState = EMPTY_FIRES;
+    houseSprites = new Map<string, Phaser.Physics.Arcade.Sprite>();
+    fireFx = new Map<string, { phase: string; objs: Phaser.GameObjects.GameObject[] }>();
+    igniting?: { house: FlammableHouse; until: number } | undefined;
+    nextHeatWarn = 0;
+    fireHouseNear(p: { x: number; y: number }) { return FLAMMABLE_HOUSES.find(h => { const d = doorPoint(h); return Math.hypot(p.x - d.x, p.y - d.y) < IGNITE_RANGE; }); }
+    /** Swaps hut/ruin textures and spawns flames, smoke and glow whenever a hut changes phase. */
+    syncFireFx(time: number) {
+      for (const h of FLAMMABLE_HOUSES) {
+        const f = this.fires[h.id], spr = this.houseSprites.get(h.id); if (!spr) continue;
+        const ph = f ? firePhase(f, this.clock) : null;
+        const phase = !f ? 'intact' : ph === 'ruin' ? (ruinSmoking(f, this.clock) ? 'smoking' : 'ruin') : ph!;
+        const fx = this.fireFx.get(h.id), prev = fx?.phase ?? 'intact';
+        if (prev === phase) continue;
+        fx?.objs.forEach(o => o.destroy());
+        spr.setTexture(phase === 'ruin' || phase === 'smoking' ? ruinKey(h.key) : h.key);
+        const objs: Phaser.GameObjects.GameObject[] = [], d = spr.depth + 1;
+        const flame = (dx: number, dy: number, sc: number, start: number) => { const o = this.add.sprite(h.x + dx, h.y + dy, 'house-flame').setOrigin(FLAME_SHEET.ox, FLAME_SHEET.oy).setScale(sc).setDepth(d + dy * 0.01); o.play({ key: 'house-flame', startFrame: start % FLAME_SHEET.frames }); objs.push(o); };
+        const smoke = (dx: number, dy: number, sc: number, alpha: number) => { const o = this.add.sprite(h.x + dx, h.y + dy, 'smoke-column').setOrigin(SMOKE_SHEET.ox, SMOKE_SHEET.oy).setScale(sc).setAlpha(alpha).setDepth(d + 2); o.play({ key: 'smoke-column', startFrame: ((Math.floor(h.x + h.y) % SMOKE_SHEET.frames) + SMOKE_SHEET.frames) % SMOKE_SHEET.frames }); objs.push(o); };
+        if (phase === 'smolder') { flame(-6, 0, 0.45, 0); smoke(4, -10, 0.8, 0.55); }
+        else if (phase === 'blaze') {
+          const glow = this.add.image(h.x, h.y + 12, 'glow').setDepth(d - 2).setBlendMode(Phaser.BlendModes.ADD).setScale(0.9);
+          this.tweens.add({ targets: glow, alpha: { from: 0.55, to: 0.9 }, scale: { from: 0.85, to: 1 }, duration: 260, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+          objs.push(glow);
+          flame(-13, 10, 0.72, 2); flame(12, 8, 0.8, 5); flame(0, -2, 1, 0); flame(-4, 18, 0.5, 3); flame(9, 19, 0.45, 6);
+          smoke(2, -30, 1.25, 0.85);
+          if (prev === 'smolder' && f && f.owner !== 'camp') {
+            this.rel = raiseAlarm(this.rel, villageKey(h.name), Date.now());
+            this.message = `Feuer in ${h.name}! Die Wachen suchen den Brandstifter`; this.messageUntil = time + 3200;
+          }
+        }
+        else if (phase === 'smoking') smoke(0, -6, 0.9, 0.45);
+        this.fireFx.set(h.id, { phase, objs });
+      }
+    }
+    tickFires(time: number, dt: number, p: { x: number; y: number }) {
+      // Foreign villagers rebuild burnt huts by themselves; a defeated village waits for its respawn.
+      const due = rebuildDue(this.fires, this.clock, v => championFallen(this.raid, v));
+      if (due.length) {
+        this.fires = removeFires(this.fires, due);
+        const names = [...new Set(due.map(id => FLAMMABLE_HOUSES.find(h => h.id === id)?.name).filter(Boolean))];
+        this.message = `${names.join(', ')} · die verbrannten Hütten sind wieder aufgebaut`; this.messageUntil = time + 3200; this.persist();
+      }
+      this.syncFireFx(time);
+      for (const h of FLAMMABLE_HOUSES) {
+        const f = this.fires[h.id]; if (!f) continue;
+        if (!inHeat(f, this.clock, Math.hypot(p.x - h.x, p.y - h.y - 14))) continue;
+        this.health = Math.max(0, this.health - HEAT_DAMAGE_PER_SEC * dt);
+        if (time > this.nextHeatWarn) { this.nextHeatWarn = time + 2200; this.message = 'Die Hitze versengt dich!'; this.messageUntil = time + 1500; }
+      }
+    }
+    igniteHouse(h: FlammableHouse, time: number) {
+      if (this.fires[h.id]) return;
+      this.fires = ignite(this.fires, h.id, h.owner, this.clock, h.village);
+      this.cameras.main.shake(140, 0.003);
+      if (h.owner === 'camp') {
+        for (const f of this.folk.filter(f => f.c.state === 'camp')) this.trustEvent(f.c.id, 'violence');
+        this.message = 'Du hast deine eigene Hütte angezündet!';
+      } else {
+        this.message = `${h.name} · das Dach fängt Feuer!`;
+        if (h.village !== undefined) this.witnessDeed({ t: { village: h.village }, c: { id: `house:${h.id}` }, sprite: { x: h.x, y: h.y + 20 } }, 'arson', 'arson');
+      }
+      this.messageUntil = time + 2600; this.syncFireFx(time); this.persist();
+    }
+    /** [E] at a hut door: start the torch, or rebuild an own ruin. */
+    fireAction(h: FlammableHouse, time: number) {
+      const f = this.fires[h.id];
+      if (!f) { this.igniting = { house: h, until: time + IGNITE_MS }; this.message = h.owner === 'camp' ? 'Deine eigene Hütte … Fackel ans Dach halten' : 'Fackel ans Dach halten …'; return; }
+      if (isBurning(f, this.clock)) { this.message = 'Die Hütte steht in Flammen'; return; }
+      if (h.owner !== 'camp') { this.message = `Nur noch Asche · ${h.name} baut sie irgendwann wieder auf`; return; }
+      const r = repairHut(this.fires, h.id, this.clock, this.stock, this.owned.includes('axe'));
+      if (r) { this.fires = r.state; this.stock = r.stock; this.syncFireFx(time); this.message = 'Hütte wieder aufgebaut'; this.persist(); return; }
+      const b = repairBlock(this.fires, h.id, this.clock, this.stock, this.owned.includes('axe'));
+      this.message = b === 'hot' ? 'Die Glut ist noch zu heiß · warte etwas' : b === 'no-axe' ? 'Ohne Steinaxt bekommst du die verkohlten Balken nicht weg' : `Wiederaufbau braucht ${repairCostText()}`;
+    }
     fear: FearState = EMPTY_FEAR;
     /** Notizbuch-Fortschritt pro fremdem Volk. */
     lore: LoreState = EMPTY_LORE;
@@ -1904,14 +1997,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     villageFear(village: number) { this.fear = decayFear(this.fear, clockOf(this.clock).day); return fearOf(this.fear, villageKey(FOLK_HOMES[village]!.name)); }
     tickRaid(time: number) {
-      for (const v of villagesToRespawn(this.raid, this.clock)) {
+      for (const v of villagesToRespawn(this.raid, this.clock, (vi, at) => respawnExtra(this.fires, vi, at))) {
+        const burnt = Object.values(this.fires).some(f => f.owner !== 'camp' && f.village === v); this.fires = clearVillageFires(this.fires, v); this.syncFireFx(time);
         for (const f of this.folk) {
           if (f.t.village !== v || f.t.captive || f.combat.phase !== 'dead') continue;
           f.combat = newFighter(isChampion(f.t) ? CHAMPION_HP : undefined); f.c = { id: f.c.id, state: 'free', x: f.t.x, y: f.t.y };
           f.sprite.setPosition(f.t.x, f.t.y); poseFolk(f); if (isChampion(f.t)) f.sprite.setTint(0xffe6c0);
         }
         this.raid = clearRespawn(this.raid, v);
-        this.message = `${VILLAGES[v]?.name} hat sich neu bewaffnet · ${CHAMPION_NAMES[v]} führt die Wachen an`; this.messageUntil = time + 4000; this.persist();
+        this.message = `${VILLAGES[v]?.name}${burnt ? ' ist wieder aufgebaut und' : ' hat sich'} neu bewaffnet · ${CHAMPION_NAMES[v]} führt die Wachen an`; this.messageUntil = time + 4000; this.persist();
       }
     }
     bossStatus(p: { x: number; y: number }) {

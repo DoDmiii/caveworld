@@ -66,6 +66,8 @@ const GameSchema = z.object({
     active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0) }).optional(),
   }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
+  // Brennende und abgebrannte Hütten; optional, damit ältere Spielstände weiter laden.
+  fires: z.record(z.string().max(80), z.object({ litAt: z.number().min(0).max(10_000_000), owner: z.enum(['camp', 'nordic', 'dragon']), village: z.number().int().min(0).max(20).optional() })).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7), beheaded: z.boolean().optional(), headPosition: z.object({ x: coord, y: coord }).optional(), deathClock: z.number().min(0).max(10_000_000).optional(), skullTaken: z.boolean().optional() })).max(50).optional(),
   // Notizbuch-Fortschritt; optional, damit ältere Spielstände weiter laden.
   lore: z.object({
@@ -78,7 +80,7 @@ const GameSchema = z.object({
     grudge: z.record(z.string().max(40), z.number().int().min(0).max(10)),
     day: z.number().int().min(0),
   }).optional(),
-  rumors: z.object({ rumors: z.array(z.object({ id: z.string().max(80), kind: z.enum(['attack', 'kill', 'finisher', 'steal', 'capture', 'execution', 'champion']), origin: z.string().max(40), bornAt: z.number().min(0), reached: z.array(z.string().max(40)).max(20) })).max(30) }).optional(),
+  rumors: z.object({ rumors: z.array(z.object({ id: z.string().max(80), kind: z.enum(['attack', 'kill', 'finisher', 'steal', 'capture', 'execution', 'champion', 'arson']), origin: z.string().max(40), bornAt: z.number().min(0), reached: z.array(z.string().max(40)).max(20) })).max(30) }).optional(),
   relationships: z.object({
     village: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
     personal: z.record(z.string(), z.number().int().min(-100).max(100)).default({}),
