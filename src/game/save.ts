@@ -67,6 +67,11 @@ const GameSchema = z.object({
   }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7), beheaded: z.boolean().optional(), headPosition: z.object({ x: coord, y: coord }).optional(), deathClock: z.number().min(0).max(10_000_000).optional(), skullTaken: z.boolean().optional() })).max(50).optional(),
+  // Notizbuch-Fortschritt; optional, damit ältere Spielstände weiter laden.
+  lore: z.object({
+    nordics: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
+    dragon: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
+  }).optional(),
   fear: z.object({
     fear: z.record(z.string().max(40), z.number().min(0).max(100)),
     tributeDay: z.record(z.string().max(40), z.number().int().min(0)),

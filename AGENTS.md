@@ -51,3 +51,4 @@
 - Keep couples, seduction, secret affairs and jealousy rules engine-free in partners.ts; world.ts only reports witnesses, arms the jealous partner and saves couple state separately from relationships.
 - Keep pregnancy, birth, real vs. social fathers and cuckoo suspicion engine-free in reproduction.ts; world.ts only rolls per game day, shows births and saves repro state separately from couples so reloads cannot reroll children.
 - Keep child look selection (hair + sex) and follow/home anchoring engine-free in children.ts; child-folk.ts only draws one packed 16×16 atlas per look, and children stay non-physical so they never become combat or capture targets.
+- Keep notebook lore texts and unlock rules engine-free in lore.ts; world.ts only reports met/contact/champion events and saves the counters, so texts can grow without touching the engine.
