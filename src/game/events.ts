@@ -6,7 +6,7 @@ import type { FearEvent } from "./fear";
 import { FEAR_GAIN } from "./fear";
 
 export type DeedKind =
-  "attack" | "kill" | "finisher" | "steal" | "capture" | "execution" | "champion";
+  "attack" | "kill" | "finisher" | "steal" | "capture" | "execution" | "champion" | "arson";
 
 export type Deed = {
   kind: DeedKind;
@@ -45,6 +45,8 @@ export const NOISE: Record<DeedKind, number> = {
   capture: 90,
   execution: 180,
   champion: 320,
+  /** Prasselndes Feuer und Schreie: weit zu hören. */
+  arson: 220,
 };
 /** Schlafende nehmen nur Lärm in diesem Anteil der Reichweite wahr. */
 export const ASLEEP_HEARING = 0.4;
@@ -88,6 +90,7 @@ const FEAR_OF: Record<DeedKind, FearEvent | null> = {
   capture: null,
   execution: "execution",
   champion: "champion",
+  arson: "arson",
 };
 export const REL_DELTA: Record<DeedKind, number> = {
   attack: -35,
@@ -97,6 +100,7 @@ export const REL_DELTA: Record<DeedKind, number> = {
   capture: -40,
   execution: -45,
   champion: -30,
+  arson: -40,
 };
 /** Wer die Tat nur hört, kennt den Täter nicht: nur Misstrauen, keine Furcht vor dem Spieler. */
 export const HEARD_REL_DELTA = -5;

@@ -18,8 +18,9 @@ export function recordChampionDeath(state: RaidState, village: number, clock: nu
   return { ...state, [String(village)]: clock };
 }
 /** Villages whose rebuilding period has passed; their champion and fallen guards return. */
-export function villagesToRespawn(state: RaidState, clock: number): number[] {
-  return Object.entries(state).filter(([, at]) => clock >= at + VILLAGE_RESPAWN_MINUTES).map(([v]) => Number(v));
+/** `extra` adds village-specific delay, e.g. two more days to rebuild burnt huts (arson.ts). */
+export function villagesToRespawn(state: RaidState, clock: number, extra?: (village: number, fallAt: number) => number): number[] {
+  return Object.entries(state).filter(([v, at]) => clock >= at + VILLAGE_RESPAWN_MINUTES + (extra?.(Number(v), at) ?? 0)).map(([v]) => Number(v));
 }
 export function clearRespawn(state: RaidState, village: number): RaidState {
   const next = { ...state }; delete next[String(village)]; return next;
