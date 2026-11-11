@@ -1852,7 +1852,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         spr.setTexture(phase === 'ruin' || phase === 'smoking' ? ruinKey(h.key) : h.key);
         const objs: Phaser.GameObjects.GameObject[] = [], d = spr.depth + 1;
         const flame = (dx: number, dy: number, sc: number, start: number) => { const o = this.add.sprite(h.x + dx, h.y + dy, 'house-flame').setOrigin(FLAME_SHEET.ox, FLAME_SHEET.oy).setScale(sc).setDepth(d + dy * 0.01); o.play({ key: 'house-flame', startFrame: start % FLAME_SHEET.frames }); objs.push(o); };
-        const smoke = (dx: number, dy: number, sc: number, alpha: number) => { const o = this.add.sprite(h.x + dx, h.y + dy, 'smoke-column').setOrigin(SMOKE_SHEET.ox, SMOKE_SHEET.oy).setScale(sc).setAlpha(alpha).setDepth(d + 2); o.play({ key: 'smoke-column', startFrame: (h.x + h.y) % SMOKE_SHEET.frames }); objs.push(o); };
+        const smoke = (dx: number, dy: number, sc: number, alpha: number) => { const o = this.add.sprite(h.x + dx, h.y + dy, 'smoke-column').setOrigin(SMOKE_SHEET.ox, SMOKE_SHEET.oy).setScale(sc).setAlpha(alpha).setDepth(d + 2); o.play({ key: 'smoke-column', startFrame: ((Math.floor(h.x + h.y) % SMOKE_SHEET.frames) + SMOKE_SHEET.frames) % SMOKE_SHEET.frames }); objs.push(o); };
         if (phase === 'smolder') { flame(-6, 0, 0.45, 0); smoke(4, -10, 0.8, 0.55); }
         else if (phase === 'blaze') {
           const glow = this.add.image(h.x, h.y + 12, 'glow').setDepth(d - 2).setBlendMode(Phaser.BlendModes.ADD).setScale(0.9);
