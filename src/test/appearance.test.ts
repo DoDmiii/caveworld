@@ -6,7 +6,7 @@ describe('Rüstungen und Blut-Zustand', () => {
   it('Blut-Skin ab halber Lebensanzeige', () => {
     expect(isBloodied(50)).toBe(true);
     expect(isBloodied(51)).toBe(false);
-    expect(playerTint('wolfArmor', 40)).toBe(BLOOD_TINT);
+    expect(playerTint('wolfArmor', 40)).toBeNull(); expect(playerTint('sabreArmor', 10)).toBeNull(); void BLOOD_TINT;
   });
   it('Pelz zeigt eigenen Skin, sonst Blut-Skin ab halber Lebensanzeige', () => {
     expect(skinFor('wolfArmor', 100)).toBe('wolf');

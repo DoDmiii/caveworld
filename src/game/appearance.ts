@@ -47,7 +47,7 @@ export function skinFor(armor: ArmorId | null | undefined, health: number): Skin
   if (armor === 'sabreArmor') return 'sabre';
   return isBloodied(health) ? 'blood' : null;
 }
-/** Extra tint on top of the skin: armor skins have no blood variant yet, so they redden when bloodied. */
+/** No extra tint: only the default skin shows blood (via its own blood sprites); armor skins stay unchanged. */
 export function playerTint(armor: ArmorId | null | undefined, health: number): number | null {
-  return armor && isBloodied(health) ? BLOOD_TINT : null;
+  void armor; void health; return null;
 }
