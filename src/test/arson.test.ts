@@ -17,7 +17,7 @@ describe('arson', () => {
   });
   it('the full blaze lasts half a game day, then the hut is a ruin', () => {
     expect(BLAZE_MINUTES).toBe(720);
-    const f = ignite(EMPTY_FIRES, 'a', 'nordic', 0, 0).a!;
+    const f = ignite(EMPTY_FIRES, 'a', 'nordic', 0, 0)['a']!;
     expect(firePhase(f, SMOLDER_MINUTES - 1)).toBe('smolder');
     expect(firePhase(f, SMOLDER_MINUTES)).toBe('blaze');
     expect(firePhase(f, out - 1)).toBe('blaze');
