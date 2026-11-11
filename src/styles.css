@@ -513,7 +513,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 }
 .controls-overview {touch-action:pan-y;}
 .lore-button{position:absolute;top:calc(env(safe-area-inset-top,0px) + 214px);right:10px;z-index:30;color:var(--foreground);}
-@media (max-width: 760px){.lore-button{top:62px;right:calc(max(12px,env(safe-area-inset-right)) + 104px);width:44px;height:44px;}}
+@media (orientation:landscape) and (max-height:600px){.lore-button{top:62px;right:calc(max(12px,env(safe-area-inset-right)) + 104px);width:44px;height:44px;}}
 @media (orientation:portrait){.lore-button{top:270px;right:10px;width:44px;height:44px;}}
 .zoom-controls {position:absolute;right:12px;top:50%;transform:translateY(-50%);display:flex;flex-direction:column;gap:6px;z-index:5;}
 .zoom-controls button {width:32px;height:32px;}
