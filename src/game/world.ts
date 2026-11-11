@@ -3,6 +3,7 @@ import { renderCave } from './cave-render';
 import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
+import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent } from './lore';
 import { EMPTY_FEAR, addFear, addFearAmount, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
 import { hornReady, recallOrders, alarmThreats, campResponse, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
@@ -133,7 +134,7 @@ import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
 export type GameInput = { torch?: 'main' | 'off' | null; armor?: ArmorId | null; fly?: boolean; horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
-export type GameStatus = { skull?: number; wolfPelt?: number; sabrePelt?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
+export type GameStatus = { lore?: LoreState; skull?: number; wolfPelt?: number; sabrePelt?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -802,6 +803,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         warband: this.warband,
         fear: this.fear,
+        lore: this.lore,
         rumors: this.savedRumors(),
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
@@ -878,6 +880,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       this.raid = { ...(g.raid ?? {}) };
+      this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
@@ -1610,6 +1613,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if (isCarrier(this.carriers, f.c.id)) { f.sprite.setDepth(f.sprite.y); continue; }
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
+        if (d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
         if (d < bd) { bd = d; best = f; }
         if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
         let m = this.folkMood.get(f.c.id);
@@ -1813,6 +1817,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     raid: RaidState = {};
     fear: FearState = EMPTY_FEAR;
+    /** Notizbuch-Fortschritt pro fremdem Volk. */
+    lore: LoreState = EMPTY_LORE;
+    /** Vermerkt eine Begegnung im Notizbuch und meldet neue Seiten. */
+    noteLore(village: number, event: LoreEvent) {
+      const tribe = tribeOfVillage(village), r = recordLore(this.lore, tribe, event);
+      this.lore = r.state;
+      if (r.after > r.before) { this.message = `Notizbuch: neue Seite über ${LORE[tribe].name}`; this.messageUntil = this.time.now + 3200; this.persist(); }
+    }
     /** Raises a village's fear (after daily decay) and tells the player when it changes tier. */
     frighten(village: number, ev: FearEvent) {
       const vk = villageKey(FOLK_HOMES[village]!.name), before = fearTier(fearOf(this.fear, vk));
@@ -1824,6 +1836,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Only those who see or hear a deed react; seen deeds become rumors that travel to neighbouring villages. */
     witnessDeed(victim: { t: { village: number }; c: { id: string }; sprite: { x: number; y: number } }, kind: DeedKind, fearEv?: FearEvent) {
       const victimVk = villageKey(FOLK_HOMES[victim.t.village]!.name);
+      this.noteLore(victim.t.village, kind === 'champion' ? 'champion' : 'contact');
       const observers: Observer[] = this.folk.filter(o => o !== (victim as unknown) && o.combat.phase !== 'dead').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village]!.name), role: isWarrior(o.t) ? 'guard' as const : 'villager' as const, bound: o.c.state !== 'free' }));
       const deed = { kind, actorId: 'player', victimVillage: victimVk, x: victim.sprite.x, y: victim.sprite.y, clock: this.clock, night: isNight(clockOf(this.clock).minutesOfDay), crouching: this.crouching };
       const out = resolveDeed(deed, witnessesOf(deed, observers));
@@ -2071,6 +2084,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
+      this.noteLore(f.t.village, 'contact');
       if (id === 'bond') { this.startCloseness(f.c.id, time); return; }
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
       const vk = villageKey(FOLK_HOMES[f.t.village].name);
@@ -2360,7 +2374,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       {const tint=playerTint(input.armor,this.health);if (time < this.hitFlash) p.setTint(0xff5050); else if (tint!==null) p.setTint(tint); else p.clearTint();}
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
