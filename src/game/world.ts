@@ -1837,7 +1837,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     fires: FireState = EMPTY_FIRES;
     houseSprites = new Map<string, Phaser.Physics.Arcade.Sprite>();
     fireFx = new Map<string, { phase: string; objs: Phaser.GameObjects.GameObject[] }>();
-    igniting?: { house: FlammableHouse; until: number };
+    igniting?: { house: FlammableHouse; until: number } | undefined;
     nextHeatWarn = 0;
     fireHouseNear(p: { x: number; y: number }) { return FLAMMABLE_HOUSES.find(h => { const d = doorPoint(h); return Math.hypot(p.x - d.x, p.y - d.y) < IGNITE_RANGE; }); }
     /** Swaps hut/ruin textures and spawns flames, smoke and glow whenever a hut changes phase. */
