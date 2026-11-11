@@ -42,9 +42,9 @@ export const isBurning = (f: Fire | undefined, clock: number) => !!f && firePhas
 export const ruinSmoking = (f: Fire, clock: number) => firePhase(f, clock) === 'ruin' && clock < burnedOutAt(f) + RUIN_SMOKE_MINUTES;
 
 /** Only an intact hut catches fire, and only from a torch held in the main hand. */
-export function igniteBlock(state: FireState, id: string, torchInMain: boolean): 'no-torch' | 'burning' | 'ruin' | null {
+export function igniteBlock(state: FireState, id: string, torchInMain: boolean, clock: number): 'no-torch' | 'burning' | 'ruin' | null {
   const f = state[id];
-  if (f) return 'smolder' === 'smolder' && f.litAt >= 0 && burnedOutAt(f) > -1 ? (f ? 'burning' : null) : null;
+  if (f) return firePhase(f, clock) === 'ruin' ? 'ruin' : 'burning';
   return torchInMain ? null : 'no-torch';
 }
 
