@@ -16,8 +16,8 @@ export function recallOrders(actors: readonly (Pt & { id: string; down: boolean 
   return new Map(actors.filter(a => !a.down && orders.get(a.id)?.mode === 'follow' && Math.hypot(a.x-player.x,a.y-player.y) <= HORN_RANGE)
     .map(a => [a.id, { id: a.id, mode: 'follow' as const, x: player.x, y: player.y }]));
 }
-/** Camp women and noncombatant elders/healers stay out of battle. */
-export function campWarrior(profile: string) { return ['tamo', 'bruk', 'ilvar'].includes(profile); }
+/** Wenja men are warriors; camp women stay out of battle. */
+export function campWarrior(profile: string) { return ['tamo', 'bruk', 'kuruk', 'ilvar'].includes(profile); }
 export function alarmThreats(foes: readonly Foe[], drums: readonly Pt[]) {
   return foes.filter(f => f.alive && f.hostile && drums.some(d => Math.hypot(f.x-d.x,f.y-d.y) <= ALARM_RANGE));
 }

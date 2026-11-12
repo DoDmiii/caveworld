@@ -35,9 +35,9 @@ export const BRUK_EXTRA_HP = 20;
 
 // ---------- Schwächen (quirks) ----------
 const BIG_GAME = ['mammoth', 'bear', 'wolf'];
-/** Torvik and Kuruk never fight; Tamo hesitates at big game/packs and backs off below 50 % health. */
+/** Torvik never fights; Tamo hesitates at big game/packs and backs off below 50 % health. */
 export function refusesFight(profileId: string, targetKind: string | undefined, hpRatio: number): boolean {
-  if (profileId === 'torvik' || profileId === 'kuruk') return true;
+  if (profileId === 'torvik') return true;
   if (profileId === 'tamo') return hpRatio < 0.5 || (!!targetKind && BIG_GAME.includes(targetKind));
   return false;
 }
@@ -56,11 +56,10 @@ export function nukaSnack(berries: number, nukaInTribe: boolean): number {
 export const YMRA_TRADE_BONUS = 0.25;
 
 // ---------- Eigenständige Schwächen ----------
-/** Kuruk walks 20 % slower than the young hunters. */
-export const companionPace = (profileId: string) => profileId === 'kuruk' ? 0.8 : 1;
-/** Kuruk turns back home once the party is this far from the camp fire. */
-export const KURUK_LEASH = 450;
-export const leashExceeded = (profileId: string, distFromCamp: number) => profileId === 'kuruk' && distFromCamp > KURUK_LEASH;
+/** Every Wenja keeps pace with the party (warrior culture). */
+export const companionPace = (_profileId: string) => 1;
+/** No Wenja turns back from a raid. */
+export const leashExceeded = (_profileId: string, _distFromCamp: number) => false;
 /** Ura freezes in the snow: HP lost per second unless you wear fur clothing. */
 export const URA_COLD_HP_PER_S = 1;
 export const uraColdDamage = (profileId: string, biome: string, hasFur: boolean) => profileId === 'ura' && biome === 'nordics' && !hasFur ? URA_COLD_HP_PER_S : 0;
