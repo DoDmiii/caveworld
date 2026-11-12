@@ -16,7 +16,7 @@ describe('Ehren-Zweikampf', () => {
     expect(rollRules(seq(0.9, 0.9))).toEqual({ goal: 'submit', arms: 'weapons' });
   });
   it('bis zur Unterwerfung: er gibt bei 15 % Leben auf, der Spieler bei 15 Leben', () => {
-    const f = { hp: 20, phase: 'ready' as const, downUntil: 0, max: DUEL_HP };
+    const f = { hp: 18, phase: 'ready' as const, downUntil: 0, max: DUEL_HP };
     expect(hitDuelist(f, 9, 0, 'submit').result).toBe('submitted');
     expect(hitDuelist({ ...f, hp: 40 }, 9, 0, 'submit').result).toBe('hit');
     expect(playerYields(PLAYER_SUBMIT_AT, 'submit')).toBe(true);
