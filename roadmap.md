@@ -1,6 +1,9 @@
 # Roadmap
 - [x] Brandstiftung: Fackel in der Haupthand + [E] 1,5 s stillhalten zündet Hütten aller Völker an; Glimmen, Vollbrand (halber Spieltag) mit Flammen/Rauch/Licht und Hitzeschaden, dann Ruine. Fremde Dörfer bauen 2 Tage später wieder auf (besiegte Dörfer kehren erst nach 3,5 + 2 Tagen zurück); eigene Hütten nur teuer mit Steinaxt reparierbar. Lagerhütte und Frostheim live geprüft.
-- [ ] Feindliche Kriegstrupps zünden das Lager an (Nutzer liefert Ablauf).
+- [x] Ehren-Zweikämpfe: betrogener Mann fordert heraus (Annehmen/Feige fliehen), Spieler fordert Krieger im Optionsrad heraus (zufällige Annahme); zufällig bis Tod/Unterwerfung und Fäuste/Waffen; Ring aus Dorfbewohnern, halber Schaden, taktischer Gegner (umkreisen, antäuschen, vorstürmen, zurückspringen, ausweichen); keine Pelze im Ring; Faust-Finisher; Sieg = Respekt/Furcht + Frau mit Kindern ins Lager; Flucht/Niederlage = Spott, Schubser, Tribut. Alle Ausgänge live geprüft.
+- [ ] Echte Sieges-/Jubelpose nach dem Duell (wartet auf Grafik).
+- [ ] Feindliche Raids/Rachetrupps im Lager inkl. Lagerbrand (nächster Schritt).
+- [ ] Gefangenenflucht und Rettungstrupps.
 - [x] Notizbuch (Taste N / Buch-Knopf): Völker-Steckbriefe schalten sich durch Begegnung, Kontakt und Champion frei; gespeichert. Öffnen und Freischalten bei Frostheim live geprüft.
 - [x] Sichtbare Kinder: sechs Kinder-Looks (blond/dunkel/schwarz × Junge/Mädchen), folgen der Mutter, Name beim Näherkommen; live in Eisfurt geprüft. Tod/Fesseln der Kinder noch nicht.
 - [x] Freiwillige, nicht explizite Nähe zwischen erwachsenen Frauen und der erwachsenen Spielfigur; Gefangene ausgeschlossen, sichtbare fremde Stammeszeugen unterbrechen, noch keine Boni; Annehmen, Abschluss, Bewegungsabbruch und Drachenzeugen live geprüft, 301 Tests grün.
