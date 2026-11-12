@@ -12,6 +12,8 @@ export const WEDGE_WALK = directional('wedge-walk');
 export const WEDGE_ATTACK = directional('wedge-attack');
 export const FINISHER = directional('finisher');
 export const BEHEAD = directional('behead');
+/** Two-fist hammer blow from the uploaded duel package; south-west mirrors south-east. */
+export const FIST_FINISHER = directional('fist-finisher');
 const icon = assets['../assets/gear/icon-wedge.png.asset.json'];
 if (!icon) throw new Error('Missing Steinkeil icon');
 export const ICON_WEDGE = icon.url;

@@ -551,3 +551,12 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .lore-facts dt {color:var(--muted-foreground);}
 .lore-facts dd {margin:0;text-align:right;}
 .lore-page .lore-hidden {display:flex;align-items:center;gap:6px;margin-top:16px;font-size:11px;color:var(--muted-foreground);}
+
+.duel-card {display:flex;flex-direction:column;gap:10px;width:min(88%,340px);background:var(--glass);border:1px solid var(--destructive);border-radius:6px;padding:16px;color:var(--foreground);font-family:'Barlow Condensed',sans-serif;text-align:center;}
+.duel-card strong {font-size:20px;letter-spacing:.04em;text-transform:uppercase;}
+.duel-card p {margin:0;color:var(--muted-foreground);}
+.duel-rules {display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+.duel-rules span {border:1px solid var(--glass-border);border-radius:4px;padding:2px 8px;color:var(--foreground);font-size:14px;text-transform:uppercase;letter-spacing:.06em;}
+.duel-note {font-size:13px;}
+.duel-actions {display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
+.shame-badge {position:absolute;top:118px;left:50%;transform:translateX(-50%);z-index:6;pointer-events:none;padding:2px 10px;border-radius:4px;background:var(--glass);border:1px solid var(--glass-border);color:var(--destructive);font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;}
