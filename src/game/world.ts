@@ -729,7 +729,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Ends the duel and applies honour, fear, tribute, mockery and the woman's choice. */
     endDuel(outcome: DuelOutcome, time: number) {
       const d = this.duel; if (!d || d.phase === 'done') return;
-      const f = this.duelFoe(), v = FOLK_HOMES[d.village], vk = villageKey(v.name), fx = DUEL_EFFECTS[outcome], name = this.personName(d.id);
+      const f = this.duelFoe(), v = FOLK_HOMES[d.village]!, vk = villageKey(v.name), fx = DUEL_EFFECTS[outcome], name = this.personName(d.id);
       this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, d.id, fx.rel, vk), vk, fx.rel);
       this.fear = addFearAmount(decayFear(this.fear, clockOf(this.clock).day), vk, fx.fear);
       this.duels = recordOutcome(this.duels, outcome, vk, d.id, this.clock);
@@ -869,7 +869,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     savedDuelView(): { rel: RelationshipState; fear: FearState; duels: DuelBook } {
       const d = this.duel;
       if (!d || d.phase === 'done') return { rel: this.rel, fear: this.fear, duels: this.duels };
-      const vk = villageKey(FOLK_HOMES[d.village].name), fx = DUEL_EFFECTS.fled;
+      const vk = villageKey(FOLK_HOMES[d.village]!.name), fx = DUEL_EFFECTS.fled;
       return { rel: changeVillageRelationship(changePersonalRelationship(this.rel, d.id, fx.rel, vk), vk, fx.rel), fear: addFearAmount(this.fear, vk, fx.fear), duels: recordOutcome(this.duels, 'fled', vk, d.id, this.clock) };
     }
     duelStatus() {

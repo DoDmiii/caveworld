@@ -198,7 +198,7 @@ export default function GameView(){
     {status.hidden&&!status.sleeping&&!status.dead&&<div className="stealth-hint">👁 Auf der Lauer</div>}
      {status.crouching&&!status.hidden&&!status.dead&&<div className="stealth-hint">Geduckt · leiser</div>}
      {status.dead&&<div className="death-screen" role="alertdialog" aria-label="Du bist gestorben"><span className="eyebrow">DIE WILDNIS IST GNADENLOS</span><h2>Du bist gefallen</h2><p>{status.meat} Fleisch · {status.berries} Beeren gesammelt</p><Button className="resume-button" onClick={()=>input.current.respawn++}><Flame size={16}/> Am Lagerfeuer erwachen</Button></div>}
-    {ready&&!paused&&!panel&&!talk&&!status.chestOpen&&!status.dead&&!status.sleeping&&<TouchControls input={input.current} crouching={status.crouching} spear={status.weapon==='spear'} inCave={!!status.caves?.current}/>}
+    {ready&&!paused&&!panel&&!talk&&!status.chestOpen&&!duelPrompt&&!status.dead&&!status.sleeping&&<TouchControls input={input.current} crouching={status.crouching} spear={status.weapon==='spear'} inCave={!!status.caves?.current}/>}
 
     {ready&&status.talk&&!talk&&!panel&&!paused&&<Button variant="outline" className="sleep-hint talk-hint" onClick={()=>setTalk(status.talk??null)}>{status.talk.name} · Interagieren</Button>}
     {ready&&status.nearChest&&!status.chestOpen&&!talk&&!panel&&!paused&&<Button variant="outline" className="sleep-hint chest-hint" onClick={()=>{input.current.chestToggle=(input.current.chestToggle??0)+1;}}><img src={chestIcon.url} alt="" style={{width:20,height:20,imageRendering:'pixelated'}}/> Vorratskiste öffnen</Button>}
