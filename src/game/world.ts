@@ -2390,6 +2390,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
       this.noteLore(f.t.village, 'contact');
       if (id === 'bond') { this.startCloseness(f.c.id, time); return; }
+      if (id === 'challenge') {
+        const no = this.challengeRefusal(f); if (no !== null) { if (no) { this.message = no; this.messageUntil = time + 2000; } return; }
+        const vk0 = villageKey(FOLK_HOMES[f.t.village].name), w = womanOf(f.c.id), wronged = !!w && (this.couples.affairs[w] ?? 0) > 0;
+        if (Math.random() < acceptChance({ fear: this.villageFear(f.t.village), relationship: getPersonalRelationship(this.rel, f.c.id, vk0), wronged })) { this.bark(f.c.id, f.sprite, 'attack', time, true, 'So sei es. Vor allen Augen!'); this.startDuel(f, 'player', time); this.message = `${this.personName(f.c.id)} nimmt an! · ${this.message}`; }
+        else { this.duels = setCooldown(this.duels, f.c.id, this.clock); this.fear = addFearAmount(decayFear(this.fear, clockOf(this.clock).day), vk0, 5); this.bark(f.c.id, f.sprite, 'flee', time, true, 'Nicht heute, Fremder…'); this.message = `${this.personName(f.c.id)} weicht deinem Blick aus und lehnt ab`; this.messageUntil = time + 2600; this.persist(); }
+        return;
+      }
       if(id==='attack'){if(f.c.state==='free'&&!input.paused&&!this.attacking){this.lastFacing=(Math.round(Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x)/(Math.PI/4))+8)%8;this.attacking=true;this.attackPending=true;p.setVelocity(0,0);p.play(`anim-${this.held}-attack-${this.lastFacing}`);}return;}
       const vk = villageKey(FOLK_HOMES[f.t.village].name);
       if (isSocialAction(id)) {

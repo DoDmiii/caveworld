@@ -4,7 +4,7 @@ import { canRecruit } from './companions';
 import { closenessRefusal, type ClosenessContext } from './bonding';
 
 export type InteractionTarget = 'villager' | 'captive' | 'ally' | 'guard';
-export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish' | 'tribute' | 'bond';
+export type InteractionId = 'greet' | 'gift' | 'trade' | 'intimidate' | 'attack' | 'bind' | 'carry' | 'release' | 'adopt' | 'execute' | 'interrogate' | 'ransom' | 'follow' | 'wait' | 'return' | 'feed' | 'assign' | 'banish' | 'tribute' | 'bond' | 'challenge';
 export type Risk = 'low' | 'medium' | 'high';
 export interface InteractionContext {
   target: InteractionTarget;
@@ -25,6 +25,8 @@ export interface InteractionContext {
   fear?: number;
   tributePaid?: boolean;
   closeness?: ClosenessContext;
+  /** Duel challenge: undefined hides the option, null allows it, a string explains why not. */
+  challenge?: string | null | undefined;
 }
 export interface InteractionDefinition {
   id: InteractionId;
@@ -34,6 +36,7 @@ export interface InteractionDefinition {
   risk: Risk;
   description: string;
   disabledReason?: (ctx: InteractionContext) => string | null;
+  hidden?: (ctx: InteractionContext) => boolean;
 }
 
 export const INTERACTIONS: InteractionDefinition[] = [
@@ -43,6 +46,7 @@ export const INTERACTIONS: InteractionDefinition[] = [
   { id: 'trade', label: 'Handeln', icon: 'arrows-left-right', targets: ['villager'], risk: 'low', description: 'Tausche verfügbare Waren.', disabledReason: c => !c.hasTradeGoods ? 'Du hast keine geeigneten Tauschgüter.' : c.relationship < -40 ? 'Die Beziehung ist zu schlecht.' : null },
   { id: 'intimidate', label: 'Einschüchtern', icon: 'shield-alert', targets: ['villager', 'guard'], risk: 'medium', description: 'Kann die Person zurückweichen lassen oder die Lage eskalieren.' },
   { id: 'tribute', label: 'Tribut fordern', icon: 'skull', targets: ['villager', 'guard'], risk: 'high', description: 'Verängstigte Dörfer zahlen aus Furcht, sinnen aber auf Rache.', disabledReason: c => (c.fear ?? 0) < 50 ? 'Das Dorf fürchtet dich nicht genug.' : c.tributePaid ? 'Heute wurde schon gezahlt.' : null },
+  { id: 'challenge', label: 'Herausfordern', icon: 'sword', targets: ['villager', 'guard'], risk: 'high', description: 'Fordere ihn vor seinem Dorf zum Ehren-Zweikampf. Er kann ablehnen; wer flieht oder verliert, wird verspottet.', hidden: c => c.challenge === undefined, disabledReason: c => c.challenge ?? null },
   { id: 'attack', label: 'Angreifen', icon: 'swords', targets: ['villager', 'guard'], risk: 'high', description: 'Greift das Ziel an und kann Zeugen alarmieren.', disabledReason: c => c.targetRole === 'child' ? 'Kinder können nicht angegriffen werden.' : null },
   { id: 'bind', label: 'Fesseln', icon: 'link', targets: ['captive'], risk: 'medium', description: 'Sichere einen überwältigten Gegner.', disabledReason: c => !c.targetDefeated ? 'Das Ziel muss überwältigt sein.' : c.targetRole === 'child' ? 'Kinder können nicht gefangen werden.' : c.targetBound ? 'Das Ziel ist bereits gefesselt.' : null },
   { id: 'carry', label: 'Tragen', icon: 'user-round', targets: ['captive'], risk: 'medium', description: 'Trage die gefesselte Person; deine Bewegung wird langsamer.', disabledReason: c => !c.targetBound ? 'Das Ziel muss gefesselt sein.' : c.targetCarried ? 'Du trägst diese Person bereits.' : null },
@@ -60,7 +64,7 @@ export const INTERACTIONS: InteractionDefinition[] = [
 ];
 
 export function getAvailableInteractions(ctx: InteractionContext) {
-  return INTERACTIONS.filter(item => item.targets.includes(ctx.target)).map(item => {
+  return INTERACTIONS.filter(item => item.targets.includes(ctx.target) && !item.hidden?.(ctx)).map(item => {
     const reason = !ctx.inRange ? 'Außer Reichweite.' : item.disabledReason?.(ctx) ?? null;
     return { ...item, disabled: Boolean(reason), disabledReason: reason };
   });

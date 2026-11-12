@@ -1,4 +1,4 @@
-import { Ban, Coins, DoorOpen, Footprints, Gift, Hand, Link, MessageCircle, ShieldAlert, Swords, Target, Wheat, ArrowLeftRight, UserRound, Skull, UserPlus, Heart } from 'lucide-react';
+import { Ban, Coins, DoorOpen, Footprints, Gift, Hand, Link, MessageCircle, ShieldAlert, Swords, Target, Wheat, ArrowLeftRight, UserRound, Skull, UserPlus, Heart, Sword } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { getAvailableInteractions, type InteractionContext, type InteractionId, type Risk } from './interactions';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -10,7 +10,7 @@ const ICONS = {
   hand: Hand, gift: Gift, 'arrows-left-right': ArrowLeftRight, 'shield-alert': ShieldAlert,
   swords: Swords, link: Link, 'user-round': UserRound, 'door-open': DoorOpen,
   'message-circle': MessageCircle, coins: Coins, footprints: Footprints, wheat: Wheat,
-  target: Target, ban: Ban, skull: Skull, 'user-plus': UserPlus, heart: Heart,
+  target: Target, ban: Ban, skull: Skull, 'user-plus': UserPlus, heart: Heart, sword: Sword,
 } as const;
 const RISK_LABEL: Record<Risk, string> = { low: 'Niedrig', medium: 'Mittel', high: 'Hoch' };
 const HOLD_MS = 900;
