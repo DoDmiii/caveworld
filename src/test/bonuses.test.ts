@@ -1,3 +1,4 @@
+import { campWarrior } from '@/game/signals';
 import { describe, it, expect } from 'vitest';
 import { partyBonuses, discountedRecipe, bonusYield } from '@/game/bonuses';
 import { RECIPES } from '@/game/progress';
@@ -26,7 +27,7 @@ describe('profile bonuses', () => {
 });
 import { refusesFight, partyHungerFactor, followRefusal, nukaSnack } from '@/game/bonuses';
 describe('profile quirks', () => {
-  it('Torvik and Kuruk never fight', () => { expect(refusesFight('torvik', 'gazelle', 1)).toBe(true); expect(refusesFight('kuruk', undefined, 1)).toBe(true); });
+  it('Torvik never fights, Kuruk does', () => { expect(refusesFight('torvik', 'gazelle', 1)).toBe(true); expect(refusesFight('kuruk', undefined, 1)).toBe(false); });
   it('Tamo avoids mammoth, bear and wolves and backs off below 50 % health', () => {
     expect(refusesFight('tamo', 'bear', 1)).toBe(true);
     expect(refusesFight('tamo', 'gazelle', 1)).toBe(false);
@@ -39,8 +40,9 @@ describe('profile quirks', () => {
 
 import { companionPace, leashExceeded, uraColdDamage, triesToFlee } from '@/game/bonuses';
 describe('eigenständige Schwächen', () => {
-  it('Kuruk läuft 20 % langsamer', () => { expect(companionPace('kuruk')).toBe(0.8); expect(companionPace('bruk')).toBe(1); });
-  it('Kuruk kehrt ab 450 vom Lager um', () => { expect(leashExceeded('kuruk', 451)).toBe(true); expect(leashExceeded('kuruk', 449)).toBe(false); expect(leashExceeded('tamo', 900)).toBe(false); });
+  it('Kuruk läuft normal schnell', () => { expect(companionPace('kuruk')).toBe(1); });
+  it('Kuruk kehrt nie um', () => { expect(leashExceeded('kuruk', 2000)).toBe(false); });
+  it('Kuruk kämpft bei Lageralarm', () => { expect(campWarrior('kuruk')).toBe(true); });
   it('Ura friert im Schnee ohne Fell', () => { expect(uraColdDamage('ura', 'nordics', false)).toBe(1); expect(uraColdDamage('ura', 'nordics', true)).toBe(0); expect(uraColdDamage('ura', 'valley', false)).toBe(0); });
   it('Ilvar flieht nachts unter 40 Vertrauen einmal pro Nacht', () => {
     expect(triesToFlee('ilvar', 39, true, false)).toBe(true);

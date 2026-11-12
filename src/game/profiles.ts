@@ -34,7 +34,7 @@ export const PROFILES: Profile[] = [
     background: 'Verspielt und neugierig, sie summt beim Sammeln. Als Kind fand sie einen Beerenstrauch, der den Stamm durch einen harten Winter brachte. Seitdem heißt sie Wurzelfinger.',
     relations: [{ with: 'tamo', note: 'Rivalität um den besten Beitrag zur Ernährung. Gemeinsame Aufträge versöhnen sie.' }] },
   { id: 'kuruk', name: 'Kuruk', epithet: 'Aschenbart', role: 'Feuerhüter und Geschichtenerzähler', origin: 'Deine Sippe', skills: skills(1,1,3,3,5),
-    strength: { label: 'Hüter der Glut', effect: 'Das Feuer wärmt 25 % weiter und brennt nie aus. Abendgeschichten stärken Moral und Wärme bis zum Morgen.' }, quirk: { label: 'Gebrechlich', effect: '20 % langsamer; kämpft nicht und folgt nicht über weite Strecken.' },
+    strength: { label: 'Hüter der Glut', effect: 'Das Feuer wärmt 25 % weiter und brennt nie aus. Abendgeschichten stärken Moral und Wärme bis zum Morgen.' }, quirk: { label: 'Alter Krieger', effect: 'Erzählt im Kampf von alten Schlachten und weicht keinem Feind.' },
     background: 'Gelassen und redselig, er erzählt halbe Wahrheiten, die mit jedem Mal besser werden. Er trug die Glut aus der alten Höhle und kennt viele Geschichten über die Nordics.',
     relations: [{ with: 'bruk', note: 'Lehrmeister von Bruk, der ihm am Feuer zuhört.' }, { with: 'torvik', note: 'Eine gemeinsame Geschichte am Feuer könnte eine Freundschaft begründen.' }] },
   { id: 'ilvar', name: 'Ilvar', epithet: 'Rabenblick', role: 'Wächter-Späher', origin: 'Frostheim', skills: skills(3,3,1,5,1),

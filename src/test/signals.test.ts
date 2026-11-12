@@ -19,7 +19,7 @@ describe('war horn and camp alarm', () => {
     expect(alarmThreats([f],[])).toEqual([]);
   });
   it('women and pacifists never join camp defense', () => {
-    for (const id of ['orka','ura','nuka','kuruk','torvik','ymra','skorra']) expect(campWarrior(id)).toBe(false);
+    for (const id of ['orka','ura','nuka','torvik','ymra','skorra']) expect(campWarrior(id)).toBe(false);
     for (const id of ['tamo','bruk','ilvar']) expect(campWarrior(id)).toBe(true);
   });
   it('alarm sends warriors against raiders and civilians to safety without recruiting', () => {
