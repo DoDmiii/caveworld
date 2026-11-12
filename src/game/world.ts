@@ -2549,7 +2549,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
-          if(this.duel&&this.duel.phase!=='done'){if(f.c.id===this.duel.id){if(this.duel.phase==='fight')this.duelStruck(f,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10,fx,fy,time);else this.duel=null;if(this.duel)continue;}else if(this.duel.spectators.includes(f.c.id)||this.duel.phase==='fight'){this.endDuel('fled',time);}}
+          if(this.duel&&this.duel.phase!=='done'){if(f.c.id===this.duel.id){if(this.duel.phase==='fight')this.duelStruck(f,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10,fx,fy,time);else this.duel=null;if(this.duel)continue;}else if(this.inDuelFight())continue;}
           this.allyFocus='f'+f.c.id;
           {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow());f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
           this.armFolk(f,time);
