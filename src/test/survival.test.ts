@@ -72,3 +72,20 @@ describe('Folgen', () => {
     expect(survivalDamage(0, 0, 10)).toBeCloseTo(10);
   });
 });
+
+import { canSprint, nextExhausted, SPRINT_RECOVER } from '@/game/survival';
+describe('Sprint-Erschöpfung', () => {
+  it('wird bei 0 Ausdauer außer Atem und darf nicht sprinten', () => {
+    expect(nextExhausted(false, 0)).toBe(true);
+    expect(canSprint(true, 1.2)).toBe(false);
+  });
+  it('bleibt unter 20 Ausdauer außer Atem, kein Flackern bei Mini-Regeneration', () => {
+    expect(nextExhausted(true, 1.2)).toBe(true);
+    expect(nextExhausted(true, 19.9)).toBe(true);
+  });
+  it('darf ab 20 Ausdauer wieder sprinten', () => {
+    expect(SPRINT_RECOVER).toBe(20);
+    expect(nextExhausted(true, 20)).toBe(false);
+    expect(canSprint(false, 20)).toBe(true);
+  });
+});

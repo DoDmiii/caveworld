@@ -104,3 +104,17 @@ export const SLEEP_ADVANCE_MIN = 8 * 60;
 export const SLEEP_SECONDS = 3.2;
 export const SLEEP_CLOCK_PER_SEC = SLEEP_ADVANCE_MIN / SLEEP_SECONDS;
 export const SLEEP_HUNGER_COST = 10;
+
+// ---------- Ausdauer / Sprint ----------
+/** Nach völliger Erschöpfung darf erst ab dieser Ausdauer wieder gesprintet werden (verhindert Sprint-Flackern). */
+export const SPRINT_RECOVER = 20;
+/** Sprinten ist nur erlaubt, solange die Figur nicht außer Atem ist. */
+export function canSprint(exhausted: boolean, stamina: number): boolean {
+  return !exhausted && stamina > 0;
+}
+/** Leer gesprintet → außer Atem; erst ab SPRINT_RECOVER wieder frei. */
+export function nextExhausted(exhausted: boolean, stamina: number): boolean {
+  if (stamina <= 0) return true;
+  if (exhausted && stamina >= SPRINT_RECOVER) return false;
+  return exhausted;
+}
