@@ -1,5 +1,7 @@
 import { CAVES, CAVE_IDS, CAVE_SIZE, CAVE_SPAWN, CAVE_EXIT, PAINT_WALL, PAINTINGS, caveAt, caveWalkable, caveDeposits, newCaves, mineDeposit, paint, sharpen, caveDamageFactor, caveSprintFactor, caveColdFactor, type CaveState, type CaveId, type PaintingId } from './caves';
 import { renderCave } from './cave-render';
+import { FIST_FINISHER } from './wedge';
+import { EMPTY_DUELS, DUEL_EFFECTS, DUEL_HP, RING_RADIUS, SPECTATOR_RANGE, CHALLENGE_REACH, APPROACH_SPEED, APPROACH_ESCAPE, GATHER_MS, FIST_FINISHER_IMPACT, MOCK_LINES, CHEER_LINES, rollRules, acceptChance, claimsWoman, opponentDamage, playerDuelDamage, hitDuelist, playerYields, leftRing, ringSlot, duelTribute, recordOutcome, isShamed, onCooldown, setCooldown, nextMockDelay, challengeLine, rulesText, newDuelAi, duelThink, staggerAi, isDodging, duelVelocity, type DuelBook, type DuelRules, type DuelCause, type DuelOutcome, type DuelAi } from './duel';
 import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
@@ -17,7 +19,7 @@ import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS
 import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
-import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, type CouplesState, type WitnessReaction } from './partners';
+import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
 import north from '@/assets/north.png.asset.json';
@@ -134,9 +136,10 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
-export type GameInput = { torch?: 'main' | 'off' | null; armor?: ArmorId | null; fly?: boolean; horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
+export type GameInput = { duelChoice?: 'accept' | 'flee' | null; torch?: 'main' | 'off' | null; armor?: ArmorId | null; fly?: boolean; horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
-export type GameStatus = { lore?: LoreState; skull?: number; wolfPelt?: number; sabrePelt?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
+export type DuelStatus = { phase: 'approach' | 'prompt' | 'gather' | 'fight' | 'done'; name: string; rules: string; cause: DuelCause; line?: string; woman?: string };
+export type GameStatus = { duel?: DuelStatus | null; shamed?: string | null; lore?: LoreState; skull?: number; wolfPelt?: number; sabrePelt?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
 export type SquadMember = { id: string; name: string; hp: number; max: number; down: number; portrait: string; frame: string };
 type Creature = {
   kind: 'tiger' | 'gazelle' | SnowKind;
@@ -246,7 +249,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.paused||this.attacking){dx=0;dy=0;}
       const moving=Math.hypot(dx,dy)>0.12,running=!!(moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1);
       const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*(running?105:65),dy/len*(running?105:65));
-      if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),false)*armorCold(input.armor)*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
+      if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),false)*armorCold(this.armorNow())*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
       if(input.craft){const r=RECIPES.find(r=>r.id===input.craft);const next=r&&craft(r,this.stock,levelFromXp(this.xp),this.owned);if(r&&next){this.stock=next;this.owned.push(r.id);this.addXp(XP.craft);this.message=`${r.name} hergestellt`;this.messageUntil=time+2000;}input.craft=null;}
       if(input.weapon!==this.weapon)this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';
       const attackKey=k?.['Q'];const attackNow=this.clickAttack||(attackKey&&Phaser.Input.Keyboard.JustDown(attackKey));this.clickAttack=false;
@@ -595,8 +598,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (!p) return ids;
       this.tickWarband(time, stopped, ids);
       const fordGuards = this.fordGuards();
+      const duelIds = this.duelIds();
       this.folk.forEach((f, i) => {
-        if (ids.has(f.c.id)) return;
+        if (ids.has(f.c.id) || duelIds.has(f.c.id)) return;
         if (f.t.captive || f.c.state !== 'free' || f.combat.phase !== 'ready') return;
         const v = FOLK_HOMES[f.t.village], vk = villageKey(v.name), lvl = this.villageLevel.get(vk) ?? 0, m = this.folkMood.get(f.c.id);
         if (!patrolsActive(lvl) || (m?.armedUntil ?? 0) > time) return;
@@ -682,9 +686,205 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     folkAlive = (id: string) => { const f = this.folk.find(o => o.c.id === id); return !!f && f.combat.phase !== 'dead'; };
     personName = (id: string) => getProfile(id)?.name ?? id;
+
+    duels: DuelBook = EMPTY_DUELS;
+    duel: { phase: 'approach' | 'prompt' | 'gather' | 'fight' | 'done'; id: string; village: number; cause: DuelCause; woman?: string | undefined; rules: DuelRules; since: number; center: { x: number; y: number }; ai: DuelAi; spectators: string[]; knock?: { vx: number; vy: number; until: number }; nextCheer: number; outcome?: DuelOutcome } | null = null;
+    duelSwingAt = -1e9; fistFinish = false;
+    mocker: { id: string; until: number } | null = null; nextMock = 0; nextJeer = 0;
+    /** Armor and fur skins stay off while the ring is closed. */
+    inDuelFight() { return !!this.duel && (this.duel.phase === 'gather' || this.duel.phase === 'fight'); }
+    armorNow() { return this.inDuelFight() ? null : input.armor; }
+    fistsDuel() { return this.inDuelFight() && this.duel?.rules.arms === 'fists'; }
+    clubNow() { return !!input.club && !this.fistsDuel(); }
+    duelIds() { const ids = new Set<string>(); if (this.duel) { ids.add(this.duel.id); this.duel.spectators.forEach(id => ids.add(id)); } if (this.mocker) ids.add(this.mocker.id); return ids; }
+    duelFoe() { const d = this.duel; return d ? this.folk.find(f => f.c.id === d.id) : undefined; }
+    /** Why the player may not challenge this man; undefined hides the option (women, captives). */
+    challengeRefusal(f: Folk): string | null | undefined {
+      if (!isWarrior(f.t) || f.c.state !== 'free') return undefined;
+      if (isChampion(f.t)) return 'Ein Champion kämpft nur um sein Dorf.';
+      if (this.duel) return 'Ein Zweikampf läuft bereits.';
+      if (this.carried) return 'Du trägst jemanden.';
+      if ((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > this.time.now) return 'Er kämpft schon gegen dich.';
+      if (onCooldown(this.duels, f.c.id, this.clock)) return 'Er hat sich heute schon gestellt.';
+      return null;
+    }
+    /** Starts a duel: a wronged man walks up and speaks; an accepted player challenge closes the ring at once. */
+    startDuel(f: Folk, cause: DuelCause, time: number, woman?: string) {
+      const p = this.player; if (!p) return;
+      const rules = rollRules(Math.random);
+      this.duel = { phase: cause === 'jealousy' ? 'approach' : 'gather', id: f.c.id, village: f.t.village, cause, woman, rules, since: time, center: { x: (p.x + f.sprite.x) / 2, y: (p.y + f.sprite.y) / 2 }, ai: newDuelAi(time), spectators: [], nextCheer: time + 1500 };
+      this.interruptForDuel();
+      if (cause === 'player') this.closeRing(f, time);
+      else { this.bark(f.c.id, f.sprite, 'alarm', time, true, 'Du Hund! Sie gehört zu mir!'); this.message = `${this.personName(f.c.id)} kommt auf dich zu · er will dich zur Rede stellen!`; this.messageUntil = time + 3000; }
+    }
+    interruptForDuel() { this.igniting = undefined; this.building = null; this.ghost?.setVisible(false); this.target = undefined; this.marker?.setVisible(false); }
+    closeRing(f: Folk, time: number) {
+      const d = this.duel, p = this.player; if (!d || !p) return;
+      d.phase = 'gather'; d.since = time; d.center = { x: (p.x + f.sprite.x) / 2, y: (p.y + f.sprite.y) / 2 }; d.ai = newDuelAi(time + GATHER_MS);
+      f.combat = { hp: DUEL_HP, phase: 'ready', downUntil: 0, max: DUEL_HP };
+      d.spectators = this.folk.filter(o => o !== f && o.t.village === d.village && o.c.state === 'free' && o.combat.phase === 'ready' && !isCarrier(this.carriers, o.c.id) && Math.hypot(o.sprite.x - d.center.x, o.sprite.y - d.center.y) < SPECTATOR_RANGE).map(o => o.c.id);
+      for (const id of d.spectators) { const m = this.folkMood.get(id); if (m) m.armedUntil = 0; }
+      this.message = `Der Kreis schließt sich · ${rulesText(d.rules)}${input.armor ? ' · Pelz abgelegt' : ''}${d.rules.arms === 'fists' && this.weapon !== 'none' ? ' · Waffe weggesteckt' : ''}`; this.messageUntil = time + 3200;
+    }
+    /** Ends the duel and applies honour, fear, tribute, mockery and the woman's choice. */
+    endDuel(outcome: DuelOutcome, time: number) {
+      const d = this.duel; if (!d || d.phase === 'done') return;
+      const f = this.duelFoe(), v = FOLK_HOMES[d.village], vk = villageKey(v.name), fx = DUEL_EFFECTS[outcome], name = this.personName(d.id);
+      this.rel = changeVillageRelationship(changePersonalRelationship(this.rel, d.id, fx.rel, vk), vk, fx.rel);
+      this.fear = addFearAmount(decayFear(this.fear, clockOf(this.clock).day), vk, fx.fear);
+      this.duels = recordOutcome(this.duels, outcome, vk, d.id, this.clock);
+      d.phase = 'done'; d.since = time; d.outcome = outcome;
+      if (f && f.combat.phase === 'ready') f.combat = { hp: Math.min(f.combat.hp, 60), phase: 'ready', downUntil: 0 };
+      let msg = '';
+      if (outcome === 'win') {
+        this.addXp(60); msg = `Du hast ${name} besiegt · ${v.name} zollt dir Respekt und fürchtet dich`;
+        const w = d.woman ?? womanOf(d.id);
+        const wf = w ? this.folk.find(o => o.c.id === w) : undefined;
+        if (w && wf && wf.c.state === 'free' && wf.combat.phase === 'ready' && claimsWoman(d.cause, this.couples.affairs[w] ?? 0, this.couples.lure[w] ?? 0, LURE_NEEDED)) {
+          wf.c = { ...wf.c, state: 'camp', x: Math.round(wf.sprite.x), y: Math.round(wf.sprite.y) }; poseFolk(wf);
+          this.companionOrders.set(w, { id: w, mode: 'return', x: wf.sprite.x, y: wf.sprite.y }); this.companionMovement.reset(w);
+          if (!this.couples.broken.includes(w)) this.couples = { ...this.couples, broken: [...this.couples.broken, w] };
+          this.trustEvent(w, 'joined');
+          const kids = this.repro.children.filter(c => c.mother === w).map(c => c.name);
+          this.bark(w, wf.sprite, 'flee', time, true, 'Sie haben mich verstoßen…');
+          msg += ` · ${this.personName(w)} wird verstoßen und folgt dir${kids.length ? ` mit ${kids.join(' und ')}` : ''} ins Lager`;
+        }
+        for (const id of d.spectators) { const o = this.folk.find(x => x.c.id === id); if (o) this.bark(id, o.sprite, 'greet', time, true, 'Er hat gesiegt!'); }
+      } else {
+        if (fx.tribute) {
+          const t = duelTribute({ berries: this.count, meat: this.meat, cooked: this.cooked, jerky: this.jerky, wood: this.stock.wood, stone: this.stock.stone, flint: this.stock.flint, fiber: this.stock.fiber });
+          this.count = t.left.berries; this.meat = t.left.meat; this.cooked = t.left.cooked; this.jerky = t.left.jerky;
+          this.stock = { ...this.stock, wood: t.left.wood, stone: t.left.stone, flint: t.left.flint, fiber: t.left.fiber };
+          const took = Object.entries(t.taken).filter(([, n]) => n > 0).length;
+          msg = `Du hast gegen ${name} verloren · ${v.name} nimmt dir Tribut ab${took ? '' : ' (du hattest nichts)'} · man verspottet dich`;
+        } else msg = `Du bist vor ${name} davongelaufen · Feigling! ${v.name} verachtet dich`;
+        if (f && f.combat.phase === 'ready') { this.bark(d.id, f.sprite, 'alarm', time, true, outcome === 'fled' ? 'Lauf nur, Feigling!' : 'Geh mir aus den Augen!'); if (outcome === 'fled' && this.player && Math.hypot(f.sprite.x - this.player.x, f.sprite.y - this.player.y) < 200) { const m = this.folkMood.get(d.id); if (m) m.armedUntil = time + 9000; } }
+        d.spectators.slice(0, 3).forEach((id, i) => { const o = this.folk.find(x => x.c.id === id); if (o) this.bark(id, o.sprite, 'warn', time, true, MOCK_LINES[(i + Math.floor(time / 97)) % MOCK_LINES.length]); });
+        this.nextMock = time + 6000;
+      }
+      this.message = msg; this.messageUntil = time + 5000; this.persist();
+    }
+    /** Approach, prompt, ring and fight; called every frame from tribal(), also while paused for the prompt answer. */
+    tickDuel(time: number, stop: boolean) {
+      const d = this.duel, p = this.player; if (!d || !p) return;
+      const f = this.duelFoe();
+      const choice = input.duelChoice; input.duelChoice = null;
+      if (!f || (f.combat.phase === 'dead' && d.phase !== 'done') || (f.c.state !== 'free' && d.phase !== 'done')) { this.duel = null; return; }
+      if (d.phase === 'prompt') { if (choice === 'accept') this.closeRing(f, time); else if (choice === 'flee') this.endDuel('fled', time); f.sprite.setVelocity(0, 0); return; }
+      if (d.phase === 'done') {
+        for (const id of [d.id, ...d.spectators]) { const o = this.folk.find(x => x.c.id === id); if (o && o.combat.phase === 'ready') { o.sprite.setVelocity(0, 0); if (id === d.id && d.outcome === 'win' && d.rules.goal === 'submit') o.sprite.setFrame(surrenderFrameOf(o)); } }
+        if (time - d.since > 2400) this.duel = null; return;
+      }
+      if (this.dead || this.health <= 0) { if (d.phase === 'fight' || d.phase === 'gather') this.endDuel('lose', time); else this.duel = null; return; }
+      const s = f.sprite, face = (x: number, y: number) => { f.facing = (Math.round(Math.atan2(y - s.y, x - s.x) / (Math.PI / 4)) + 8) % 8; };
+      if (stop) { s.setVelocity(0, 0); for (const id of d.spectators) this.folk.find(o => o.c.id === id)?.sprite.setVelocity(0, 0); return; }
+      const dist = Math.hypot(p.x - s.x, p.y - s.y);
+      if (d.phase === 'approach') {
+        if (dist > APPROACH_ESCAPE) { this.endDuel('fled', time); return; }
+        if (dist <= CHALLENGE_REACH || time - d.since > 25000) { s.setVelocity(0, 0); s.anims.stop(); face(p.x, p.y); s.setFrame(f.facing); d.phase = 'prompt'; this.attacking = false; this.attackPending = false; return; }
+        this.walkTo(f, p.x, p.y, APPROACH_SPEED, time); return;
+      }
+      // Spectators take their places and cheer.
+      d.spectators.forEach((id, i) => {
+        const o = this.folk.find(x => x.c.id === id); if (!o || o.combat.phase !== 'ready' || o.c.state !== 'free') return;
+        const slot = ringSlot(i, d.spectators.length, d.center), gx = slot.x - o.sprite.x, gy = slot.y - o.sprite.y;
+        if (Math.hypot(gx, gy) > 6) this.walkTo(o, slot.x, slot.y, 70, time);
+        else { o.sprite.setVelocity(0, 0); o.sprite.anims.stop(); o.facing = (Math.round(Math.atan2(d.center.y - o.sprite.y, d.center.x - o.sprite.x) / (Math.PI / 4)) + 8) % 8; o.sprite.setFrame(o.facing); o.sprite.setDepth(o.sprite.y); }
+        this.folkMood.get(id)?.icon.setVisible(false);
+      });
+      if (d.phase === 'fight' && time > d.nextCheer && d.spectators.length) { d.nextCheer = time + 2200 + Math.random() * 2000; const id = d.spectators[Math.floor(Math.random() * d.spectators.length)]!; const o = this.folk.find(x => x.c.id === id); if (o) this.bark(id, o.sprite, 'greet', time, true, CHEER_LINES[Math.floor(Math.random() * CHEER_LINES.length)]); }
+      if (leftRing(d.center, p) && (d.phase === 'fight' || time - d.since > 900)) {
+        const guard = d.spectators.map(id => this.folk.find(o => o.c.id === id)).filter((o): o is Folk => !!o && isWarrior(o.t) && o.combat.phase === 'ready').sort((a, b) => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) - Math.hypot(b.sprite.x - p.x, b.sprite.y - p.y))[0];
+        if (guard) { this.hurtPlayer(6, time); this.hitFlash = time + 200; this.bark(guard.c.id, guard.sprite, 'attack', time, true, 'Feigling! Kein Weglaufen!'); }
+        this.endDuel('fled', time); return;
+      }
+      if (d.phase === 'gather') {
+        const a = Math.atan2(s.y - p.y, s.x - p.x), gx = d.center.x + Math.cos(a) * 28, gy = d.center.y + Math.sin(a) * 28;
+        if (Math.hypot(gx - s.x, gy - s.y) > 5) this.walkTo(f, gx, gy, 60, time); else { s.setVelocity(0, 0); s.anims.stop(); face(p.x, p.y); s.setFrame(f.facing); }
+        if (time - d.since >= GATHER_MS) { d.phase = 'fight'; d.ai = newDuelAi(time); this.bark(d.id, s, 'attack', time, true, d.rules.goal === 'death' ? 'Einer von uns stirbt heute!' : 'Knie nieder oder blute!'); this.message = `Kämpft! · ${rulesText(d.rules)}`; this.messageUntil = time + 2000; }
+        return;
+      }
+      // Fight.
+      if (playerYields(this.health, d.rules.goal)) { this.endDuel('lose', time); return; }
+      if (f.combat.phase === 'downed') {
+        s.setVelocity(0, 0);
+        if (time >= f.combat.downUntil) { f.combat = { hp: Math.round(DUEL_HP * 0.35), phase: 'ready', downUntil: 0, max: DUEL_HP }; poseFolk(f); d.ai = staggerAi(d.ai, time); this.bark(d.id, s, 'alarm', time, true, 'Noch lebe ich!'); this.message = `${this.personName(d.id)} rappelt sich wieder auf!`; this.messageUntil = time + 1800; }
+        else if (time >= this.messageUntil) { this.message = `${this.personName(d.id)} liegt am Boden · Angriff: Finisher!`; this.messageUntil = time + 500; }
+        return;
+      }
+      const th = duelThink(d.ai, { now: time, dist, playerSwing: time - this.duelSwingAt < 140, rng: Math.random });
+      d.ai = th.ai; face(p.x, p.y);
+      const v = d.knock && time < d.knock.until ? { x: d.knock.vx, y: d.knock.vy } : duelVelocity(th.move, s, p, d.center, d.ai.dir);
+      s.setVelocity(v.x, v.y); s.setDepth(s.y);
+      const striking = d.ai.state === 'strike';
+      if (th.strikeStarted) {
+        if (d.rules.arms === 'weapons') s.play(`${f.t.tex}-attack-${f.facing}`);
+        else { s.anims.stop(); s.setFrame(f.facing); this.tweens.add({ targets: s, scaleX: s.scaleX * 1.12, scaleY: s.scaleY * 0.92, duration: 110, yoyo: true }); }
+      } else if (!striking) { if (Math.hypot(v.x, v.y) > 4) { const vf = (Math.round(Math.atan2(v.y, v.x) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${d.ai.state === 'backstep' ? f.facing : vf}`, true); } else { s.anims.stop(); s.setFrame(f.facing); } }
+      if (th.landHit && !this.finisher) {
+        const dmg = opponentDamage(d.rules.arms), ux = (p.x - s.x) / Math.max(1, dist), uy = (p.y - s.y) / Math.max(1, dist);
+        this.hurtPlayer(dmg, time); this.hitFlash = time + 200; this.lastDamage = time;
+        this.shove = { vx: ux * 170, vy: uy * 170, until: time + 150 };
+        this.bleed(p.x, p.y, ux, uy, d.rules.arms === 'weapons' ? 6 : 2);
+        this.message = d.rules.arms === 'weapons' ? `${this.personName(d.id)} trifft dich mit der Waffe!` : `${this.personName(d.id)} schlägt dir ins Gesicht!`; this.messageUntil = time + 1200;
+      }
+    }
+    /** The player's blow on the duelist: he may jump away, otherwise half damage under the duel's goal. */
+    duelStruck(f: Folk, base: number, fx: number, fy: number, time: number) {
+      const d = this.duel; if (!d) return;
+      if (d.phase !== 'fight') return;
+      if (isDodging(d.ai, time)) { this.message = `${this.personName(d.id)} weicht aus!`; this.messageUntil = time + 900; return; }
+      const dmg = playerDuelDamage(base), r = hitDuelist(f.combat, dmg, time, d.rules.goal);
+      f.combat = r.fighter; d.ai = staggerAi(d.ai, time); d.knock = { vx: fx * 140, vy: fy * 140, until: time + 140 };
+      this.punch(dmg); this.bleed(f.sprite.x, f.sprite.y, fx, fy, d.rules.arms === 'weapons' ? 12 : 4);
+      f.sprite.setTint(0xff6b4a); this.time.delayedCall(140, () => f.sprite.clearTint());
+      if (r.result === 'submitted') { f.sprite.setVelocity(0, 0); f.sprite.anims.stop(); f.sprite.setFrame(surrenderFrameOf(f)); this.bark(d.id, f.sprite, 'flee', time, true, 'Genug! Ich unterwerfe mich!'); this.endDuel('win', time); return; }
+      if (r.result === 'downed') { poseFolk(f); this.message = `${this.personName(d.id)} geht zu Boden · Angriff: Finisher!`; this.messageUntil = time + 2200; return; }
+      this.message = `Treffer! · ${this.personName(d.id)} ${Math.round(f.combat.hp)}/${DUEL_HP}`; this.messageUntil = time + 1000;
+    }
+    /** Shamed villages jeer and now and then a villager runs up only to shove the coward. */
+    tickMockery(time: number, stop: boolean) {
+      const p = this.player; if (!p || this.duel) return;
+      const shamed = FOLK_HOMES.findIndex(v => isShamed(this.duels, villageKey(v.name), this.clock) && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 120);
+      const m = this.mocker;
+      if (m) {
+        const f = this.folk.find(o => o.c.id === m.id);
+        if (!f || stop || time > m.until || f.combat.phase !== 'ready' || f.c.state !== 'free' || (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > time) { f?.sprite.setVelocity(0, 0); this.mocker = null; return; }
+        const d = this.walkTo(f, p.x, p.y, 96, time);
+        if (d <= 18) {
+          const dx = p.x - f.sprite.x, dy = p.y - f.sprite.y, l = Math.max(1, Math.hypot(dx, dy));
+          this.shove = { vx: dx / l * 260, vy: dy / l * 260, until: time + 260 }; this.cameras.main.shake(140, 0.004);
+          this.bark(f.c.id, f.sprite, 'warn', time, true, MOCK_LINES[Math.floor(Math.random() * MOCK_LINES.length)]);
+          this.message = 'Du wirst geschubst und ausgelacht'; this.messageUntil = time + 1600;
+          f.sprite.setVelocity(0, 0); this.mocker = null;
+        }
+        return;
+      }
+      if (shamed < 0 || stop || this.dead) return;
+      const near = this.folk.filter(o => o.t.village === shamed && o.c.state === 'free' && o.combat.phase === 'ready' && !isCarrier(this.carriers, o.c.id) && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) <= time && Math.hypot(o.sprite.x - p.x, o.sprite.y - p.y) < 230);
+      if (time > this.nextJeer && near.length) { this.nextJeer = time + 3500 + Math.random() * 2500; const o = near[Math.floor(Math.random() * near.length)]!; this.bark(o.c.id, o.sprite, 'warn', time, false, MOCK_LINES[Math.floor(Math.random() * MOCK_LINES.length)]); }
+      if (time > this.nextMock && near.length) { this.nextMock = time + nextMockDelay(Math.random); const o = near[Math.floor(Math.random() * near.length)]!; this.mocker = { id: o.c.id, until: time + 6000 }; }
+    }
+    /** Autosave mid-duel: the save counts it as running away, so reloading cannot dodge the outcome. */
+    savedDuelView(): { rel: RelationshipState; fear: FearState; duels: DuelBook } {
+      const d = this.duel;
+      if (!d || d.phase === 'done') return { rel: this.rel, fear: this.fear, duels: this.duels };
+      const vk = villageKey(FOLK_HOMES[d.village].name), fx = DUEL_EFFECTS.fled;
+      return { rel: changeVillageRelationship(changePersonalRelationship(this.rel, d.id, fx.rel, vk), vk, fx.rel), fear: addFearAmount(this.fear, vk, fx.fear), duels: recordOutcome(this.duels, 'fled', vk, d.id, this.clock) };
+    }
+    duelStatus() {
+      const d = this.duel; if (!d || d.phase === 'done') return null;
+      return { phase: d.phase, name: this.personName(d.id), rules: rulesText(d.rules), cause: d.cause, ...(d.phase === 'prompt' ? { line: challengeLine(d.cause, d.woman ? this.personName(d.woman) : undefined) } : {}), ...(d.woman ? { woman: this.personName(d.woman) } : {}) };
+    }
+    duelBoss() {
+      const d = this.duel, f = this.duelFoe(); if (!d || !f || (d.phase !== 'fight' && d.phase !== 'gather')) return null;
+      return { name: `${this.personName(d.id)} · ${rulesText(d.rules)}`, hp: Math.round(f.combat.hp), max: DUEL_HP, down: f.combat.phase === 'downed' };
+    }
+    shamedHere(p: { x: number; y: number }) { const v = FOLK_HOMES.find(v => isShamed(this.duels, villageKey(v.name), this.clock) && Math.hypot(p.x - v.x, p.y - v.y) < v.r + 120); return v ? v.name : null; }
     /** Jealous partner draws his weapon on the player. */
     confrontPartner(id: string, time: number) {
       const f = this.folk.find(o => o.c.id === id); if (!f || f.combat.phase !== 'ready' || f.c.state !== 'free') return;
+      if (!this.duel && !this.caves.current && !this.dead && !isChampion(f.t) && isWarrior(f.t) && !onCooldown(this.duels, id, this.clock)) { this.startDuel(f, 'jealousy', time, womanOf(id)); return; }
       this.armFolk(f, time); this.bark(id, f.sprite, 'alarm', time, true, 'Du Hund! Sie gehört zu mir!');
       this.message = `${this.personName(id)} weiß Bescheid · er will Blut sehen!`; this.messageUntil = time + 3000;
     }
@@ -762,7 +962,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     addXp(n: number) { const before = levelFromXp(this.xp); this.xp += n; const after = levelFromXp(this.xp); if (after > before) { this.message = `Stufe ${after} erreicht! Neue Rezepte im Handwerk`; this.messageUntil = this.time.now + 3000; return true; } return false; }
     lockReq = false;
     clickAttack = false;
-    get held(): Weapon { return this.weapon==='spear'&&!this.hasSpear?'none':this.weapon; }
+    get held(): Weapon { return this.fistsDuel()?'none':this.weapon==='spear'&&!this.hasSpear?'none':this.weapon; }
     crouching = false;
     dead = false;
     lastRespawn = 0;
@@ -774,6 +974,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     snapshot(): GameSave | null {
       const p = this.player;
       if (!p || this.dead || this.sleeping || this.health <= 0) return null;
+      const dv = this.savedDuelView();
       return {
         caves: this.caves,
         x: Math.round(p.x), y: Math.round(p.y),
@@ -805,13 +1006,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         raid: { ...this.raid },
         fires: { ...this.fires },
         warband: this.warband,
-        fear: this.fear,
+        fear: dv.fear,
+        duels: { shame: { ...dv.duels.shame }, cooldown: { ...dv.duels.cooldown } },
         lore: this.lore,
         rumors: this.savedRumors(),
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
-        relationships: { village: { ...this.rel.village }, personal: { ...this.rel.personal }, alarmUntil: { ...this.rel.alarmUntil } },
+        relationships: { village: { ...dv.rel.village }, personal: { ...dv.rel.personal }, alarmUntil: { ...dv.rel.alarmUntil } },
       };
     }
     persist() { const g = this.snapshot(); if (g) saveGame({ game: g }); }
@@ -888,6 +1090,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
+      this.duels = g.duels ? { shame: { ...g.duels.shame }, cooldown: { ...g.duels.cooldown } } : EMPTY_DUELS; this.duel = null;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
@@ -960,10 +1163,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
     }
-    skinNow(): SkinId | null { return skinFor(input.armor, this.health); }
+    skinNow(): SkinId | null { return this.inDuelFight() ? null : skinFor(input.armor, this.health); }
     playDeath(p: Phaser.Physics.Arcade.Sprite) { const s = this.skinNow(); p.play(s ? `anim-skin-${s}-death-${this.lastFacing}` : `anim-death-${this.lastFacing}`); }
     /** Main-hand torch or club with its own uploaded atlas set (torch wins; both live in the main hand). */
-    heldLook(): { kind: 'torch' | 'club'; table: typeof TORCH_SKINS } | null { return input.torch === 'main' ? { kind: 'torch', table: TORCH_SKINS } : input.club ? { kind: 'club', table: CLUB_SKINS } : null; }
+    heldLook(): { kind: 'torch' | 'club'; table: typeof TORCH_SKINS } | null { if (this.fistsDuel()) return null; return input.torch === 'main' ? { kind: 'torch', table: TORCH_SKINS } : input.club ? { kind: 'club', table: CLUB_SKINS } : null; }
     playAttack(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); const h = this.heldLook(); if (h) { p.play(`anim-${h.kind}-${s ?? 'base'}-attack-${this.lastFacing}`); return; } p.play(s && w === 'none' ? `anim-skin-${s}-punch-${this.lastFacing}` : s && isArmed(w) ? `anim-armed-${s}-${w}-attack-${this.lastFacing}` : `anim-${w}-attack-${this.lastFacing}`); }
     playWalk(p: Phaser.Physics.Arcade.Sprite, w: Weapon, running: boolean) { const s = this.skinNow(); const h = this.heldLook(); const key = h ? (running && h.table[s ?? 'base'].run > 1 ? `${h.kind}-${s ?? 'base'}-run-${this.lastFacing}` : `${h.kind}-${s ?? 'base'}-walk-${this.lastFacing}`) : s && isArmed(w) ? (running && ARMED_SKINS[s][w].frames.run > 1 ? `armed-${s}-${w}-run-${this.lastFacing}` : `armed-${s}-${w}-walk-${this.lastFacing}`) : s ? (running && SKINS[s].frames.run > 1 ? `skin-${s}-run-${this.lastFacing}` : `skin-${s}-walk-${this.lastFacing}`) : `${w}-walk-${this.lastFacing}`; if (p.anims.currentAnim?.key !== key || !p.anims.isPlaying) p.play(key); p.anims.timeScale = running && !key.includes('-run-') ? 1.5 : 1; }
     setIdle(p: Phaser.Physics.Arcade.Sprite, w: Weapon) { const s = this.skinNow(); p.anims.stop(); const h = this.heldLook(); if (h) p.setTexture(`${h.kind}-${s ?? 'base'}`, armedFrame('idle', this.lastFacing)); else if (s && isArmed(w)) p.setTexture(`armed-${s}-${w}`, armedFrame('idle', this.lastFacing)); else if (s) p.setTexture(`skin-${s}`, skinFrame('idle', this.lastFacing)); else p.setTexture(`${w}-idle-${this.lastFacing}`); }
@@ -981,6 +1184,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       FINISHER.forEach((u,i)=>this.load.spritesheet(`finisher-${i}`,u,{frameWidth:32,frameHeight:32}));
       BEHEAD.forEach((u,i)=>this.load.spritesheet(`behead-${i}`,u,{frameWidth:32,frameHeight:32}));
+      FIST_FINISHER.forEach((u,i)=>this.load.spritesheet(`fistfin-${i}`,u,{frameWidth:32,frameHeight:32}));
       for(const [k,sk] of Object.entries(SKINS))this.load.spritesheet(`skin-${k}`,sk.url,{frameWidth:32,frameHeight:32});
       for(const [k,a] of Object.entries(TORCH_SKINS))this.load.spritesheet(`torch-${k}`,a.url,{frameWidth:32,frameHeight:32});
       for(const [k,a] of Object.entries(CLUB_SKINS))this.load.spritesheet(`club-${k}`,a.url,{frameWidth:32,frameHeight:32});
@@ -1040,6 +1244,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(const [k,ws] of Object.entries(ARMED_SKINS))for(const [w,a] of Object.entries(ws))for(const an of ARMED_ANIMS){const n=a.frames[an];if(n<2)continue;const st=armedFrame(an,i);const loop=an!=='attack';this.anims.create({key:loop?`armed-${k}-${w}-${an}-${i}`:`anim-armed-${k}-${w}-attack-${i}`,frames:this.anims.generateFrameNumbers(`armed-${k}-${w}`,{start:st,end:st+n-1}),frameRate:loop?10:12,repeat:loop?-1:0});}
         this.anims.create({ key: `anim-finisher-${i}`, frames: this.anims.generateFrameNumbers(`finisher-${i}`), frameRate: 10, repeat: 0 });
         this.anims.create({ key: `anim-behead-${i}`, frames: this.anims.generateFrameNumbers(`behead-${i}`), frameRate: 11, repeat: 0 });
+        this.anims.create({ key: `anim-fistfin-${i}`, frames: this.anims.generateFrameNumbers(`fistfin-${i}`), frameRate: 12, repeat: 0 });
         this.anims.create({ key: `anim-death-${i}`, frames: this.anims.generateFrameNumbers(`death-${i}`), frameRate: 9, repeat: 0 });
         this.anims.create({ key: `anim-crouch-${i}`, frames: this.anims.generateFrameNumbers(`crouch-${i}`), frameRate: 7, repeat: -1 });
         this.anims.create({ key: `tiger-walk-${i}`, frames: this.anims.generateFrameNumbers(`tiger-walk-${i}`, { start: 0, end: 7 }), frameRate: 10, repeat: -1 });
@@ -1220,8 +1425,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.player=this.physics.add.sprite(CAMP.x,CAMP.y-30,'human2').setDepth(CAMP.y).setCollideWorldBounds(true);
       this.player.setTexture('none-idle-2');
       this.player.setSize(10,7).setOffset(11,23);
-      this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if((a.key.startsWith('anim-finisher-')&&frame.index===finisherImpactFrame('wedge'))||(a.key.startsWith('anim-behead-')&&frame.index===finisherImpactFrame('axe')))this.landFinisher();});
-      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')||a.key.startsWith('anim-behead-')){this.finisher=undefined;this.persist();}});
+      this.player.on('animationupdate',(a:Phaser.Animations.Animation, frame:Phaser.Animations.AnimationFrame)=>{if((a.key.startsWith('anim-finisher-')&&frame.index===finisherImpactFrame('wedge'))||(a.key.startsWith('anim-behead-')&&frame.index===finisherImpactFrame('axe'))||(a.key.startsWith('anim-fistfin-')&&frame.index===FIST_FINISHER_IMPACT))this.landFinisher();});
+      this.player.on('animationcomplete',(a:Phaser.Animations.Animation)=>{if(a.key.startsWith('anim-'))this.attacking=false;if(a.key.startsWith('anim-finisher-')||a.key.startsWith('anim-behead-')||a.key.startsWith('anim-fistfin-')){this.finisher=undefined;this.fistFinish=false;this.persist();}});
       this.physics.add.collider(this.player,this.obstacles);
       this.cameras.main.setBounds(MAP.x,MAP.y,MAP.w,MAP.h).setZoom(cameraZoom(this.scale.width,this.scale.height,input.zoomScale??1)).startFollow(this.player,true,0.07,0.07);
       const resizeCamera = (size: Phaser.Structs.Size) => { this.cameras.main.setZoom(cameraZoom(size.width,size.height,input.zoomScale??1)); };
@@ -1317,6 +1522,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tickRepro(time);
       this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       if (this.closeness) controlled.add(this.closeness.id);
+      for (const id of this.duelIds()) controlled.add(id);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
@@ -1364,7 +1570,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const minutesOfDay=clockOf(this.clock).minutesOfDay;
         const bonus=this.party();const nearWarmth=Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<120*bonus.fireRange;
         this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids())*((input.sprint||this.keys?.['SHIFT']?.isDown)?caveSprintFactor(this.caves):1));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
-        {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),isNight(minutesOfDay))*armorCold(input.armor)*caveColdFactor(this.caves)*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
+        {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),isNight(minutesOfDay))*armorCold(this.armorNow())*caveColdFactor(this.caves)*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt)-bleedDamage(this.bleedUntil,time,dt));if(isBleeding(this.bleedUntil,time)&&time>this.nextTrail){this.nextTrail=time+450;this.bleed(p.x,p.y+6,0,1,2);}
         if(time>=this.messageUntil){
@@ -1407,7 +1613,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if((cKey&&Phaser.Input.Keyboard.JustDown(cKey))||(ctrlKey&&Phaser.Input.Keyboard.JustDown(ctrlKey)))this.crouchOn=!this.crouchOn;
       if(running||this.attacking)this.crouchOn=false;
       this.crouching=!running&&!this.attacking&&(this.crouchOn||input.crouch);
-      const body=p.body as Phaser.Physics.Arcade.Body;body.checkCollision.none=!!input.fly;body.setCollideWorldBounds(!input.fly);const speed=input.fly?420:(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed*limpFactor(this.health)*(input.fly?1:armorSpeed(input.armor)); const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
+      const body=p.body as Phaser.Physics.Arcade.Body;body.checkCollision.none=!!input.fly;body.setCollideWorldBounds(!input.fly);const speed=input.fly?420:(running?105:this.crouching?34:this.carried?CARRY_SPEED:65)*WEATHER[this.weatherNow(p)].speed*limpFactor(this.health)*(input.fly?1:armorSpeed(this.armorNow())); const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*speed,dy/len*speed);
       this.tickAmbient(time,delta,p,{running:!!running,crouching:this.crouching,moving:moving&&!input.fly});
       if(this.igniting){const ig=this.igniting;if(moving||input.torch!=='main'||input.paused||this.attacking){this.igniting=undefined;if(!input.paused){this.message='Feuerlegen abgebrochen';this.messageUntil=time+1200;}}
         else{p.setVelocity(0,0);const left=ig.until-time;if(left<=0){this.igniting=undefined;this.igniteHouse(ig.house,time);}else{const n=Math.min(5,Math.ceil((1-left/IGNITE_MS)*5));this.message=`Fackel ans Dach halten … ${'▮'.repeat(n)}${'▯'.repeat(5-n)}`;this.messageUntil=time+300;}}}
@@ -1448,11 +1654,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(this.carried&&(input.attack!==this.lastAttack||keyAttack)){this.lastAttack=input.attack;this.message='Hände voll · erst absetzen [E]';this.messageUntil=time+1400;}
       else if(!input.paused&&!this.attacking&&(input.attack!==this.lastAttack||keyAttack)){
         this.lastAttack=input.attack;
-        const downed=this.folk.filter(f=>f.c.state==='free'&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
+        {const df=this.duelFoe();if(df&&this.duel?.phase==='fight'&&this.duel.rules.goal==='death'&&df.combat.phase==='downed'&&Math.hypot(df.sprite.x-p.x,df.sprite.y-p.y)<=FINISHER_REACH+6&&this.startFinisher(df,true)){this.report(time,p);return;}}
+        const downed=this.folk.filter(f=>f.c.state==='free'&&f.c.id!==this.duel?.id&&canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),false)).sort((a,b)=>Phaser.Math.Distance.Between(p.x,p.y,a.sprite.x,a.sprite.y)-Phaser.Math.Distance.Between(p.x,p.y,b.sprite.x,b.sprite.y))[0];
         if(downed&&this.startFinisher(downed)){this.report(time,p);return;}
         const helpless=canFinishWith(this.held)?this.folk.filter(f=>canExecute(f.c,true)&&Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y)<=FINISHER_REACH).sort((a,b)=>Math.hypot(a.sprite.x-p.x,a.sprite.y-p.y)-Math.hypot(b.sprite.x-p.x,b.sprite.y-p.y))[0]:undefined;
         if(helpless&&this.executeCaptive(helpless)){this.report(time,p);return;}
-        this.attacking=true;this.attackPending=true;p.setVelocity(0,0);
+        this.attacking=true;this.attackPending=true;this.duelSwingAt=time;p.setVelocity(0,0);
         if(this.target)this.lastFacing=(Math.round(Math.atan2(this.target.sprite.y-p.y,this.target.sprite.x-p.x)/(Math.PI/4))+8)%8;
         p.anims.timeScale=1;this.playAttack(p,w);
       } else if(input.attack!==this.lastAttack)this.lastAttack=input.attack;
@@ -1616,9 +1823,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const req = input.interaction; input.interaction = null;
       if (req) { if (!this.applyAllyInteraction(req.target, req.id, time)) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); } }
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
+      this.tickDuel(time, input.paused || this.sleeping); this.tickMockery(time, stop);
+      const duelIds = this.duelIds();
       const inside = !!villageAt(p.x, p.y);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
-      for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free')continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
+      for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free'||f.c.id===this.duel?.id)continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
       const escorts = new Set<string>();
       if (inside && !stop) for (let vi = 0; vi < FOLK_HOMES.length; vi++) {
         const e = pickEscort(this.folk.filter(o => o.t.village === vi && o.c.state === 'free' && o.combat.phase === 'ready' && isWarrior(o.t) && !this.roaming.has(o.c.id) && Math.hypot(o.sprite.x - p.x, o.sprite.y - p.y) < 220).map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y })), p);
@@ -1626,6 +1835,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const armedFolk = this.folk.filter(o => o.combat.phase === 'ready' && o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
+        if (duelIds.has(f.c.id) && f.combat.phase !== 'dead') { if (f.combat.phase !== 'downed') this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
         if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if (isCarrier(this.carriers, f.c.id)) { f.sprite.setDepth(f.sprite.y); continue; }
@@ -1757,7 +1967,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           closeness: this.closenessContext(f.c.id),
           hasGift: this.count > 0 || this.stock.flint > 0, hasTradeGoods: this.stock.flint > 0 || this.stock.fiber >= 2,
           targetDefeated: st === 'surrender' || st === 'bound', targetBound: st === 'bound', targetCarried: false, isOwnTribe: st === 'camp', inRange: true,
-          inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: canFinishWith(this.held),
+          inCamp: this.inCampAt(f.sprite.x, f.sprite.y), hasWedge: canFinishWith(this.held), challenge: this.challengeRefusal(f),
           fear: this.villageFear(f.t.village), tributePaid: !canDemandTribute(this.fear, vk, clockOf(this.clock).day) && fearOf(this.fear, vk) >= 50,
         };
       } else this.talk = null;
@@ -2218,15 +2428,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (isKinCrime(id) && f.c.state !== 'camp' && !this.inCampAt(f.sprite.x, f.sprite.y)) this.kinAlarm(f, time);
       this.persist();
     }
-    startFinisher(f:Folk):boolean {
+    startFinisher(f:Folk,duel=false):boolean {
       const p=this.player;
-      if(!p||this.attacking||this.carried||input.paused||!canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),f.c.state==='camp'))return false;
+      if(!p||this.attacking||this.carried||input.paused||!(duel?f.combat.phase==='downed':canFinish(f.combat,Math.hypot(f.sprite.x-p.x,f.sprite.y-p.y),canFinishWith(this.held),f.c.state==='camp')))return false;
       const angle=Math.atan2(f.sprite.y-p.y,f.sprite.x-p.x);
       this.lastFacing=(Math.round(angle/(Math.PI/4))+8)%8;
-      this.target=undefined;this.finisher=f;this.beheading=finisherStyle(this.held)==='behead';this.attacking=true;this.attackPending=false;this.crouchOn=false;
+      this.target=undefined;this.finisher=f;this.fistFinish=duel&&!canFinishWith(this.held);this.beheading=!this.fistFinish&&finisherStyle(this.held)==='behead';this.attacking=true;this.attackPending=false;this.crouchOn=false;
       p.setPosition(f.sprite.x-Math.cos(angle)*14,f.sprite.y-Math.sin(angle)*14).setVelocity(0,0).setDepth(f.sprite.y+1);
-      p.anims.timeScale=1;{const s=this.skinNow();p.play(!this.beheading&&s&&SKINS[s].frames.finisher>1?`anim-finisher-${s}-${this.lastFacing}`:`anim-${this.beheading?'behead':'finisher'}-${this.lastFacing}`);}
-      this.message=this.beheading?'Enthauptung!':'Finisher!';this.messageUntil=this.time.now+1800;return true;
+      p.anims.timeScale=1;if(this.fistFinish)p.play(`anim-fistfin-${this.lastFacing}`);else{const s=this.skinNow();p.play(!this.beheading&&s&&SKINS[s].frames.finisher>1?`anim-finisher-${s}-${this.lastFacing}`:`anim-${this.beheading?'behead':'finisher'}-${this.lastFacing}`);}
+      this.message=this.beheading?'Enthauptung!':this.fistFinish?'Faust-Finisher!':'Finisher!';this.messageUntil=this.time.now+1800;return true;
     }
     executing = false;
     beheading = false;
@@ -2240,6 +2450,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
+      if(this.duel?.phase==='fight'&&f.c.id===this.duel.id){f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,this.fistFinish?24:40);if(this.beheading)this.severHead(f,fx,fy);this.beheading=false;this.punch(40,true);this.endDuel('win',this.time.now);return;}
       f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);this.armFolk(f,this.time.now);
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village as 0]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
       for (const a of this.companionActors().filter(a => Math.hypot(a.sprite.x - f.sprite.x, a.sprite.y - f.sprite.y) < 200)) this.trustEvent(a.id, 'finisher');
@@ -2324,15 +2535,16 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           this.allyFocus = 'c' + this.creatures.indexOf(c);
-          this.hurt(c, (hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : input.club ? 16 : 10)*caveDamageFactor(this.caves,input.club?'club':hw)*armorDamage(input.armor), fx, fy, time);
+          this.hurt(c, (hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : this.clubNow() ? 16 : 10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow()), fx, fy, time);
         }
         for (const f of this.folk) {
           if (f.c.state !== 'free') continue;
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
+          if(this.duel&&this.duel.phase!=='done'){if(f.c.id===this.duel.id){if(this.duel.phase==='fight')this.duelStruck(f,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10,fx,fy,time);else this.duel=null;if(this.duel)continue;}else if(this.duel.spectators.includes(f.c.id)||this.duel.phase==='fight'){this.endDuel('fled',time);}}
           this.allyFocus='f'+f.c.id;
-          {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:input.club?16:10)*caveDamageFactor(this.caves,input.club?'club':hw)*armorDamage(input.armor);f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
+          {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow());f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
           if(f.combat.phase==='dead'){dieFolk(f);this.witnessDeed(f,'kill','kill');this.message='Krieger erschlagen';this.persist();}
@@ -2468,7 +2680,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       {const tint=playerTint(input.armor,this.health);if (time < this.hitFlash) p.setTint(0xff5050); else if (tint!==null) p.setTint(tint); else p.clearTint();}
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:this.bossStatus(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.caves.current&&this.campAlarm,nearDrum:!this.caves.current&&this.nearDrum,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.caves.current?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.caves.current?null:this.shamedHere(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
