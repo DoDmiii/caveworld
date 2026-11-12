@@ -53,3 +53,4 @@
 - Keep child look selection (hair + sex) and follow/home anchoring engine-free in children.ts; child-folk.ts only draws one packed 16×16 atlas per look, and children stay non-physical so they never become combat or capture targets.
 - Keep notebook lore texts and unlock rules engine-free in lore.ts; world.ts only reports met/contact/champion events and saves the counters, so texts can grow without touching the engine.
 - Keep arson phases, foreign rebuild timing, respawn delay and camp repair costs engine-free in arson.ts; fire-art.ts lists every flammable hut by stable ID with its ruin art, and world.ts derives flames/ruins from the saved clock so reloads never relight or skip a fire.
+- Keep honor-duel rules (random goal/arms, half damage, ring escape, duelist AI rhythm, tribute, mockery cooldowns) engine-free in duel.ts; world.ts only steers the ring, suppresses armor while the ring is closed and saves the duel book separately from relationships.
