@@ -131,7 +131,7 @@ import { getVillageRelationship } from './relationships';
 import type { InteractionContext, InteractionId } from './interactions';
 import { EMPTY_RELATIONSHIPS, changeVillageRelationship, changePersonalRelationship, getPersonalRelationship, isAlarmActive, raiseAlarm, type RelationshipState } from './relationships';
 import { resolveInteraction, villageKey, INTERACTION_RANGE, isSocialAction, socialReady, SOCIAL_COOLDOWN_MS } from './tribal';
-import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
+import { START_MINUTES, clockOf, isNight, skyTint, ambientTemp, tickHunger, tickWarmth, survivalDamage, advanceClock, canSprint, nextExhausted, HUNGER_WARN, COLD_WARN, SLEEP_CLOCK_PER_SEC, SLEEP_HUNGER_COST } from './survival';
 import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type TutorialState } from './tutorial';
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
@@ -247,9 +247,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(k?.['A']?.isDown||k?.['LEFT']?.isDown)dx=-1;if(k?.['D']?.isDown||k?.['RIGHT']?.isDown)dx=1;
       if(k?.['W']?.isDown||k?.['UP']?.isDown)dy=-1;if(k?.['S']?.isDown||k?.['DOWN']?.isDown)dy=1;
       if(input.paused||this.attacking){dx=0;dy=0;}
-      const moving=Math.hypot(dx,dy)>0.12,running=!!(moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1);
+      const moving=Math.hypot(dx,dy)>0.12,running=!!(moving&&(input.sprint||k?.['SHIFT']?.isDown)&&canSprint(this.exhausted,this.stamina));
       const len=Math.max(1,Math.hypot(dx,dy));p.setVelocity(dx/len*(running?105:65),dy/len*(running?105:65));
-      if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),false)*armorCold(this.armorNow())*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
+      if(!input.paused){this.clock=advanceClock(this.clock,dt);this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*dt,0,100);this.exhausted=nextExhausted(this.exhausted,this.stamina);this.hunger=tickHunger(this.hunger,dt*(running?caveSprintFactor(this.caves):1));const before=this.warmth;const warm=this.caveWarm(p);const roof=(this.caves.builds[id]??[]).some(b=>b.kind==='shelter'&&Math.hypot(b.x-p.x,b.y-p.y)<SHELTER_RANGE);const after=tickWarmth(before,{ambient:CAVES[id].ambient,nearFire:warm,seconds:dt});this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),false)*armorCold(this.armorNow())*caveColdFactor(this.caves)*(roof?0.5:1):after;this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt));if(this.owned.includes('bandage')&&this.hunger>30)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*dt);}
       if(input.craft){const r=RECIPES.find(r=>r.id===input.craft);const next=r&&craft(r,this.stock,levelFromXp(this.xp),this.owned);if(r&&next){this.stock=next;this.owned.push(r.id);this.addXp(XP.craft);this.message=`${r.name} hergestellt`;this.messageUntil=time+2000;}input.craft=null;}
       if(input.weapon!==this.weapon)this.weapon=input.weapon==='none'||this.owned.includes(input.weapon)?input.weapon:'none';
       const attackKey=k?.['Q'];const attackNow=this.clickAttack||(attackKey&&Phaser.Input.Keyboard.JustDown(attackKey));this.clickAttack=false;
@@ -273,6 +273,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     obstacles?: Phaser.Physics.Arcade.StaticGroup;
     berries: { x: number; y: number; picked: boolean; sprite: Phaser.GameObjects.Image }[] = [];
     stamina = 100;
+    /** Leer gesprintet: erst ab SPRINT_RECOVER wieder sprinten. */
+    exhausted = false;
     cooked = 0;
     healPulse = 0;
     health = 100;
@@ -1535,7 +1537,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       });
       this.tickAllies(time, delta, input.paused || this.dead || this.sleeping);
       this.companionMovement.tick(this.companionActors().filter(a => !allyDowned(this.allyHealth(a.id)) && a.id !== this.closeness?.id), this.movementOrders(), p, this.lastFacing, time,
-        input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && this.stamina > 1 && !this.carried,
+        input.paused || this.dead || this.health <= 0 || this.sleeping, !!(input.sprint || this.keys?.['SHIFT']?.isDown) && canSprint(this.exhausted, this.stamina) && !this.carried,
         this.crouching, blocks, this.allyEngage(time, p));
       this.allyStrikes(time);
       this.tribal(time);
@@ -1607,7 +1609,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}
       if(input.paused||this.attacking){dx=0;dy=0;}
-      const moving=Math.hypot(dx,dy)>0.12;const running=!this.carried&&moving&&(input.sprint||k?.['SHIFT']?.isDown)&&this.stamina>1;
+      const moving=Math.hypot(dx,dy)>0.12;const running=!this.carried&&moving&&(input.sprint||k?.['SHIFT']?.isDown)&&canSprint(this.exhausted,this.stamina);
       // Ducken als Umschalter: einmal drücken = ducken, erneut drücken = aufstehen.
       const cKey=k?.['C'],ctrlKey=k?.['CTRL'];
       if((cKey&&Phaser.Input.Keyboard.JustDown(cKey))||(ctrlKey&&Phaser.Input.Keyboard.JustDown(ctrlKey)))this.crouchOn=!this.crouchOn;
@@ -1621,7 +1623,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(h&&!f&&input.torch==='main'&&this.owned.includes('torch')){this.message=h.owner==='camp'?'[E] Deine eigene Hütte anzünden':'[E] Hütte anzünden';this.messageUntil=time+500;}
         else if(h&&f&&h.owner==='camp'&&firePhase(f,this.clock)==='ruin'){this.message=`[E] Hütte wieder aufbauen · ${repairCostText()}`;this.messageUntil=time+500;}}
       if(this.shove&&time<this.shove.until&&!input.fly)p.setVelocity(this.shove.vx,this.shove.vy);
-      this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);
+      this.stamina=Phaser.Math.Clamp(this.stamina+(running?-22*caveSprintFactor(this.caves):13)*Math.min(delta,50)/1000,0,100);this.exhausted=nextExhausted(this.exhausted,this.stamina);
       const w=this.held;
       // Lock-on (F): cycle to the nearest living animal within range.
       const fKey=k?.['F'];
