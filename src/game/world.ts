@@ -638,12 +638,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       raiders.forEach((f, i) => {
         if (f.combat.phase !== 'ready') { this.raidTorches.delete(f.c.id); return; }
         this.roaming.add(f.c.id);
-        const m = this.folkMood.get(f.c.id); if ((m?.armedUntil ?? 0) > time) { this.raidTorches.delete(f.c.id); return; }
-        ids.add(f.c.id); const s = f.sprite;
+        const m = this.folkMood.get(f.c.id), torch = bearers.includes(f), s = f.sprite;
+        // A torchbearer shakes off a scuffle as soon as nobody is right on him and goes back to the huts.
+        if (torch && m && (m.armedUntil ?? 0) > time && Math.hypot(p.x - s.x, p.y - s.y) > TORCH_ENGAGE + 16 && !this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < TORCH_ENGAGE)) m.armedUntil = 0;
+        if ((m?.armedUntil ?? 0) > time) { if (phase === 'march' && Math.hypot(s.x - CAMP.x, s.y - CAMP.y) < CAMP_RESPONSE_RANGE + 80) arrived = true; return; }
+        ids.add(f.c.id);
         if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
-        const torch = bearers.includes(f), d = Math.hypot(p.x - s.x, p.y - s.y);
+        const d = Math.hypot(p.x - s.x, p.y - s.y);
         const reach = torch ? TORCH_ENGAGE : phase === 'assault' ? RAID_SIGHT : 140;
-        const defender = phase !== 'return' && this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < (torch ? TORCH_ENGAGE : DEFENDER_ENGAGE));
+        const defender = phase !== 'return' && !torch && this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < DEFENDER_ENGAGE);
         if (phase !== 'return' && (d < reach || defender) && m) { m.armedUntil = time + 25000; this.raidTorches.delete(f.c.id); this.bark(f.c.id, s, 'attack', time, true); return; }
         if (phase === 'march') {
           // The squad marches together: the leader follows the path and waits for stragglers, the others keep close behind him.
