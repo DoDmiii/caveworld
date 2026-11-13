@@ -1,7 +1,7 @@
 // Engine-free rules for Nordic ford patrols, revenge squads and retaliation raids (incl. camp arson) on the player's camp.
 import { FORDS, riverX } from './biomes';
 import type { DeedKind } from './events';
-import { isBurning, type FireState } from './arson';
+import type { FireState } from './arson';
 
 type Pt = { x: number; y: number };
 type Village = { x: number; y: number; r: number };
@@ -124,13 +124,12 @@ export const torchCount = (size: number) => (size >= 4 ? 2 : 1);
 
 type Hut = { id: string; x: number; y: number };
 /** The nearest intact camp hut that no other torchbearer has picked. */
-export function burnTarget<T extends Hut>(huts: readonly T[], fires: FireState, clock: number, from: { x: number; y: number }, taken: ReadonlySet<string>): T | undefined {
+export function burnTarget<T extends Hut>(huts: readonly T[], fires: FireState, from: { x: number; y: number }, taken: ReadonlySet<string>): T | undefined {
   return huts.filter(h => !fires[h.id] && !taken.has(h.id)).sort((a, b) => Math.hypot(a.x - from.x, a.y - from.y) - Math.hypot(b.x - from.x, b.y - from.y))[0];
 }
 /** The assault is done once the torches have burned their share and no kin is left to free. */
-export function raidGoalsDone(a: ActiveRaid, kinLeft: boolean, huts: readonly Hut[], fires: FireState, clock: number) {
-  const intact = huts.some(h => !fires[h.id]);
-  return !kinLeft && ((a.burned ?? 0) >= torchCount(a.size ?? MIN_SQUAD) || !intact) && !huts.some(h => isBurning(fires[h.id], clock) && false);
+export function raidGoalsDone(a: ActiveRaid, kinLeft: boolean, huts: readonly Hut[], fires: FireState) {
+  return !kinLeft && ((a.burned ?? 0) >= torchCount(a.size ?? MIN_SQUAD) || huts.every(h => !!fires[h.id]));
 }
 
 /** Spoils of a beaten squad: their flint blades, sinew and travel food. */
