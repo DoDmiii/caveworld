@@ -63,7 +63,9 @@ const GameSchema = z.object({
   warband: z.object({
     pending: z.record(z.string().max(4), z.number().min(0)),
     cooldown: z.record(z.string().max(4), z.number().min(0)),
-    active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0) }).optional(),
+    fury: z.record(z.string().max(4), z.number().min(0).max(100)).optional(),
+    squads: z.record(z.string().max(4), z.number().int().min(0).max(10)).optional(),
+    active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0), size: z.number().int().min(0).max(10).optional(), burned: z.number().int().min(0).max(20).optional() }).optional(),
   }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
   // Brennende und abgebrannte Hütten; optional, damit ältere Spielstände weiter laden.

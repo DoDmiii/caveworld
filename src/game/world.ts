@@ -611,7 +611,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.raidRoster.clear(); this.clearRaidFx();
         const v = FOLK_HOMES[this.warband.active.village]!, n = this.raiders().length;
         if (!n) { this.warband = endRaid(this.warband, this.clock); return; }
-        this.message = `Ein Rachetrupp aus ${v.name} marschiert auf dein Lager! (${n} Krieger${torchCount(this.warband.active.size ?? MIN_SQUAD) > 0 ? ', mit Fackeln' : ''})`; this.messageUntil = time + 5500; this.persist();
+        this.message = `Ein Rachetrupp aus ${v.name} marschiert auf dein Lager! (${n} Krieger mit Fackeln)`; this.messageUntil = time + 5500; this.persist();
       }
       const a = this.warband.active; if (!a) { if (this.torchFx.size || this.raidRoutes.size) this.clearRaidFx(); this.raidRoster.clear(); return; }
       const v = FOLK_HOMES[a.village]!, raiders = this.raiders(), ready = raiders.filter(f => f.combat.phase === 'ready');
