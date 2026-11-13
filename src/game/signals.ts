@@ -25,14 +25,21 @@ export function campAlarmActive(drums: number, manual: boolean, threats: number,
 export function alarmThreats(foes: readonly Foe[], drums: readonly Pt[]) {
   return foes.filter(f => f.alive && f.hostile && drums.some(d => Math.hypot(f.x-d.x,f.y-d.y) <= ALARM_RANGE));
 }
+/** Alarm stand-by posts just inside the south gate, one per warrior so nobody shares a spot (and none lies on the fur bed). */
+export const CAMP_GUARD_POSTS: readonly Pt[] = [
+  { x: CAMP_POS.x - 22, y: CAMP_POS.y + 128 }, { x: CAMP_POS.x + 22, y: CAMP_POS.y + 128 },
+  { x: CAMP_POS.x - 55, y: CAMP_POS.y + 118 }, { x: CAMP_POS.x + 55, y: CAMP_POS.y + 118 },
+  { x: CAMP_POS.x, y: CAMP_POS.y + 108 },
+];
 export function campResponse(actors: readonly (Pt & { id: string; profile: string; down: boolean })[], foes: readonly Foe[], active: boolean) {
   const orders = new Map<string, CompanionOrder>(), targets = new Map<string, Foe>();
   if (!active) return { orders, targets };
+  let post = 0;
   for (const a of actors) {
     if (a.down || Math.hypot(a.x-CAMP_POS.x,a.y-CAMP_POS.y)>CAMP_RESPONSE_RANGE) continue;
     const target = campWarrior(a.profile) ? foes.filter(f => f.alive && f.hostile && Math.hypot(f.x-CAMP_POS.x,f.y-CAMP_POS.y)<=CAMP_RESPONSE_RANGE)
       .sort((b,c) => Math.hypot(a.x-b.x,a.y-b.y)-Math.hypot(a.x-c.x,a.y-c.y))[0] : undefined;
-    const goal = target ?? (campWarrior(a.profile) ? { x: CAMP_POS.x + (a.id.length%2 ? -50 : 50), y: CAMP_POS.y+50 } : { x: CAMP_POS.x-40+(a.id.charCodeAt(a.id.length-1)%5)*20, y: CAMP_POS.y-35 });
+    const goal = target ?? (campWarrior(a.profile) ? CAMP_GUARD_POSTS[post++ % CAMP_GUARD_POSTS.length]! : { x: CAMP_POS.x-40+(a.id.charCodeAt(a.id.length-1)%5)*20, y: CAMP_POS.y-35 });
     orders.set(a.id, { id: a.id, mode: 'wait', x: goal.x, y: goal.y });
     if (target) targets.set(a.id, target);
   }
