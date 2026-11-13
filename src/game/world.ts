@@ -565,10 +565,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Path search that first steps off a blocked spot (a hut wall, a fence corner) onto the nearest free ground. */
     raidPath(from: { x: number; y: number }, goal: { x: number; y: number }, blocks: Block[]) {
       const direct = findCompanionPath(from, goal, blocks); if (direct.length) return direct;
-      for (let rad = 12; rad <= 60; rad += 12) for (let k = 0; k < 8; k++) {
+      let tries = 3;
+      for (let rad = 12; rad <= 60 && tries > 0; rad += 12) for (let k = 0; k < 8 && tries > 0; k++) {
         const st = { x: from.x + Math.cos(k * Math.PI / 4) * rad, y: from.y + Math.sin(k * Math.PI / 4) * rad };
         if (!clearCompanionPoint(st, blocks)) continue;
-        const pts = findCompanionPath(st, goal, blocks); if (pts.length) return [st, ...pts];
+        tries--; const pts = findCompanionPath(st, goal, blocks); if (pts.length) return [st, ...pts];
       }
       return [];
     }
