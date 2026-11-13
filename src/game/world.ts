@@ -560,6 +560,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.routeBudget--; r = { pts: findCompanionPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal }, retry: time + 1500 }; this.raidRoutes.set(f.c.id, r);
       }
       while (r.pts[r.i] && Math.hypot(r.pts[r.i]!.x - s.x, r.pts[r.i]!.y - s.y) < 12) r.i++;
+      if (!r.pts.length) {
+        // No path from here (wedged against a wall): step back toward open ground near camp or home, then search again.
+        const home = FOLK_HOMES[f.t.village]!, open = Math.hypot(CAMP.x - s.x, CAMP.y - s.y) < Math.hypot(home.x - s.x, home.y - s.y) ? { x: CAMP.x, y: CAMP.y + 60 } : home;
+        this.walkTo(f, open.x, open.y, speed, time); return far;
+      }
       const wp = r.pts[r.i] ?? goal; this.walkTo(f, wp.x, wp.y, speed, time); return far;
     }
     clearRaidFx() { this.torchFx.forEach(o => o.destroy()); this.torchFx.clear(); this.raidTorches.clear(); this.raidRoutes.clear(); }
