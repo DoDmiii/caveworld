@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hornReady, recallOrders, alarmThreats, campResponse, campWarrior } from '@/game/signals';
+import { hornReady, recallOrders, alarmThreats, campResponse, campWarrior, CAMP_GUARD_POSTS } from '@/game/signals';
 describe('war horn and camp alarm', () => {
   it('horn requires ownership and cooldown completion', () => {
     expect(hornReady([], 100, 0)).toBe(false);
@@ -30,5 +30,13 @@ describe('war horn and camp alarm', () => {
     expect(r.orders.get('b')?.y).toBe(605);
     expect(campResponse(actors,[foe],false).orders.size).toBe(0);
     expect(campResponse([{id:'a',profile:'bruk',x:2000,y:700,down:false}], [foe],true).orders.size).toBe(0);
+  });
+  it('idle alarm gives every warrior its own gate post, away from the bed', () => {
+    const actors = [{id:'ally-0',profile:'bruk',x:1000,y:700,down:false},{id:'ally-1',profile:'tamo',x:1010,y:700,down:false}];
+    const r = campResponse(actors,[],true);
+    const a = r.orders.get('ally-0')!, b = r.orders.get('ally-1')!;
+    expect(Math.hypot(a.x-b.x,a.y-b.y)).toBeGreaterThanOrEqual(40);
+    for (const o of [a,b]) { expect(Math.hypot(o.x-1046,o.y-690)).toBeGreaterThan(60); expect(o.y).toBeLessThan(790); }
+    expect(new Set(CAMP_GUARD_POSTS.map(p=>`${p.x},${p.y}`)).size).toBe(CAMP_GUARD_POSTS.length);
   });
 });
