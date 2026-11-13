@@ -18,6 +18,10 @@ export function recallOrders(actors: readonly (Pt & { id: string; down: boolean 
 }
 /** Wenja men are warriors; camp women stay out of battle. */
 export function campWarrior(profile: string) { return ['tamo', 'bruk', 'kuruk', 'ilvar'].includes(profile); }
+/** A war party at the camp raises the alarm by itself, drum or not; otherwise the drum decides. */
+export function campAlarmActive(drums: number, manual: boolean, threats: number, raidAtCamp: boolean) {
+  return raidAtCamp || (drums > 0 && (manual || threats > 0));
+}
 export function alarmThreats(foes: readonly Foe[], drums: readonly Pt[]) {
   return foes.filter(f => f.alive && f.hostile && drums.some(d => Math.hypot(f.x-d.x,f.y-d.y) <= ALARM_RANGE));
 }
