@@ -8,7 +8,7 @@ import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, 
 import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent } from './lore';
 import { EMPTY_FEAR, addFear, addFearAmount, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
-import { hornReady, recallOrders, alarmThreats, campResponse, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
+import { hornReady, recallOrders, alarmThreats, campResponse, campAlarmActive, CAMP_RESPONSE_RANGE, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
 import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
@@ -16,7 +16,7 @@ import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FOR
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
 import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
-import { CompanionMovement, type CompanionActor, type Block } from './companion-movement';
+import { CompanionMovement, findCompanionPath, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, type CouplesState, type WitnessReaction } from './partners';
@@ -124,7 +124,7 @@ import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
-import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, fordRoute, MAX_RAIDERS, CAMP_ARRIVAL, RAID_SIGHT, type WarbandState } from './warbands';
+import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, retreat, fordRoute, addRevenge, burnTarget, raidGoalsDone, raidSpoils, torchCount, MAX_RAIDERS, MIN_SQUAD, MARCH_LIMIT_MINUTES, CAMP_ARRIVAL, RAID_SIGHT, RAID_TORCH_MS, TORCH_ENGAGE, DEFENDER_ENGAGE, SQUAD_BROKEN_FEAR, type WarbandState } from './warbands';
 import { PERSONAL_SPACE, SHOVE_RANGE, SHOVE_SPEED, SHOVE_MS, SHOVE_DAMAGE, SHOVE_COOLDOWN_MS, KIN_ALARM_RADIUS, CARRY_SIGHT, shoveStep, nextStrikes, isKinCrime, guardsSpace, escortGoal, pickEscort } from './tension';
 import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
 import { getVillageRelationship } from './relationships';
@@ -136,7 +136,7 @@ import { newTutorial, tutorialEvent, TUTORIAL_DONE, type TutorialEvent, type Tut
 import { TREE_HP, ROCK_HP, TREE_DROP, ROCK_DROP, RESOURCE_NAME, emptyStock, gain, type Resource, type Stock } from './harvest';
 
 export type CaveCommand = { op: 'paint'; id: PaintingId } | { op: 'sharpen' | 'fire' | 'shelter' };
-export type GameInput = { duelChoice?: 'accept' | 'flee' | null; torch?: 'main' | 'off' | null; armor?: ArmorId | null; fly?: boolean; horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
+export type GameInput = { cheatRaid?: boolean; duelChoice?: 'accept' | 'flee' | null; torch?: 'main' | 'off' | null; armor?: ArmorId | null; fly?: boolean; horn?: boolean; drumToggle?: boolean; zoomScale?: number; focus?: boolean; throwSpear?: boolean; caveCommand?: CaveCommand | null; x: number; y: number; sprint: boolean; action: number; attack: number; paused: boolean; weapon: Weapon; sleep: boolean; crouch: boolean; respawn: number; eat: Food | null; club: boolean; craft: ItemId | null; save: number; interaction?: { id: InteractionId; target: string } | null; dialogueChoice?: { target: string; dialogue: string; choice: string } | null; chestTransfer?: { kind: Storable; n: number } | null; chestToggle?: number; build?: BuildCommand | null };
 export type TalkTarget = InteractionContext & { id: string; name: string; profile?: ProfileView | undefined; dialogues?: CampDialogue[] };
 export type DuelStatus = { phase: 'approach' | 'prompt' | 'gather' | 'fight' | 'done'; name: string; rules: string; cause: DuelCause; line?: string; woman?: string };
 export type GameStatus = { duel?: DuelStatus | null; shamed?: string | null; lore?: LoreState; skull?: number; wolfPelt?: number; sabrePelt?: number; bleeding?: boolean; campAlarm?: boolean; nearDrum?: boolean; hornCooldown?: number; caves?: CaveState; cavePrompt?: string | null; nearPaint?: boolean; x: number; y: number; stamina: number; health: number; berries: number; meat: number; cooked: number; nearFire: boolean; healPulse: number; area: string; message: string; weapon: Weapon; sleeping: boolean; nearBed: boolean; hidden: boolean; crouching: boolean; dead: boolean; wood: number; stone: number; flint: number; fiber: number; xp: number; level: number; owned: ItemId[]; hunger: number; warmth: number; day: number; minutes: number; talk?: TalkTarget | null; companionCount?: number; craftDiscount?: boolean; nearChest?: boolean; chest?: ChestGoods; chestOpen?: boolean; tutorial?: TutorialState; squad?: SquadMember[]; jerky?: number; build?: BuildStatus | null; nearRack?: { hung: number; ready: number } | null; nearTrap?: { meat: number } | null; nearOwnBuild?: boolean; weather?: Weather; boss?: { name: string; hp: number; max: number; down: boolean } | null };
@@ -318,8 +318,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const foes = this.allyFoes();
       const threats = alarmThreats(foes,drums);
       if (input.drumToggle) { input.drumToggle=false;if(this.nearDrum&&!stopped&&!this.building)this.toggleDrum(time,threats.length>0); }
-      if (!drums.length) this.manualAlarm=false;
-      const active=!!drums.length && (this.manualAlarm || threats.length>0);
+      const raidNear=!!this.warband.active&&this.warband.active.phase!=='return'&&this.raiders().some(f=>f.combat.phase==='ready'&&Math.hypot(f.sprite.x-CAMP.x,f.sprite.y-CAMP.y)<=CAMP_RESPONSE_RANGE);
+      if(!drums.length)this.manualAlarm=false;
+      const active=campAlarmActive(drums.length,this.manualAlarm,threats.length,raidNear);
       if (active !== this.campAlarm) {
         this.campAlarm=active;
         if (!stopped) { this.message=active?'Lageralarm! Krieger verteidigen die Sippe.':'Das Lager ist wieder ruhig';this.messageUntil=time+3500; }
@@ -525,7 +526,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     roaming = new Set<string>();
     stuck = new Map<string, { until: number; turn: number }>();
     fordGuards() { const out = new Set<string>(); VILLAGES.forEach((_, vi) => { const w = this.folk.find(f => f.t.village === vi && !f.t.captive && isWarrior(f.t) && !isChampion(f.t)); if (w) out.add(w.c.id); }); return out; }
-    raiders() { const a = this.warband.active; if (!a) return []; return this.folk.filter(f => f.t.village === a.village && !f.t.captive && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase !== 'dead').slice(0, MAX_RAIDERS); }
+    /** Fixed squad for the running raid (rebuilt after loading); captured or dead members drop out, nobody is pulled in mid-raid. */
+    raidRoster = new Set<string>();
+    raidRoutes = new Map<string, { pts: { x: number; y: number }[]; i: number; goal: { x: number; y: number } }>();
+    raidTorches = new Map<string, { hut: string; ms: number; barked?: boolean }>();
+    torchFx = new Map<string, Phaser.GameObjects.Sprite>();
+    routeBudget = 0;
+    raiders() {
+      const a = this.warband.active; if (!a) return [];
+      if (!this.raidRoster.size) { const duel = this.duelIds(); for (const f of this.folk.filter(f => f.t.village === a.village && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase === 'ready' && !duel.has(f.c.id)).slice(0, Math.min(MAX_RAIDERS, a.size ?? MIN_SQUAD))) this.raidRoster.add(f.c.id); }
+      return this.folk.filter(f => this.raidRoster.has(f.c.id) && f.c.state === 'free' && f.combat.phase !== 'dead');
+    }
     /** Walks a folk sprite toward a point, turning aside for a moment when blocked. */
     walkTo(f: Folk, x: number, y: number, speed: number, time: number) {
       const s = f.sprite, body = s.body as Phaser.Physics.Arcade.Body; let dx = x - s.x, dy = y - s.y; const dl = Math.hypot(dx, dy) || 1; dx /= dl; dy /= dl;
@@ -535,43 +546,137 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       s.setVelocity(dx * speed, dy * speed); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
       s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y); return dl;
     }
-    /** Retaliation raids: hostile villages send warriors to the camp, who fight the player or free their captured kin. */
+    obstacleBlocks(): Block[] {
+      return (this.obstacles?.getChildren() ?? []).flatMap(o => { const b = (o as Phaser.Physics.Arcade.Sprite).body; return b ? [{ x: b.x, y: b.y, width: b.width, height: b.height }] : []; });
+    }
+    /** Long marches follow a path around the mountain wall, river and cliffs; close to the goal raiders walk straight. One path search per frame. */
+    raidTravel(f: Folk, goal: { x: number; y: number }, speed: number, time: number, blocks: () => Block[]) {
+      const s = f.sprite, far = Math.hypot(goal.x - s.x, goal.y - s.y);
+      if (far < 200) { this.raidRoutes.delete(f.c.id); this.walkTo(f, goal.x, goal.y, speed, time); return far; }
+      let r = this.raidRoutes.get(f.c.id); const wp0 = r?.pts[r.i];
+      if (!r || Math.hypot(r.goal.x - goal.x, r.goal.y - goal.y) > 64 || (wp0 && Math.hypot(wp0.x - s.x, wp0.y - s.y) > 160)) {
+        if (this.routeBudget <= 0) { s.setVelocity(0, 0); s.anims.stop(); return far; }
+        this.routeBudget--; r = { pts: findCompanionPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal } }; this.raidRoutes.set(f.c.id, r);
+      }
+      while (r.pts[r.i] && Math.hypot(r.pts[r.i]!.x - s.x, r.pts[r.i]!.y - s.y) < 12) r.i++;
+      const wp = r.pts[r.i] ?? goal; this.walkTo(f, wp.x, wp.y, speed, time); return far;
+    }
+    clearRaidFx() { this.torchFx.forEach(o => o.destroy()); this.torchFx.clear(); this.raidTorches.clear(); this.raidRoutes.clear(); }
+    /** Torchbearers carry a small flame while they march and assault. */
+    syncTorchFx(bearers: Folk[]) {
+      const keep = new Set(bearers.map(f => f.c.id));
+      for (const [id, o] of this.torchFx) if (!keep.has(id)) { o.destroy(); this.torchFx.delete(id); }
+      for (const f of bearers) {
+        let o = this.torchFx.get(f.c.id);
+        if (!o) { o = this.add.sprite(0, 0, 'house-flame').setOrigin(FLAME_SHEET.ox, FLAME_SHEET.oy).setScale(0.22); o.play({ key: 'house-flame', startFrame: f.seed % FLAME_SHEET.frames }); this.torchFx.set(f.c.id, o); }
+        const left = f.facing >= 3 && f.facing <= 5, s = f.sprite;
+        o.setPosition(s.x + (left ? -7 : 7), s.y - 6).setDepth(s.y + 2);
+      }
+    }
+    /** A raider's torch reaches the roof: the camp hut burns like any other fire. */
+    raiderIgnite(h: FlammableHouse, f: Folk, time: number) {
+      if (this.fires[h.id]) return;
+      this.fires = ignite(this.fires, h.id, 'camp', this.clock);
+      const w = this.warband.active; if (w) this.warband = { ...this.warband, active: { ...w, burned: (w.burned ?? 0) + 1 } };
+      this.bark(f.c.id, f.sprite, 'attack', time, true, 'Brenne, Höhlenlager!');
+      this.message = `Ein Krieger aus ${FOLK_HOMES[f.t.village]!.name} hat eine deiner Hütten angezündet!`; this.messageUntil = time + 4000;
+      this.cameras.main.shake(220, 0.004); this.syncFireFx(time); this.persist();
+    }
+    /** The whole squad is down: their goods are yours and their village trembles. */
+    raidBeaten(village: number, time: number) {
+      const name = FOLK_HOMES[village]!.name, n = this.raidRoster.size;
+      if (!n) { this.message = `Der Kriegstrupp aus ${name} hat sich zerstreut`; this.messageUntil = time + 3000; return; }
+      const sp = raidSpoils(n);
+      this.stock = { ...this.stock, flint: this.stock.flint + sp.flint, fiber: this.stock.fiber + sp.fiber }; this.cooked += sp.cooked; this.xp += sp.xp;
+      this.fear = addFearAmount(decayFear(this.fear, clockOf(this.clock).day), villageKey(name), SQUAD_BROKEN_FEAR);
+      this.message = `Der Rachetrupp aus ${name} ist zerschlagen! Beute: ${sp.flint} Feuerstein, ${sp.fiber} Fasern, ${sp.cooked} Braten · +${sp.xp} EP`; this.messageUntil = time + 5500;
+    }
+    /** Cheat "raid": a squad from the angriest (or nearest) village sets off right now. */
+    cheatRaid(time: number) {
+      const p = this.player; if (!p || this.warband.active) { this.message = 'Es ist schon ein Kriegstrupp unterwegs'; this.messageUntil = time + 2000; return; }
+      const fury = this.warband.fury ?? {};
+      const order = FOLK_HOMES.map((v, i) => ({ i, f: fury[String(i)] ?? 0, d: Math.hypot(v.x - CAMP.x, v.y - CAMP.y) })).sort((a, b) => b.f - a.f || a.d - b.d);
+      const pick = order.find(o => this.folk.some(f => f.t.village === o.i && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase === 'ready'));
+      if (!pick) { this.message = 'Kein Dorf hat noch Krieger'; this.messageUntil = time + 2000; return; }
+      const pending = { ...this.warband.pending }; delete pending[String(pick.i)];
+      this.warband = { ...this.warband, pending, active: { village: pick.i, phase: 'march', until: this.clock + MARCH_LIMIT_MINUTES, size: MAX_RAIDERS, burned: 0 } };
+    }
+    /** Retaliation and revenge raids: squads march to the camp, torch huts, free their kin and fight the player and the camp's warriors. */
     tickWarband(time: number, stopped: boolean, ids: Set<string>) {
       const p = this.player; if (!p) return;
       VILLAGES.forEach((v, vi) => { const lvl = this.villageLevel.get(villageKey(v.name)) ?? 0; this.warband = scheduleRaid(this.warband, vi, lvl >= 3, this.clock, championFallen(this.raid, vi)); });
+      if (input.cheatRaid) { input.cheatRaid = false; this.cheatRaid(time); }
       const before = this.warband.active; this.warband = launchDue(this.warband, this.clock);
-      if (!before && this.warband.active) { const v = VILLAGES[this.warband.active.village]!; this.message = `Ein Kriegstrupp aus ${v.name} marschiert auf dein Lager!`; this.messageUntil = time + 5000; this.persist(); }
-      const a = this.warband.active; if (!a) return;
-      const v = VILLAGES[a.village]!, raiders = this.raiders();
-      const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, raiders.filter(f => f.combat.phase === 'ready').length);
-      if (!this.warband.active) { this.roaming.clear(); this.message = raiders.length ? `Der Kriegstrupp aus ${v.name} ist abgezogen` : `Der Kriegstrupp aus ${v.name} ist vernichtet!`; this.messageUntil = time + 4000; this.persist(); return; }
+      if (this.warband.active && this.warband.active !== before && !before) {
+        this.raidRoster.clear(); this.clearRaidFx();
+        const v = FOLK_HOMES[this.warband.active.village]!, n = this.raiders().length;
+        if (!n) { this.warband = endRaid(this.warband, this.clock); return; }
+        this.message = `Ein Rachetrupp aus ${v.name} marschiert auf dein Lager! (${n} Krieger${torchCount(this.warband.active.size ?? MIN_SQUAD) > 0 ? ', mit Fackeln' : ''})`; this.messageUntil = time + 5500; this.persist();
+      }
+      const a = this.warband.active; if (!a) { if (this.torchFx.size || this.raidRoutes.size) this.clearRaidFx(); this.raidRoster.clear(); return; }
+      const v = FOLK_HOMES[a.village]!, raiders = this.raiders(), ready = raiders.filter(f => f.combat.phase === 'ready');
+      const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, ready.length);
+      if (!this.warband.active) {
+        if (!ready.length) this.raidBeaten(a.village, time); else { this.message = `Der Kriegstrupp aus ${v.name} ist abgezogen`; this.messageUntil = time + 4000; }
+        this.roaming.clear(); this.clearRaidFx(); this.raidRoster.clear(); this.persist(); return;
+      }
       if (this.warband.active.phase !== prevPhase && this.warband.active.phase === 'return') { this.message = `Die Krieger aus ${v.name} ziehen sich zurück`; this.messageUntil = time + 3000; }
-      const phase = this.warband.active.phase;
+      const phase = this.warband.active.phase, size = this.warband.active.size ?? MIN_SQUAD, dt = Math.min(this.game.loop.delta, 100);
+      this.routeBudget = 1; let cache: Block[] | undefined; const blocks = () => (cache ??= this.obstacleBlocks());
+      const huts = FLAMMABLE_HOUSES.filter(h => h.owner === 'camp');
+      const bearers = phase === 'return' ? [] : ready.slice(0, torchCount(size));
+      const taken = new Set<string>();
+      for (const [id, t] of this.raidTorches) if (bearers.some(b => b.c.id === id)) taken.add(t.hut); else this.raidTorches.delete(id);
       let arrived = false, home = 0;
       raiders.forEach((f, i) => {
-        if (f.combat.phase !== 'ready') return;
+        if (f.combat.phase !== 'ready') { this.raidTorches.delete(f.c.id); return; }
         this.roaming.add(f.c.id);
-        const m = this.folkMood.get(f.c.id); if ((m?.armedUntil ?? 0) > time) return;
+        const m = this.folkMood.get(f.c.id); if ((m?.armedUntil ?? 0) > time) { this.raidTorches.delete(f.c.id); return; }
         ids.add(f.c.id); const s = f.sprite;
         if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
-        const d = Math.hypot(p.x - s.x, p.y - s.y);
-        if (phase !== 'return' && d < (phase === 'assault' ? RAID_SIGHT : 140) && m) { m.armedUntil = time + 25000; this.bark(f.c.id, s, 'attack', time, true); return; }
+        const torch = bearers.includes(f), d = Math.hypot(p.x - s.x, p.y - s.y);
+        const reach = torch ? TORCH_ENGAGE : phase === 'assault' ? RAID_SIGHT : 140;
+        const defender = phase !== 'return' && this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < (torch ? TORCH_ENGAGE : DEFENDER_ENGAGE));
+        if (phase !== 'return' && (d < reach || defender) && m) { m.armedUntil = time + 25000; this.raidTorches.delete(f.c.id); this.bark(f.c.id, s, 'attack', time, true); return; }
         if (phase === 'march') {
-          const ox = (i - 1.5) * 22;
-          if (this.walkTo(f, CAMP.x + ox, CAMP.y - 40, 40, time) < CAMP_ARRIVAL) arrived = true;
+          if (this.raidTravel(f, { x: CAMP.x + (i - 2) * 22, y: CAMP.y - 30 }, 50, time, blocks) < CAMP_ARRIVAL) arrived = true;
           if (Math.random() < 0.002) this.bark(f.c.id, s, 'attack', time);
-        } else if (phase === 'assault') {
+          return;
+        }
+        if (phase === 'assault') {
+          if (torch) {
+            const cur = this.raidTorches.get(f.c.id);
+            const hut = (cur && !this.fires[cur.hut] ? huts.find(h => h.id === cur.hut) : undefined) ?? burnTarget(huts, this.fires, s, taken);
+            if (hut) {
+              taken.add(hut.id); let t = this.raidTorches.get(f.c.id); if (!t || t.hut !== hut.id) { t = { hut: hut.id, ms: 0 }; this.raidTorches.set(f.c.id, t); }
+              const door = doorPoint(hut);
+              if (this.raidTravel(f, door, 52, time, blocks) < 10) {
+                s.setVelocity(0, 0); s.anims.stop(); f.facing = 6; s.setFrame(6);
+                if (!t.barked) { t.barked = true; this.bark(f.c.id, s, 'attack', time, true, 'Feuer auf ihre Hütten!'); }
+                t.ms += dt; if (t.ms >= RAID_TORCH_MS) { this.raidTorches.delete(f.c.id); this.raiderIgnite(hut, f, time); }
+              }
+              return;
+            }
+          }
           const kin = this.folk.find(c => c.c.state === 'camp' && c.t.village === a.village && !this.companionOrders.has(c.c.id));
-          if (!kin) { if (this.walkTo(f, CAMP.x + Math.cos(time / 2000 + i * 1.6) * 60, CAMP.y + Math.sin(time / 2000 + i * 1.6) * 40, 30, time) < 8) { s.setVelocity(0, 0); s.anims.stop(); } return; }
-          if (this.walkTo(f, kin.sprite.x, kin.sprite.y, 44, time) < 16) {
+          if (!kin) { if (this.raidTravel(f, { x: CAMP.x + Math.cos(time / 2000 + i * 1.6) * 60, y: CAMP.y + Math.sin(time / 2000 + i * 1.6) * 40 }, 30, time, blocks) < 8) { s.setVelocity(0, 0); s.anims.stop(); } return; }
+          if (this.raidTravel(f, { x: kin.sprite.x, y: kin.sprite.y }, 44, time, blocks) < 16) {
             kin.c = { ...kin.c, state: 'free', x: v.x + kin.t.dx, y: v.y + kin.t.dy }; kin.sprite.setVelocity(0, 0); kin.sprite.setPosition(kin.c.x, kin.c.y); poseFolk(kin);
             this.bark(f.c.id, s, 'alarm', time, true, 'Wir holen dich heim!');
             this.message = `Krieger aus ${v.name} haben ${getProfile(kin.c.id)?.name ?? 'einen Gefangenen'} aus deinem Lager befreit!`; this.messageUntil = time + 4500; this.persist();
           }
-        } else if (this.walkTo(f, f.t.x, f.t.y, 40, time) < 20 || Math.hypot(s.x - v.x, s.y - v.y) < v.r * 0.6) home++;
+          return;
+        }
+        if (this.raidTravel(f, { x: f.t.x, y: f.t.y }, 44, time, blocks) < 20 || Math.hypot(s.x - v.x, s.y - v.y) < v.r * 0.6) home++;
       });
-      if (arrived) { this.warband = arrive(this.warband, this.clock); this.message = `Krieger aus ${v.name} greifen dein Lager an!`; this.messageUntil = time + 4000; this.cameras.main.shake(300, 0.006); }
-      if (phase === 'return' && home >= raiders.filter(f => f.combat.phase === 'ready').length) { this.warband = endRaid(this.warband, this.clock); this.roaming.clear(); this.message = `Der Kriegstrupp aus ${v.name} ist heimgekehrt`; this.messageUntil = time + 3000; this.persist(); }
+      this.syncTorchFx(bearers.filter(f => !((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > time)));
+      if (arrived) { this.warband = arrive(this.warband, this.clock); this.message = `Krieger aus ${v.name} greifen dein Lager an!`; this.messageUntil = time + 4000; this.cameras.main.shake(300, 0.006); this.persist(); }
+      const now = this.warband.active;
+      if (now?.phase === 'assault' && raidGoalsDone(now, this.folk.some(c => c.c.state === 'camp' && c.t.village === a.village && !this.companionOrders.has(c.c.id)), huts, this.fires)) {
+        this.warband = retreat(this.warband, this.clock); this.raidRoutes.clear();
+        this.message = (now.burned ?? 0) > 0 ? `Die Krieger aus ${v.name} ziehen ab · dein Lager brennt!` : `Die Krieger aus ${v.name} ziehen mit ihren Leuten ab`; this.messageUntil = time + 4000; this.persist();
+      }
+      if (phase === 'return' && home >= ready.length) { this.warband = endRaid(this.warband, this.clock); this.roaming.clear(); this.clearRaidFx(); this.raidRoster.clear(); this.message = `Der Kriegstrupp aus ${v.name} ist heimgekehrt`; this.messageUntil = time + 3000; this.persist(); }
     }
     villageLevel = new Map<string, WarningLevel>();
     /** Short speech bubble above a person; respects a per-person cooldown. */
@@ -1093,7 +1198,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
       this.duels = g.duels ? { shame: { ...g.duels.shame }, cooldown: { ...g.duels.cooldown } } : EMPTY_DUELS; this.duel = null;
-      this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, active: g.warband.active } : EMPTY_WARBANDS;
+      this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, fury: { ...(g.warband.fury ?? {}) }, squads: { ...(g.warband.squads ?? {}) }, active: g.warband.active ? { ...g.warband.active } : undefined } : EMPTY_WARBANDS; this.raidRoster.clear(); this.clearRaidFx();
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
       for (const order of g.companions ?? []) {
         const actor = this.companionActors().find(a => a.id === order.id); if (!actor) continue;
@@ -2150,6 +2255,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (r.alarm) this.rel = raiseAlarm(this.rel, r.village, now);
         if (r.relationship) this.rel = changeVillageRelationship(this.rel, r.village, r.relationship);
         if (r.fear) { const vi = FOLK_HOMES.findIndex(v => villageKey(v.name) === r.village); if (vi >= 0) this.frighten(vi, r.village === victimVk && fearEv ? fearEv : r.fear); }
+      }
+      // The victim's own village saw who did it: revenge builds up until a squad swears to burn the camp.
+      if (out.villages.some(r => r.identified && r.village === victimVk)) {
+        const vi = victim.t.village, rv = addRevenge(this.warband, vi, kind, this.clock, championFallen(this.raid, vi), Math.random);
+        this.warband = rv.state;
+        if (rv.sworn) this.time.delayedCall(4200, () => { this.message = `${FOLK_HOMES[vi]!.name} schwört Rache · ein Rachetrupp sammelt sich`; this.messageUntil = this.time.now + 3500; });
       }
       if (!out.unwitnessed) {
         // Freie Dorfbewohner, die es gesehen haben, rennen heim, um es zu melden. Krieger bleiben und kämpfen.
