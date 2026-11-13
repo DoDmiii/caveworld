@@ -124,7 +124,7 @@ import { partyBonuses, discountedRecipe, bonusYield, BRUK_EXTRA_HP, refusesFight
 import type { ProfileView } from './ProfileDetails';
 
 import { decideReaction, type BehaviorDecision } from './behavior';
-import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, retreat, fordRoute, addRevenge, burnTarget, raidGoalsDone, raidSpoils, torchCount, MAX_RAIDERS, MIN_SQUAD, MARCH_LIMIT_MINUTES, CAMP_ARRIVAL, RAID_SIGHT, RAID_TORCH_MS, TORCH_ENGAGE, DEFENDER_ENGAGE, SQUAD_BROKEN_FEAR, type WarbandState } from './warbands';
+import { EMPTY_WARBANDS, scheduleRaid, launchDue, arrive, advanceRaid, endRaid, retreat, fordRoute, addRevenge, burnTarget, raidGoalsDone, raidSpoils, torchCount, MAX_RAIDERS, MIN_SQUAD, MARCH_LIMIT_MINUTES, CAMP_ARRIVAL, RAID_SIGHT, RAID_TORCH_MS, TORCH_ENGAGE, DEFENDER_ENGAGE, SQUAD_BROKEN_FEAR, RAIDER_HP, type WarbandState } from './warbands';
 import { PERSONAL_SPACE, SHOVE_RANGE, SHOVE_SPEED, SHOVE_MS, SHOVE_DAMAGE, SHOVE_COOLDOWN_MS, KIN_ALARM_RADIUS, CARRY_SIGHT, shoveStep, nextStrikes, isKinCrime, guardsSpace, escortGoal, pickEscort } from './tension';
 import { warningLevel, patrolsActive, patrolAttacks, patrolRoute, pickBark, BARK_MS, BARK_COOLDOWN_MS, WARNING_NAME, type BarkKind, type WarningLevel } from './patrols';
 import { getVillageRelationship } from './relationships';
@@ -535,7 +535,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     routeBudget = 0;
     raiders() {
       const a = this.warband.active; if (!a) return [];
-      if (!this.raidRoster.size) { const duel = this.duelIds(); for (const f of this.folk.filter(f => f.t.village === a.village && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase === 'ready' && !duel.has(f.c.id)).slice(0, Math.min(MAX_RAIDERS, a.size ?? MIN_SQUAD))) this.raidRoster.add(f.c.id); }
+      if (!this.raidRoster.size) { const duel = this.duelIds(); for (const f of this.folk.filter(f => f.t.village === a.village && isWarrior(f.t) && !isChampion(f.t) && f.c.state === 'free' && f.combat.phase === 'ready' && !duel.has(f.c.id)).slice(0, Math.min(MAX_RAIDERS, a.size ?? MIN_SQUAD))) { this.raidRoster.add(f.c.id); f.combat = { ...f.combat, hp: f.combat.hp >= FIGHTER_HP ? RAIDER_HP : f.combat.hp, max: RAIDER_HP }; } }
       return this.folk.filter(f => this.raidRoster.has(f.c.id) && f.c.state === 'free' && f.combat.phase !== 'dead');
     }
     /** Walks a folk sprite toward a point, turning aside for a moment when blocked. */
@@ -563,6 +563,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const wp = r.pts[r.i] ?? goal; this.walkTo(f, wp.x, wp.y, speed, time); return far;
     }
     clearRaidFx() { this.torchFx.forEach(o => o.destroy()); this.torchFx.clear(); this.raidTorches.clear(); this.raidRoutes.clear(); }
+    /** The raid is over: survivors are ordinary guards again. */
+    disbandRaid() {
+      for (const f of this.folk) if (this.raidRoster.has(f.c.id) && f.combat.max === RAIDER_HP) { const { max: _m, ...rest } = f.combat; f.combat = { ...rest, hp: Math.min(rest.hp, FIGHTER_HP) }; }
+      this.raidRoster.clear(); this.clearRaidFx();
+    }
     /** Torchbearers carry a small flame while they march and assault. */
     syncTorchFx(bearers: Folk[]) {
       const keep = new Set(bearers.map(f => f.c.id));
@@ -619,7 +624,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const prevPhase = a.phase; this.warband = advanceRaid(this.warband, this.clock, ready.length);
       if (!this.warband.active) {
         if (!ready.length) this.raidBeaten(a.village, time); else { this.message = `Der Kriegstrupp aus ${v.name} ist abgezogen`; this.messageUntil = time + 4000; }
-        this.roaming.clear(); this.clearRaidFx(); this.raidRoster.clear(); this.persist(); return;
+        this.roaming.clear(); this.disbandRaid(); this.persist(); return;
       }
       if (this.warband.active.phase !== prevPhase && this.warband.active.phase === 'return') { this.message = `Die Krieger aus ${v.name} ziehen sich zurück`; this.messageUntil = time + 3000; }
       const phase = this.warband.active.phase, size = this.warband.active.size ?? MIN_SQUAD, dt = Math.min(this.game.loop.delta, 100);
@@ -690,7 +695,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.warband = retreat(this.warband, this.clock); this.raidRoutes.clear();
         this.message = (now.burned ?? 0) > 0 ? `Die Krieger aus ${v.name} ziehen ab · dein Lager brennt!` : `Die Krieger aus ${v.name} ziehen mit ihren Leuten ab`; this.messageUntil = time + 4000; this.persist();
       }
-      if (phase === 'return' && home >= ready.length) { this.warband = endRaid(this.warband, this.clock); this.roaming.clear(); this.clearRaidFx(); this.raidRoster.clear(); this.message = `Der Kriegstrupp aus ${v.name} ist heimgekehrt`; this.messageUntil = time + 3000; this.persist(); }
+      if (phase === 'return' && home >= ready.length) { this.warband = endRaid(this.warband, this.clock); this.roaming.clear(); this.disbandRaid(); this.message = `Der Kriegstrupp aus ${v.name} ist heimgekehrt`; this.messageUntil = time + 3000; this.persist(); }
     }
     villageLevel = new Map<string, WarningLevel>();
     /** Short speech bubble above a person; respects a per-person cooldown. */
@@ -1993,7 +1998,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (!m.weapon && !isWarrior(f.t)) m.weapon = this.add.image(0, 0, isChampion(f.t) ? 'folk-axe' : f.seed % 2 ? 'folk-axe' : 'spear-proj').setScale(isChampion(f.t) ? 0.55 : 0.45);
           const inRange = this.roaming.has(f.c.id) || Math.hypot(s2.x - v.x, s2.y - v.y) < v.r * 1.4 + 160;
           const idx = armedFolk.indexOf(f), n = armedFolk.length;
-          const lunging = isChampion(f.t) || idx === lungeIndex(n, time);
+          const lunging = isChampion(f.t) || this.raidRoster.has(f.c.id) || idx === lungeIndex(n, time);
           if (isChampion(f.t) && !(m as { roared?: boolean }).roared) { (m as { roared?: boolean }).roared = true; this.message = `${CHAMPION_NAMES[f.t.village]}, Champion von ${v.name}, stellt sich dir!`; this.messageUntil = time + 3000; this.cameras.main.shake(250, 0.006); }
           // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
           const near = this.standingAllies().filter(a => Math.hypot(a.x - s2.x, a.y - s2.y) < d - 10).sort((a, b) => Math.hypot(a.x - s2.x, a.y - s2.y) - Math.hypot(b.x - s2.x, b.y - s2.y))[0];

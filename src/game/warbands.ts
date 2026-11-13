@@ -119,6 +119,8 @@ export const RAID_TORCH_MS = 3500;
 export const TORCH_ENGAGE = 44;
 /** Other raiders turn on camp defenders this close. */
 export const DEFENDER_ENGAGE = 80;
+/** Squad warriors are hardened fighters: more health than a village guard while the raid lasts. */
+export const RAIDER_HP = 100;
 /** Big squads bring two torches. */
 export const torchCount = (size: number) => (size >= 4 ? 2 : 1);
 
