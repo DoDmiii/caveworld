@@ -16,7 +16,7 @@ import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FOR
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
 import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
-import { CompanionMovement, findCompanionPath, type CompanionActor, type Block } from './companion-movement';
+import { CompanionMovement, findCompanionPath, clearCompanionPoint, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, type CouplesState, type WitnessReaction } from './partners';
@@ -557,15 +557,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let r = this.raidRoutes.get(f.c.id); const wp0 = r?.pts[r.i];
       if (!r || Math.hypot(r.goal.x - goal.x, r.goal.y - goal.y) > 64 || (wp0 && Math.hypot(wp0.x - s.x, wp0.y - s.y) > 160) || (!r.pts.length && time > r.retry)) {
         if (this.routeBudget <= 0) { s.setVelocity(0, 0); s.anims.stop(); return far; }
-        this.routeBudget--; r = { pts: findCompanionPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal }, retry: time + 1500 }; this.raidRoutes.set(f.c.id, r);
+        this.routeBudget--; r = { pts: this.raidPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal }, retry: time + 1500 }; this.raidRoutes.set(f.c.id, r);
       }
       while (r.pts[r.i] && Math.hypot(r.pts[r.i]!.x - s.x, r.pts[r.i]!.y - s.y) < 12) r.i++;
-      if (!r.pts.length) {
-        // No path from here (wedged against a wall): step back toward open ground near camp or home, then search again.
-        const home = FOLK_HOMES[f.t.village]!, open = Math.hypot(CAMP.x - s.x, CAMP.y - s.y) < Math.hypot(home.x - s.x, home.y - s.y) ? { x: CAMP.x, y: CAMP.y + 60 } : home;
-        this.walkTo(f, open.x, open.y, speed, time); return far;
-      }
       const wp = r.pts[r.i] ?? goal; this.walkTo(f, wp.x, wp.y, speed, time); return far;
+    }
+    /** Path search that first steps off a blocked spot (a hut wall, a fence corner) onto the nearest free ground. */
+    raidPath(from: { x: number; y: number }, goal: { x: number; y: number }, blocks: Block[]) {
+      const direct = findCompanionPath(from, goal, blocks); if (direct.length) return direct;
+      for (let rad = 12; rad <= 60; rad += 12) for (let k = 0; k < 8; k++) {
+        const st = { x: from.x + Math.cos(k * Math.PI / 4) * rad, y: from.y + Math.sin(k * Math.PI / 4) * rad };
+        if (!clearCompanionPoint(st, blocks)) continue;
+        const pts = findCompanionPath(st, goal, blocks); if (pts.length) return [st, ...pts];
+      }
+      return [];
     }
     clearRaidFx() { this.torchFx.forEach(o => o.destroy()); this.torchFx.clear(); this.raidTorches.clear(); this.raidRoutes.clear(); }
     /** The raid is over: survivors are ordinary guards again. */
