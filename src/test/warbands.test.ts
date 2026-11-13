@@ -44,7 +44,7 @@ describe('revenge squads', () => {
     expect(squadSize(REVENGE_THRESHOLD)).toBe(3);
     expect(squadSize(30)).toBe(5);
     expect(MIN_SQUAD).toBe(3); expect(MAX_RAIDERS).toBe(5);
-    const s = launchDue(addRevenge(EMPTY_WARBANDS, 1, 'champion', 0, false, () => 0).state, REVENGE_DELAY_MIN);
+    const s = launchDue(addRevenge(addRevenge(EMPTY_WARBANDS, 1, 'champion', 0, false, () => 0).state, 1, 'kill', 0, false, () => 0).state, REVENGE_DELAY_MIN);
     expect(addRevenge(EMPTY_WARBANDS, 1, 'arson', 0, false, () => 0).sworn).toBe(false);
     expect(s.active?.village).toBe(1); expect(s.active?.size).toBe(3);
   });
