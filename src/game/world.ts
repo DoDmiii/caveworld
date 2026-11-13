@@ -528,7 +528,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     fordGuards() { const out = new Set<string>(); VILLAGES.forEach((_, vi) => { const w = this.folk.find(f => f.t.village === vi && !f.t.captive && isWarrior(f.t) && !isChampion(f.t)); if (w) out.add(w.c.id); }); return out; }
     /** Fixed squad for the running raid (rebuilt after loading); captured or dead members drop out, nobody is pulled in mid-raid. */
     raidRoster = new Set<string>();
-    raidRoutes = new Map<string, { pts: { x: number; y: number }[]; i: number; goal: { x: number; y: number } }>();
+    raidRoutes = new Map<string, { pts: { x: number; y: number }[]; i: number; goal: { x: number; y: number }; retry: number }>();
+    raidWaitMs = 0;
     raidTorches = new Map<string, { hut: string; ms: number; barked?: boolean }>();
     torchFx = new Map<string, Phaser.GameObjects.Sprite>();
     routeBudget = 0;
@@ -554,9 +555,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const s = f.sprite, far = Math.hypot(goal.x - s.x, goal.y - s.y);
       if (far < 200) { this.raidRoutes.delete(f.c.id); this.walkTo(f, goal.x, goal.y, speed, time); return far; }
       let r = this.raidRoutes.get(f.c.id); const wp0 = r?.pts[r.i];
-      if (!r || Math.hypot(r.goal.x - goal.x, r.goal.y - goal.y) > 64 || (wp0 && Math.hypot(wp0.x - s.x, wp0.y - s.y) > 160)) {
+      if (!r || Math.hypot(r.goal.x - goal.x, r.goal.y - goal.y) > 64 || (wp0 && Math.hypot(wp0.x - s.x, wp0.y - s.y) > 160) || (!r.pts.length && time > r.retry)) {
         if (this.routeBudget <= 0) { s.setVelocity(0, 0); s.anims.stop(); return far; }
-        this.routeBudget--; r = { pts: findCompanionPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal } }; this.raidRoutes.set(f.c.id, r);
+        this.routeBudget--; r = { pts: findCompanionPath({ x: s.x, y: s.y }, goal, blocks()), i: 0, goal: { ...goal }, retry: time + 1500 }; this.raidRoutes.set(f.c.id, r);
       }
       while (r.pts[r.i] && Math.hypot(r.pts[r.i]!.x - s.x, r.pts[r.i]!.y - s.y) < 12) r.i++;
       const wp = r.pts[r.i] ?? goal; this.walkTo(f, wp.x, wp.y, speed, time); return far;
@@ -628,6 +629,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const taken = new Set<string>();
       for (const [id, t] of this.raidTorches) if (bearers.some(b => b.c.id === id)) taken.add(t.hut); else this.raidTorches.delete(id);
       let arrived = false, home = 0;
+      const marching = ready.filter(f => !((this.folkMood.get(f.c.id)?.armedUntil ?? 0) > time));
       raiders.forEach((f, i) => {
         if (f.combat.phase !== 'ready') { this.raidTorches.delete(f.c.id); return; }
         this.roaming.add(f.c.id);
@@ -639,7 +641,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const defender = phase !== 'return' && this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < (torch ? TORCH_ENGAGE : DEFENDER_ENGAGE));
         if (phase !== 'return' && (d < reach || defender) && m) { m.armedUntil = time + 25000; this.raidTorches.delete(f.c.id); this.bark(f.c.id, s, 'attack', time, true); return; }
         if (phase === 'march') {
-          if (this.raidTravel(f, { x: CAMP.x + (i - 2) * 22, y: CAMP.y - 30 }, 50, time, blocks) < CAMP_ARRIVAL) arrived = true;
+          // The squad marches together: the leader follows the path and waits for stragglers, the others keep close behind him.
+          const leader = marching[0];
+          if (!leader || leader === f) {
+            const behind = marching.some(o => o !== f && Math.hypot(o.sprite.x - s.x, o.sprite.y - s.y) > 110);
+            const toCamp = Math.hypot(CAMP.x - s.x, CAMP.y - 30 - s.y);
+            if (behind && toCamp > CAMP_ARRIVAL && this.raidWaitMs < 9000) { this.raidWaitMs += dt; s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing); }
+            else { if (!behind) this.raidWaitMs = 0; this.raidTravel(f, { x: CAMP.x, y: CAMP.y - 30 }, 50, time, blocks); }
+            if (toCamp < CAMP_ARRIVAL) arrived = true;
+          } else {
+            const k = marching.indexOf(f), ang = Math.atan2(leader.sprite.y - (CAMP.y - 30), leader.sprite.x - CAMP.x) + (k % 2 ? 1 : -1) * (0.5 + 0.25 * Math.floor((k - 1) / 2));
+            const slot = { x: leader.sprite.x + Math.cos(ang) * 24 * (1 + Math.floor((k - 1) / 2) * 0.6), y: leader.sprite.y + Math.sin(ang) * 24 * (1 + Math.floor((k - 1) / 2) * 0.6) };
+            if (Math.hypot(slot.x - s.x, slot.y - s.y) < 8) { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing); } else this.raidTravel(f, slot, 58, time, blocks);
+          }
           if (Math.random() < 0.002) this.bark(f.c.id, s, 'attack', time);
           return;
         }
