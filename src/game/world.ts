@@ -21,7 +21,7 @@ import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
-import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon } from './combat';
+import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon, FIGHTER_HP } from './combat';
 import north from '@/assets/north.png.asset.json';
 import { corpseParts } from './corpse-art';
 import northEast from '@/assets/north-east.png.asset.json';
