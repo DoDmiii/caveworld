@@ -641,7 +641,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const m = this.folkMood.get(f.c.id), torch = bearers.includes(f), s = f.sprite;
         // A torchbearer shakes off a scuffle as soon as nobody is right on him and goes back to the huts.
         if (torch && m && (m.armedUntil ?? 0) > time && Math.hypot(p.x - s.x, p.y - s.y) > TORCH_ENGAGE + 16 && !this.standingAllies().some(al => Math.hypot(al.x - s.x, al.y - s.y) < TORCH_ENGAGE)) m.armedUntil = 0;
-        if ((m?.armedUntil ?? 0) > time) { if (phase === 'march' && Math.hypot(s.x - CAMP.x, s.y - CAMP.y) < CAMP_RESPONSE_RANGE + 80) arrived = true; return; }
+        if ((m?.armedUntil ?? 0) > time) { this.raidTorches.delete(f.c.id); if (phase === 'march' && Math.hypot(s.x - CAMP.x, s.y - CAMP.y) < CAMP_RESPONSE_RANGE + 80) arrived = true; return; }
         ids.add(f.c.id);
         if (stopped) { s.setVelocity(0, 0); s.anims.stop(); return; }
         const d = Math.hypot(p.x - s.x, p.y - s.y);
