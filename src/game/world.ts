@@ -82,6 +82,7 @@ import { preloadChildren, syncChildren, tickChildren, type Kid } from './child-f
 import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
+import { EMPTY_ESCAPE, loosen, isLoose, guarded, syncBound, rescueDue, sentRescue, runnerStep, RUNNER_SPEED, SCOUT_SPEED, SCOUT_SPOT, type EscapeState } from './escape';
 import { woundFrom, bleedDamage, isBleeding, limpFactor, hitstopMs } from './wounds';
 import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, type Weather } from './weather';
 import { headStage } from './decay';
@@ -452,6 +453,63 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (allyDowned(before) && !allyDowned(h)) { a.sprite.setAngle(0); this.message = 'Dein Begleiter steht wieder auf'; this.messageUntil = time + 1500; }
         if (allyDowned(h)) { a.sprite.setVelocity(0, 0); a.sprite.setAngle(90); }
       }
+    }
+    escape: EscapeState = EMPTY_ESCAPE; runners = new Set<string>(); scout: { id: string; captive: string; phase: 'sneak' | 'home'; spotted: boolean } | null = null;
+    /** Bound captives work their ropes loose when unguarded (fast at night); home villages send a quiet scout to cut them free. */
+    tickEscapes(time: number, delta: number, paused: boolean) {
+      const p = this.player; if (!p || paused) { for (const id of this.runners) this.folk.find(o => o.c.id === id)?.sprite.setVelocity(0, 0); return; }
+      const c = clockOf(this.clock), night = isNight(c.minutesOfDay), minutes = delta / 1000 * 2;
+      const nearCamp = (f: Folk) => Math.hypot(f.sprite.x - CAMP.x, f.sprite.y - CAMP.y) < 260;
+      const held = this.folk.filter(f => f.c.state === 'bound' && !this.runners.has(f.c.id) && nearCamp(f));
+      this.escape = syncBound(this.escape, held.map(f => f.c.id), this.clock);
+      const guards = this.companionActors().filter(a => !allyDowned(this.allyHealth(a.id))).map(a => ({ x: a.sprite.x, y: a.sprite.y }));
+      const me = { x: p.x, y: p.y, asleep: this.sleeping };
+      for (const f of held) {
+        const before = this.escape.progress[f.c.id] ?? 0, next = loosen(before, minutes, night, guarded({ x: f.sprite.x, y: f.sprite.y }, me, guards));
+        if (next !== before) this.escape = { ...this.escape, progress: { ...this.escape.progress, [f.c.id]: next } };
+        if (isLoose(next)) this.startRunner(f, time, `${this.personName(f.c.id)} hat die Fesseln gelockert und flieht!`);
+      }
+      const camp = { x: CAMP.x, y: CAMP.y }, blocks = () => this.obstacleBlocks();
+      for (const id of [...this.runners]) {
+        const f = this.folk.find(o => o.c.id === id);
+        if (!f || f.c.state !== 'bound') { this.runners.delete(id); continue; }
+        const r = runnerStep({ x: f.sprite.x, y: f.sprite.y }, camp, this.sleeping ? guards : [{ x: p.x, y: p.y }, ...guards]);
+        if (r === 'caught') { this.runners.delete(id); this.raidRoutes.delete(id); f.sprite.setVelocity(0, 0); f.c = { ...f.c, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }; poseFolk(f); this.escape = { ...this.escape, progress: { ...this.escape.progress, [id]: 0 } }; this.message = `${this.personName(id)} wurde eingefangen und liegt wieder in Fesseln`; this.messageUntil = time + 3000; this.persist(); continue; }
+        const v = FOLK_HOMES[f.t.village]!;
+        if (r === 'escaped') { this.runners.delete(id); this.raidRoutes.delete(id); f.c = { ...f.c, state: 'free', x: v.x + f.t.dx, y: v.y + f.t.dy }; f.sprite.setVelocity(0, 0); f.sprite.setPosition(f.c.x, f.c.y); poseFolk(f); this.message = `${this.personName(id)} ist nach ${v.name} entkommen`; this.messageUntil = time + 3500; this.persist(); continue; }
+        this.raidTravel(f, { x: v.x, y: v.y }, RUNNER_SPEED, time, blocks);
+      }
+      // Quiet rescue scouts.
+      const sc = this.scout;
+      if (!sc) {
+        const raidOn = !!this.warband.active;
+        FOLK_HOMES.forEach((v, vi) => {
+          if (this.scout) return; const vk = villageKey(v.name);
+          const kin = held.filter(f => f.t.village === vi);
+          if (!rescueDue(this.escape, vk, kin.map(f => f.c.id), this.clock, night, raidOn)) return;
+          const w = this.folk.find(o => o.c.state === 'free' && o.t.village === vi && isWarrior(o.t) && !isChampion(o.t) && o.combat.phase === 'ready' && !this.raidRoster.has(o.c.id));
+          this.escape = sentRescue(this.escape, vk, this.clock);
+          if (w && kin[0]) this.scout = { id: w.c.id, captive: kin[0].c.id, phase: 'sneak', spotted: false };
+        });
+        return;
+      }
+      const w = this.folk.find(o => o.c.id === sc.id), cap = this.folk.find(o => o.c.id === sc.captive);
+      if (!w || w.c.state !== 'free' || w.combat.phase !== 'ready') { this.scout = null; this.raidRoutes.delete(sc.id); return; }
+      if (!sc.spotted && Math.hypot(w.sprite.x - p.x, w.sprite.y - p.y) < SCOUT_SPOT && !this.sleeping) { sc.spotted = true; this.message = `Ein Späher aus ${FOLK_HOMES[w.t.village]!.name} schleicht ins Lager!`; this.messageUntil = time + 3500; this.bark(w.c.id, w.sprite, 'alarm', time, true, 'Still…'); }
+      if (sc.phase === 'sneak') {
+        if (!cap || cap.c.state !== 'bound' || this.runners.has(cap.c.id)) { sc.phase = 'home'; return; }
+        if (this.raidTravel(w, { x: cap.sprite.x, y: cap.sprite.y }, SCOUT_SPEED, time, blocks) < 16) {
+          w.sprite.setVelocity(0, 0); sc.phase = 'home'; this.bark(w.c.id, w.sprite, 'alarm', time, true, 'Lauf! Heim!');
+          this.startRunner(cap, time, `Ein Späher hat ${this.personName(cap.c.id)} losgeschnitten!`);
+        }
+        return;
+      }
+      const home = FOLK_HOMES[w.t.village]!;
+      if (this.raidTravel(w, { x: home.x + w.t.dx, y: home.y + w.t.dy }, SCOUT_SPEED, time, blocks) < 40) { w.sprite.setVelocity(0, 0); this.raidRoutes.delete(w.c.id); this.scout = null; }
+    }
+    startRunner(f: Folk, time: number, line: string) {
+      this.runners.add(f.c.id); this.escape = { ...this.escape, progress: { ...this.escape.progress, [f.c.id]: 0 } };
+      this.message = line; this.messageUntil = time + 3500; this.bark(f.c.id, f.sprite, 'flee', time, true);
     }
     nextUraWarn = 0; ilvarEscaping: string | undefined; ilvarNight = -1;
     /** Ilvar sneaks off toward Frostheim at night while he does not trust you yet. */
@@ -1140,12 +1198,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         trustProgress: this.trustProgress,
         profiles: Object.fromEntries(Object.entries(this.profiles).map(([id, state]) => [id, { trust: state.trust, skills: { ...state.skills } }])),
         // A captive on the shoulders is saved lying bound at the player's feet.
-        captives: this.folk.filter(f => f.c.state !== 'free').map(f => f.c.state === 'carried'
+        captives: this.folk.filter(f => f.c.state !== 'free' && !this.runners.has(f.c.id)).map(f => f.c.state === 'carried'
           ? { id: f.c.id, state: 'bound' as const, x: Math.round(p.x), y: Math.round(p.y + 6) }
           : { id: f.c.id, state: f.c.state as 'surrender' | 'bound' | 'camp', x: Math.round(f.sprite.x), y: Math.round(f.sprite.y) }),
         raid: { ...this.raid },
         fires: { ...this.fires },
         warband: this.warband,
+        escape: this.escape,
         fear: dv.fear,
         duels: { shame: { ...dv.duels.shame }, cooldown: { ...dv.duels.cooldown } },
         lore: this.lore,
@@ -1225,6 +1284,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for (const i of g.pickedBerries) { const b = this.berries[i]; if (b) { b.picked = true; b.sprite.setTint(0x849461); } }
       for (const c of g.captives) { const f = this.folk.find(o => o.c.id === c.id); if (f) { f.c = { ...c }; poseFolk(f); } }
       this.raid = { ...(g.raid ?? {}) };
+      this.escape = g.escape ? { progress: { ...g.escape.progress }, since: { ...g.escape.since }, rescueAt: { ...g.escape.rescueAt } } : EMPTY_ESCAPE; this.runners.clear(); this.scout = null;
       this.fires = { ...(g.fires ?? {}) };
       this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
@@ -1657,7 +1717,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (this.caves.current) { this.updateCave(time, delta); return; }
       this.cavePrompt = caveAt(p.x,p.y) ? `Betreten: ${CAVES[caveAt(p.x,p.y) ?? 'home'].name}` : null;
       this.tickSignals(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
-      const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping);
+      const controlled = new Set([...this.companionOrders.keys(), ...this.responseOrders.keys()]); if (this.ilvarEscaping) controlled.add(this.ilvarEscaping); for (const id of this.runners) controlled.add(id); if (this.scout) controlled.add(this.scout.id);
       for (const c of this.carriers.carriers) if (c.status === 'fleeing') controlled.add(c.id);
       this.tickRepro(time);
       this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
@@ -1669,6 +1729,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (this.kids.length !== this.repro.children.length) this.kids = syncChildren(this, this.kids, this.repro.children, this.folk);
       tickChildren(this.kids, this.folk, this.obstacles, time, delta, input.paused || this.dead || this.health <= 0 || this.sleeping, p);
       this.tickIlvar(time, input.paused || this.dead || this.health <= 0);
+      this.tickEscapes(time, delta, input.paused || this.dead || this.health <= 0);
       const blocks: Block[] = (this.obstacles?.getChildren() ?? []).flatMap(o => {
         const body = (o as Phaser.Physics.Arcade.Sprite).body;
         return body ? [{ x: body.x, y: body.y, width: body.width, height: body.height }] : [];
