@@ -68,6 +68,7 @@ const GameSchema = z.object({
     active: z.object({ village: z.number().int().min(0).max(10), phase: z.enum(['march', 'assault', 'return']), until: z.number().min(0), size: z.number().int().min(0).max(10).optional(), burned: z.number().int().min(0).max(20).optional() }).optional(),
   }).optional(),
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
+  guardPosts: z.record(z.string().max(40), z.object({ post: z.enum(['free', 'gate', 'fire', 'chest', 'captives', 'west', 'east', 'north', 'here']), x: z.number().optional(), y: z.number().optional() })).optional(),
   escape: z.object({ progress: z.record(z.string().max(40), z.number().min(0).max(100)), since: z.record(z.string().max(40), z.number().min(0)), rescueAt: z.record(z.string().max(40), z.number().min(0)) }).optional(),
   // Brennende und abgebrannte Hütten; optional, damit ältere Spielstände weiter laden.
   fires: z.record(z.string().max(80), z.object({ litAt: z.number().min(0).max(10_000_000), owner: z.enum(['camp', 'nordic', 'dragon']), village: z.number().int().min(0).max(20).optional() })).optional(),

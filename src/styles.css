@@ -560,3 +560,17 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .duel-note {font-size:13px;}
 .duel-actions {display:flex;gap:8px;justify-content:center;flex-wrap:wrap;}
 .shame-badge {position:absolute;top:118px;left:50%;transform:translateX(-50%);z-index:6;pointer-events:none;padding:2px 10px;border-radius:4px;background:var(--glass);border:1px solid var(--glass-border);color:var(--destructive);font-family:'Barlow Condensed',sans-serif;font-size:13px;letter-spacing:.06em;text-transform:uppercase;}
+
+.camp-button{position:absolute;top:calc(env(safe-area-inset-top,0px) + 262px);right:10px;z-index:30;color:var(--foreground);}
+@media (orientation:landscape) and (max-height:600px){.camp-button{top:62px;right:calc(max(12px,env(safe-area-inset-right)) + 156px);width:44px;height:44px;}}
+@media (orientation:portrait){.camp-button{top:322px;right:10px;width:44px;height:44px;}}
+.camp-manage-hint{font-size:13px;color:var(--muted-foreground);margin:0 0 10px;}
+.camp-manage-list{display:flex;flex-direction:column;gap:10px;max-height:52vh;overflow-y:auto;touch-action:pan-y;}
+.camp-guard{border:1px solid var(--border);border-radius:5px;padding:10px;background:var(--glass-soft);}
+.camp-guard header{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;}
+.camp-guard header strong{font-family:'Barlow Condensed',sans-serif;font-size:20px;}
+.camp-guard header em{font-size:12px;color:var(--muted-foreground);font-style:normal;}
+.camp-guard-posts{display:flex;flex-wrap:wrap;gap:4px;}
+.camp-post{padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted-foreground);}
+.camp-post.is-active{color:var(--foreground);background:var(--glass-soft);border-color:var(--foreground);}
+.camp-post:disabled{opacity:.4;}

@@ -31,15 +31,17 @@ export const CAMP_GUARD_POSTS: readonly Pt[] = [
   { x: CAMP_POS.x - 55, y: CAMP_POS.y + 118 }, { x: CAMP_POS.x + 55, y: CAMP_POS.y + 118 },
   { x: CAMP_POS.x, y: CAMP_POS.y + 108 },
 ];
-export function campResponse(actors: readonly (Pt & { id: string; profile: string; down: boolean })[], foes: readonly Foe[], active: boolean) {
+/** `posts` holds stand-by spots the player assigned; `warrior` overrides the profile check (e.g. integrated Nordic men). */
+export function campResponse(actors: readonly (Pt & { id: string; profile: string; down: boolean; warrior?: boolean })[], foes: readonly Foe[], active: boolean, posts?: ReadonlyMap<string, Pt>) {
   const orders = new Map<string, CompanionOrder>(), targets = new Map<string, Foe>();
   if (!active) return { orders, targets };
   let post = 0;
   for (const a of actors) {
     if (a.down || Math.hypot(a.x-CAMP_POS.x,a.y-CAMP_POS.y)>CAMP_RESPONSE_RANGE) continue;
-    const target = campWarrior(a.profile) ? foes.filter(f => f.alive && f.hostile && Math.hypot(f.x-CAMP_POS.x,f.y-CAMP_POS.y)<=CAMP_RESPONSE_RANGE)
+    const fights = a.warrior ?? campWarrior(a.profile);
+    const target = fights ? foes.filter(f => f.alive && f.hostile && Math.hypot(f.x-CAMP_POS.x,f.y-CAMP_POS.y)<=CAMP_RESPONSE_RANGE)
       .sort((b,c) => Math.hypot(a.x-b.x,a.y-b.y)-Math.hypot(a.x-c.x,a.y-c.y))[0] : undefined;
-    const goal = target ?? (campWarrior(a.profile) ? CAMP_GUARD_POSTS[post++ % CAMP_GUARD_POSTS.length]! : { x: CAMP_POS.x-40+(a.id.charCodeAt(a.id.length-1)%5)*20, y: CAMP_POS.y-35 });
+    const goal = target ?? (fights ? (posts?.get(a.id) ?? CAMP_GUARD_POSTS[post++ % CAMP_GUARD_POSTS.length]!) : { x: CAMP_POS.x-40+(a.id.charCodeAt(a.id.length-1)%5)*20, y: CAMP_POS.y-35 });
     orders.set(a.id, { id: a.id, mode: 'wait', x: goal.x, y: goal.y });
     if (target) targets.set(a.id, target);
   }
