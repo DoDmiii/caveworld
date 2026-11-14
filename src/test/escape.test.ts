@@ -14,9 +14,9 @@ describe('captive escape', () => {
   });
   it('tracks when captives were bound and forgets freed ones', () => {
     const a = syncBound(EMPTY_ESCAPE, ['x'], 50);
-    expect(a.since.x).toBe(50);
+    expect(a.since['x']).toBe(50);
     const b = syncBound({ ...a, progress: { x: 40 } }, [], 90);
-    expect(b.progress.x).toBeUndefined();
+    expect(b.progress['x']).toBeUndefined();
   });
   it('rescue scouts only come at night after a day of captivity, then wait', () => {
     const s = syncBound(EMPTY_ESCAPE, ['x'], 0);
