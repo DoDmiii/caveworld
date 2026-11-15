@@ -89,6 +89,8 @@ import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, t
 import { headStage } from './decay';
 import { pickCarcass, isFresh, FEED_REACH, FEED_ALERT_RATE, feedingSight, type Carcass } from './scavenge';
 import skullAsset from '@/assets/severed_skull.png.asset.json';
+import wolfPeltIcon from '@/assets/items/wolf-pelt.png.asset.json';
+import sabrePeltIcon from '@/assets/items/sabre-pelt.png.asset.json';
 import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
 const TOTEM_TEX=[to0,to1,to2,to3,to4,to5,to6,to7];
 import { TOTEM_FEAR_RANGE, STRUCTURES, placementError, canAfford, pay, refund, hangMeat, collectJerky, dryCount, dryProgress, RACK_SLOTS, SHELTER_RANGE, type Placed, type StructureKind } from './building';
@@ -1414,7 +1416,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('folk-axe', ICON_AXE);
       this.load.image('drum-0', DRUM_ICON);
       this.load.image('bed', BED);
-      RACK_TEX.forEach((a,i)=>this.load.image(`rack-${i}`,a.url));SHELTER_TEX.forEach((a,i)=>this.load.image(`shelter-${i}`,a.url));BARRICADE_TEX.forEach((a,i)=>this.load.image(`barricade-${i}`,a.url));TOTEM_TEX.forEach((a,i)=>this.load.image(`totem-${i}`,a.url));this.load.image('severed-skull',skullAsset.url);
+      RACK_TEX.forEach((a,i)=>this.load.image(`rack-${i}`,a.url));SHELTER_TEX.forEach((a,i)=>this.load.image(`shelter-${i}`,a.url));BARRICADE_TEX.forEach((a,i)=>this.load.image(`barricade-${i}`,a.url));TOTEM_TEX.forEach((a,i)=>this.load.image(`totem-${i}`,a.url));this.load.image('severed-skull',skullAsset.url);this.load.image('pelt-wolfPelt',wolfPeltIcon.url);this.load.image('pelt-sabrePelt',sabrePeltIcon.url);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
       SNOW_ROCKS.forEach((asset, i) => this.load.image(`snow-rock-${i}`, asset.url));
@@ -2743,7 +2745,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const meat = this.add.image(mx, my, 'meat').setDepth(my);
         this.meatPickups.push({ x: mx, y: my, sprite: meat, ...(skorra ? { skorra: skorra.id } : {}) });
         const pelt = peltFor(c.kind);
-        if (pelt) this.stock = { ...this.stock, [pelt]: (this.stock[pelt] ?? 0) + 1 };
+        if (pelt) { this.stock = { ...this.stock, [pelt]: (this.stock[pelt] ?? 0) + 1 }; const fur = this.add.image(mx + 6, my - 4, `pelt-${pelt}`).setDepth(my + 1); this.tweens.add({ targets: fur, y: my - 26, alpha: 0, duration: 1400, ease: 'Sine.easeOut', onComplete: () => fur.destroy() }); }
         this.message = `${NAME[c.kind]} erlegt · Fleisch zurückgelassen${pelt ? ` · +1 ${PELT_NAME[pelt]}` : ''}`;
         this.messageUntil = time + 2600;
         this.addXp(XP[c.kind]);
