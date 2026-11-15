@@ -2771,7 +2771,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const img = this.peltSprites.get(gp.id); this.peltSprites.delete(gp.id);
         if (img) this.tweens.add({ targets: img, y: gp.y - 22, alpha: 0, duration: 700, ease: 'Sine.easeOut', onComplete: () => img.destroy() });
       }
-      const k = r.taken[0].kind;
+      const k = r.taken[0]!.kind;
       this.message = `${PELT_NAME[k]} aufgehoben · ${this.stock[k] ?? 0} im Besitz`; this.messageUntil = time + 2400;
       this.persist();
     }
