@@ -89,6 +89,7 @@ import { weatherAt, regionOf, WEATHER, weatherColdFactor, fireStrength, isWet, t
 import { headStage } from './decay';
 import { pickCarcass, isFresh, FEED_REACH, FEED_ALERT_RATE, feedingSight, type Carcass } from './scavenge';
 import skullAsset from '@/assets/severed_skull.png.asset.json';
+import { dropPelt, touchPelts, type GroundPelt } from './pelt-drops';
 import wolfPeltIcon from '@/assets/items/wolf-pelt.png.asset.json';
 import sabrePeltIcon from '@/assets/items/sabre-pelt.png.asset.json';
 import to0 from '@/assets/totem/totem-0.png.asset.json';import to1 from '@/assets/totem/totem-1.png.asset.json';import to2 from '@/assets/totem/totem-2.png.asset.json';import to3 from '@/assets/totem/totem-3.png.asset.json';import to4 from '@/assets/totem/totem-4.png.asset.json';import to5 from '@/assets/totem/totem-5.png.asset.json';import to6 from '@/assets/totem/totem-6.png.asset.json';import to7 from '@/assets/totem/totem-7.png.asset.json';
@@ -1159,6 +1160,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     plantTree?: (x: number, y: number, dir: number) => void;
     rocks: { x: number; y: number; hp: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
     resPickups: { kind: Resource; x: number; y: number; sprite: Phaser.GameObjects.Image }[] = [];
+    groundPelts: GroundPelt[] = [];
+    peltSprites = new Map<string, Phaser.GameObjects.Image>();
+    peltSeq = 0;
     stock: Stock = emptyStock();
     crouchOn = false;
     hidden = false;
@@ -1227,6 +1231,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         fear: dv.fear,
         duels: { shame: { ...dv.duels.shame }, cooldown: { ...dv.duels.cooldown } },
         lore: this.lore,
+        groundPelts: this.groundPelts.map(p => ({ ...p })),
         rumors: this.savedRumors(),
         fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
@@ -1306,6 +1311,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.escape = g.escape ? { progress: { ...g.escape.progress }, since: { ...g.escape.since }, rescueAt: { ...g.escape.rescueAt } } : EMPTY_ESCAPE; this.runners.clear(); this.scout = null;
       this.guardBook = { ...(g.guardPosts ?? {}) };
       this.fires = { ...(g.fires ?? {}) };
+      for (const img of this.peltSprites.values()) img.destroy(); this.peltSprites.clear();
+      this.groundPelts = (g.groundPelts ?? []).map(p => ({ ...p }));
       this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
@@ -2745,16 +2752,33 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const meat = this.add.image(mx, my, 'meat').setDepth(my);
         this.meatPickups.push({ x: mx, y: my, sprite: meat, ...(skorra ? { skorra: skorra.id } : {}) });
         const pelt = peltFor(c.kind);
-        if (pelt) { this.stock = { ...this.stock, [pelt]: (this.stock[pelt] ?? 0) + 1 }; const fur = this.add.image(mx + 6, my - 4, `pelt-${pelt}`).setDepth(my + 1); this.tweens.add({ targets: fur, y: my - 26, alpha: 0, duration: 1400, ease: 'Sine.easeOut', onComplete: () => fur.destroy() }); }
-        this.message = `${NAME[c.kind]} erlegt · Fleisch zurückgelassen${pelt ? ` · +1 ${PELT_NAME[pelt]}` : ''}`;
+        if (pelt) { const r = dropPelt(this.groundPelts, pelt, mx, my, `pelt-${Date.now().toString(36)}-${this.peltSeq++}`); this.groundPelts = r.list; if (r.direct) this.stock = { ...this.stock, [pelt]: (this.stock[pelt] ?? 0) + 1 }; this.persist(); }
+        this.message = `${NAME[c.kind]} erlegt · Fleisch${pelt ? ` und ${PELT_NAME[pelt]}` : ''} zurückgelassen`;
         this.messageUntil = time + 2600;
         this.addXp(XP[c.kind]);
       } else if (c.kind === 'gazelle') { c.state = 'flee'; c.stateUntil = time + 4000; }
       else { c.state = 'chase'; c.stateUntil = time + 8000; c.nextAttack = Math.max(c.nextAttack, time + 500); }
     }
+    /** Liegende Felle zeichnen und durch Berühren einsammeln. */
+    tickGroundPelts(time:number, p:Phaser.Physics.Arcade.Sprite){
+      for (const gp of this.groundPelts) if (!this.peltSprites.has(gp.id)) this.peltSprites.set(gp.id, this.add.image(gp.x, gp.y, `pelt-${gp.kind}`).setDepth(gp.y - 2));
+      if (this.dead || !this.groundPelts.length) return;
+      const r = touchPelts(this.groundPelts, p.x, p.y + 8);
+      if (!r.taken.length) return;
+      this.groundPelts = r.rest;
+      for (const gp of r.taken) {
+        this.stock = { ...this.stock, [gp.kind]: (this.stock[gp.kind] ?? 0) + 1 };
+        const img = this.peltSprites.get(gp.id); this.peltSprites.delete(gp.id);
+        if (img) this.tweens.add({ targets: img, y: gp.y - 22, alpha: 0, duration: 700, ease: 'Sine.easeOut', onComplete: () => img.destroy() });
+      }
+      const k = r.taken[0].kind;
+      this.message = `${PELT_NAME[k]} aufgehoben · ${this.stock[k] ?? 0} im Besitz`; this.messageUntil = time + 2400;
+      this.persist();
+    }
     tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
       // Stealth: hidden when crouched behind any cover within 36 px.
       this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
+      this.tickGroundPelts(time, p);
       p.setAlpha(this.hidden ? 0.6 : this.crouching ? 0.85 : 1);
       // Player attack hit: resolve on the first tick after attack starts.
       const hw = this.held;
