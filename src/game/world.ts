@@ -278,7 +278,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     hut: { house: FlammableHouse; style: HutStyle; items: Furnishing[] } | null = null;
     hutView: ReturnType<typeof renderHut> | undefined;
-    hutCollider?: Phaser.Physics.Arcade.Collider;
+    hutCollider?: Phaser.Physics.Arcade.Collider | undefined;
     inPocket() { return !!this.caves.current || !!this.hut; }
     /** Huts the player can walk into right now (burning or ruined huts stay closed). */
     openHutAt(x: number, y: number) { return hutDoorAt(FLAMMABLE_HOUSES.filter(h => !this.fires[h.id]), x, y); }
