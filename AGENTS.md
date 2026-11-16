@@ -58,3 +58,4 @@
 - Keep captive escape and rescue-scout rules engine-free in escape.ts; world.ts only moves runners/scouts, and runners still fleeing at save time count as escaped so reloads cannot hide an escape.
 - Keep camp guard-post choices and spot spreading engine-free in guards.ts; world.ts turns them into temporary post orders (never saved companion orders) and campResponse reuses them as alarm stand-by spots.
 - Keep hut-interior room shapes, door detection and deterministic furniture layout engine-free in interiors.ts; interior-render.ts draws rooms from one packed furniture atlas, and world.ts reuses the cave pocket-space gating, saving only the current hut ID so layouts never need persisting.
+- Keep hut residency (assignment, indoor/outdoor rules, rest spots) engine-free in hut-residents.ts; world.ts only steers residents to doors, hides them while inside and never saves indoor state, so reloads simply let them walk back in.

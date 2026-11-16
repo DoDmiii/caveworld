@@ -38,7 +38,7 @@ import { RUIN_TEXTURES, FLAME_SHEET, SMOKE_SHEET, FLAMMABLE_HOUSES, doorPoint, r
 import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
 import { lootHouse } from './village-loot';
 import { assignResidents, wantsIndoors, restSpots, DOOR_REACH, DOOR_PATIENCE } from './hut-residents';
-import { styleOf, furnishHut, hutOptions, hutDoorAt, hutSpawn, hutExit, leavesHut, outsideSpot, nearestFurnishing, hutTitle, roomWalkable, POCKET, ROOMS, ROOM_CENTER, HEARTH_WARM_RANGE, type HutStyle, type Furnishing } from './interiors';
+import { styleOf, furnishHut, hutOptions, hutDoorAt, hutDoor, hutSpawn, hutExit, leavesHut, outsideSpot, nearestFurnishing, hutTitle, roomWalkable, POCKET, ROOMS, ROOM_CENTER, HEARTH_WARM_RANGE, type HutStyle, type Furnishing } from './interiors';
 import { renderHut, FURNITURE_ATLAS } from './interior-render';
 import tree0 from '@/assets/tree-east.png.asset.json';
 import tree1 from '@/assets/tree-south-east.png.asset.json';
