@@ -59,3 +59,5 @@
 - Keep camp guard-post choices and spot spreading engine-free in guards.ts; world.ts turns them into temporary post orders (never saved companion orders) and campResponse reuses them as alarm stand-by spots.
 - Keep hut-interior shapes and deterministic furniture engine-free in interiors.ts; interior-render.ts draws from one atlas; world.ts reuses cave pocket gating and saves only the hut ID.
 - Keep hut residency rules engine-free in hut-residents.ts; world.ts steers/hides residents and never saves indoor state.
+
+- Keep dry-land waterholes, shade outcrops, heat and thirst rules engine-free in desert.ts; world.ts only reports position/shade, auto-drinks while standing at water and saves thirst optionally so old saves load.
