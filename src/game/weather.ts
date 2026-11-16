@@ -1,8 +1,8 @@
 // Engine-free weather: derived deterministically from the game clock, so reloads keep the same weather without extra save data.
 import type { Biome } from './biomes';
 
-export type Weather = 'clear' | 'rain' | 'thunder' | 'snow' | 'blizzard';
-export type Region = 'north' | 'temperate';
+export type Weather = 'clear' | 'rain' | 'thunder' | 'snow' | 'blizzard' | 'heat' | 'sandstorm';
+export type Region = 'north' | 'temperate' | 'dry';
 /** Game minutes per weather spell (8 in-game hours). */
 export const WEATHER_SPAN = 480;
 
@@ -12,14 +12,17 @@ export const WEATHER: Record<Weather, { name: string; icon: string; temp: number
   thunder: { name: 'Gewitter', icon: '⛈', temp: -6, coldLoss: 1.6, speed: 1, warn: 'Gewitter – such Schutz!' },
   snow: { name: 'Schnee', icon: '❄', temp: -5, coldLoss: 1.3, speed: 0.92, warn: '' },
   blizzard: { name: 'Blizzard', icon: '💨', temp: -14, coldLoss: 2, speed: 0.75, warn: 'Blizzard – Windschutz nötig!' },
+  heat: { name: 'Gluthitze', icon: '🔥', temp: 6, coldLoss: 1, speed: 1, warn: 'Gluthitze – such Schatten und Wasser!' },
+  sandstorm: { name: 'Staubsturm', icon: '🌪', temp: 0, coldLoss: 1, speed: 0.8, warn: 'Staubsturm – kaum Sicht!' },
 };
 
 const TABLE: Record<Region, [Weather, number][]> = {
   temperate: [['clear', 55], ['rain', 30], ['thunder', 15]],
   north: [['clear', 40], ['snow', 40], ['blizzard', 20]],
+  dry: [['clear', 50], ['heat', 35], ['sandstorm', 15]],
 };
 
-export const regionOf = (b: Biome): Region => (b === 'nordics' ? 'north' : 'temperate');
+export const regionOf = (b: Biome): Region => (b === 'nordics' ? 'north' : b === 'dry' ? 'dry' : 'temperate');
 
 function hash(n: number, salt: number) {
   let h = (n * 374761393 + salt * 668265263) | 0;
@@ -30,7 +33,7 @@ function hash(n: number, salt: number) {
 export function weatherAt(region: Region, clock: number): Weather {
   const span = Math.floor(Math.max(0, clock) / WEATHER_SPAN);
   if (span === 1 && region === 'temperate') return 'clear'; // first day starts calm
-  let r = hash(span, region === 'north' ? 7 : 3) * 100;
+  let r = hash(span, region === 'north' ? 7 : region === 'dry' ? 11 : 3) * 100;
   for (const [w, p] of TABLE[region]) { if ((r -= p) < 0) return w; }
   return 'clear';
 }
