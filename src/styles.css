@@ -330,7 +330,9 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 
 
 /* Hunger- und Wärmeleiste (eine kompakte Zeile unter Leben und Ausdauer) */
-:root { --hunger: oklch(.74 .13 58); --warmth: oklch(.82 .09 225); }
+:root { --hunger: oklch(.74 .13 58); --warmth: oklch(.82 .09 225); --thirst: oklch(.7 .12 240); }
+.thirst-icon { color: var(--thirst); }
+.stat-track.thirst i { background: var(--thirst); }
 .stat-row.duo { gap: 5px; }
 .stat-row.duo svg { fill: none; stroke: currentColor; stroke-width: 2.2; }
 .hunger-icon { color: var(--hunger); }
