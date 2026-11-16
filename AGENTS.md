@@ -14,7 +14,7 @@
 - Keep character-specific head/body splitting in corpse-art.ts, using the uploaded lying frame; persist headless outcomes with fighter saves so posing and reload never restore a removed head.
 - Keep horn recall, camp alarm detection and warrior/civilian responses engine-free in signals.ts; temporary orders never overwrite saved companion orders, and signal-art.ts shares crisp artwork between HUD and engine.
 - Keep touch controls in TouchControls.tsx and orientation-independent camera sizing in engine-free mobile-controls.ts; shared input commands reuse existing actions and resizing must clear held movement.
-- Keep cave geography, finite deposits, ritual bonuses and upgrades engine-free in caves.ts; cave-render.ts owns pixel artwork and walls, while world.ts gates outdoor simulation during pocket-space visits and persists cave state in the existing save.
+- Keep cave rules engine-free in caves.ts, art in cave-render.ts; world.ts gates outdoor simulation in pocket spaces and saves cave state.
 - Load Phaser dynamically inside the game view's effect; browser-only engine imports must never enter SSR evaluation.
 - Use Phaser Arcade physics for movement and collisions, with a deterministic generated pixel world and direct uploaded directional sprite textures.
 - Keep the React HUD and touch controls separate from the game engine, communicating through a shared input object and status callback.
@@ -57,7 +57,7 @@
 - Keep revenge-squad and camp-raid rules (revenge points, squad size, torchbearers, retreat goals, spoils) engine-free in warbands.ts; world.ts keeps the squad roster in memory, routes long marches with PathFinding.js and saves only the warband state, so reloads rebuild the squad without duplicating rewards.
 - Keep captive escape and rescue-scout rules engine-free in escape.ts; world.ts only moves runners/scouts, and runners still fleeing at save time count as escaped so reloads cannot hide an escape.
 - Keep camp guard-post choices and spot spreading engine-free in guards.ts; world.ts turns them into temporary post orders (never saved companion orders) and campResponse reuses them as alarm stand-by spots.
-- Keep hut-interior shapes and deterministic furniture engine-free in interiors.ts; interior-render.ts draws from one atlas; world.ts reuses cave pocket gating and saves only the hut ID.
+- Keep hut interiors engine-free in interiors.ts, art in interior-render.ts; save only the hut ID.
 - Keep hut residency rules engine-free in hut-residents.ts; world.ts steers/hides residents and never saves indoor state.
 
 - Keep dry-land water, shade, heat and thirst rules engine-free in desert.ts; thirst saves optionally for old saves.
