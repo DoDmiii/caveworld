@@ -104,7 +104,7 @@ export function renderHut(scene: Phaser.Scene, key: string, style: HutStyle, ite
   const sprites = new Map<string, Phaser.GameObjects.Image>();
   for (const it of items) {
     const o = scene.add.image(it.x, it.y, FURNITURE_ATLAS.key, it.frame).setOrigin(0.5, 1).setFlipX(it.flip).setDepth(60000 + it.y - (it.kind === 'bed' ? 10 : 0));
-    if (it.stash && looted) o.setTint(0x8f8a84);
+    if (it.stash && looted) o.setTint(0x6a6560);
     sprites.set(it.id, o); objects.push(o);
     const fp = footprint(it); const z = scene.add.zone(fp.x, fp.y, fp.w, fp.h); scene.physics.add.existing(z, true); walls.add(z); objects.push(z);
     if (it.kind === 'hearth') {
@@ -117,7 +117,7 @@ export function renderHut(scene: Phaser.Scene, key: string, style: HutStyle, ite
   const exit = scene.add.text(ex.x, ex.y + 4, '▼', { fontSize: '12px', color: '#dcc7a0' }).setOrigin(0.5).setDepth(50020).setAlpha(0.8); objects.push(exit);
   return {
     walls, sprites,
-    markLooted(id: string) { sprites.get(id)?.setTint(0x8f8a84); },
+    markLooted(id: string) { sprites.get(id)?.setTint(0x6a6560); },
     destroy() { objects.forEach(o => { scene.tweens.killTweensOf(o); o.destroy(); }); walls.destroy(true); if (scene.textures.exists(texKey)) scene.textures.remove(texKey); },
   };
 }

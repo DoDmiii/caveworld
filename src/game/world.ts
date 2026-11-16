@@ -331,7 +331,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const say = (m: string, ms = 2400) => { this.message = m; this.messageUntil = time + ms; };
       const ex = hutExit(hut.style); if (Math.hypot(p.x - ex.x, p.y - ex.y) < 34) { this.exitHut(); return; }
       const near = nearestFurnishing(hut.items, p.x, p.y, undefined, 34);
-      if (near?.kind === 'basket' && near.stash) {
+      if (near?.kind === 'basket' && near.stash && !this.lootedHouses.includes(hut.house.id)) {
         const next = lootHouse({ stock: this.stock, berries: this.count, meat: this.meat, cooked: this.cooked, owned: this.owned, lootedHouses: this.lootedHouses }, hut.house.id);
         if (!next) { say('Dieser Vorratskorb ist bereits leer'); return; }
         const weapon = next.owned.find(id => !this.owned.includes(id));
@@ -345,6 +345,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const hearth = nearestFurnishing(hut.items, p.x, p.y, 'hearth', 40);
       if (hearth) { const r = roast(this.pantry()); if (r) { this.setPantry(r); say('Fleisch am Herdfeuer gebraten · [3] essen'); } else { this.stamina = 100; say('Am Herdfeuer aufgewärmt'); } return; }
+      if (near?.stash) { say('Dieser Vorratskorb ist bereits leer'); return; }
       if (near?.kind === 'basket' || near?.kind === 'pot') { say(hut.house.owner === 'camp' ? 'Getrocknete Beeren und Wurzeln deiner Sippe' : 'Nur Wurzeln und Asche – nichts von Wert'); return; }
       if (near?.kind === 'cradle') { say('Eine Fellwiege aus Mammutrippen'); return; }
       if (near?.kind === 'bed') { say('Ein Schlaflager aus Fellen und Moos'); return; }
