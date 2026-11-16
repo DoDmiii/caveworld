@@ -21,6 +21,7 @@ const GameSchema = z.object({
   // Neu seit Tag/Nacht + Überleben; Defaults, damit ältere Spielstände weiter laden.
   hunger: z.number().min(0).max(100).default(100),
   warmth: z.number().min(0).max(100).default(100),
+  thirst: z.number().min(0).max(100).optional(),
   clock: z.number().min(0).max(10_000_000).default(START_MINUTES),
   berries: count,
   meat: count,

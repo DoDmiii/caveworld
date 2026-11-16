@@ -19,7 +19,7 @@ export function assignResidents(huts: readonly ResidentHut[], people: readonly R
   return out;
 }
 
-export const STORM: readonly Weather[] = ['rain', 'thunder', 'blizzard'];
+export const STORM: readonly Weather[] = ['rain', 'thunder', 'blizzard', 'sandstorm'];
 /** Rest at night; civilians also shelter from storms; any alarm or fire sends everyone outside. */
 export function wantsIndoors(o: { night: boolean; weather: Weather; alarm: boolean; warrior: boolean; burning: boolean }) {
   if (o.alarm || o.burning) return false;
