@@ -118,6 +118,6 @@ export function renderHut(scene: Phaser.Scene, key: string, style: HutStyle, ite
   return {
     walls, sprites,
     markLooted(id: string) { sprites.get(id)?.setTint(0x8f8a84); },
-    destroy() { objects.forEach(o => o.destroy()); walls.destroy(true); if (scene.textures.exists(texKey)) scene.textures.remove(texKey); },
+    destroy() { objects.forEach(o => { scene.tweens.killTweensOf(o); o.destroy(); }); walls.destroy(true); if (scene.textures.exists(texKey)) scene.textures.remove(texKey); },
   };
 }
