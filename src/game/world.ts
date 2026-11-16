@@ -37,6 +37,7 @@ import { EMPTY_FIRES, IGNITE_MS, IGNITE_RANGE, HEAT_DAMAGE_PER_SEC, firePhase, r
 import { RUIN_TEXTURES, FLAME_SHEET, SMOKE_SHEET, FLAMMABLE_HOUSES, doorPoint, ruinKey, type FlammableHouse } from './fire-art';
 import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
 import { lootHouse } from './village-loot';
+import { assignResidents, wantsIndoors, restSpots, DOOR_REACH, DOOR_PATIENCE } from './hut-residents';
 import { styleOf, furnishHut, hutOptions, hutDoorAt, hutSpawn, hutExit, leavesHut, outsideSpot, nearestFurnishing, hutTitle, roomWalkable, POCKET, ROOMS, ROOM_CENTER, HEARTH_WARM_RANGE, type HutStyle, type Furnishing } from './interiors';
 import { renderHut, FURNITURE_ATLAS } from './interior-render';
 import tree0 from '@/assets/tree-east.png.asset.json';
@@ -280,6 +281,55 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hutView: ReturnType<typeof renderHut> | undefined;
     hutCollider?: Phaser.Physics.Arcade.Collider | undefined;
     inPocket() { return !!this.caves.current || !!this.hut; }
+    /** Residents currently inside a hut (id → hut id) and those walking to their door (id → start ms). */
+    indoors = new Map<string, string>(); headingIn = new Map<string, number>(); residentViews: Phaser.GameObjects.Image[] = [];
+    residentHomes: Record<string, string> = {}; residentsAt = 0;
+    /** Walks residents to their hut at night / in storms and lets them out again at dawn or on alarm. */
+    tickResidents(time: number, controlled: Set<string>, stopped: boolean) {
+      const people = [
+        ...this.campers.map(c => ({ id: c.template.id, sprite: c.sprite, tex: c.template.id, home: 'camp' as const, warrior: false, ready: true })),
+        ...this.folk.filter(f => (f.c.state === 'free' || f.c.state === 'camp') && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, tex: f.t.tex, home: f.c.state === 'camp' ? 'camp' as const : f.t.village, warrior: isWarrior(f.t), ready: true })),
+      ];
+      if (time > this.residentsAt) { this.residentsAt = time + 1000; this.residentHomes = assignResidents(FLAMMABLE_HOUSES, people.map(r => ({ id: r.id, home: r.home }))); }
+      const live = new Set(people.map(r => r.id));
+      for (const id of [...this.indoors.keys()]) if (!live.has(id)) this.indoors.delete(id);
+      const night = isNight(clockOf(this.clock).minutesOfDay);
+      for (const r of people) {
+        const hutId = this.residentHomes[r.id], hut = hutId ? FLAMMABLE_HOUSES.find(h => h.id === hutId) : undefined;
+        const inside = this.indoors.has(r.id);
+        if (!hut || (!inside && controlled.has(r.id))) { this.headingIn.delete(r.id); continue; }
+        const alarm = r.home === 'camp' ? this.campAlarm : (this.villageLevel.get(villageKey(FOLK_HOMES[r.home]!.name)) ?? 0) > 0;
+        const want = wantsIndoors({ night, weather: weatherAt(regionOf(biomeAt(hut.x, hut.y)), this.clock), alarm, warrior: r.warrior, burning: !!this.fires[hut.id] });
+        const door = hutDoor(hut), b = r.sprite.body as Phaser.Physics.Arcade.Body | null;
+        if (inside) {
+          if (want) { controlled.add(r.id); continue; }
+          this.indoors.delete(r.id); const o = outsideSpot(hut); r.sprite.setPosition(o.x, o.y).setVisible(true); if (b) b.enable = true; continue;
+        }
+        if (!want || stopped) { this.headingIn.delete(r.id); continue; }
+        controlled.add(r.id);
+        const since = this.headingIn.get(r.id) ?? time; this.headingIn.set(r.id, since);
+        const dx = door.x - r.sprite.x, dy = door.y - r.sprite.y, d = Math.hypot(dx, dy);
+        if (d < DOOR_REACH || time - since > DOOR_PATIENCE) {
+          this.headingIn.delete(r.id); this.indoors.set(r.id, hut.id);
+          r.sprite.setVelocity(0, 0).setPosition(door.x, door.y).setVisible(false); r.sprite.anims.stop(); if (b) b.enable = false; continue;
+        }
+        const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+        r.sprite.setVelocity(dx / d * 30, dy / d * 30); if (this.anims.exists(`${r.tex}-walk-${dir}`)) r.sprite.play(`${r.tex}-walk-${dir}`, true); r.sprite.setDepth(r.sprite.y);
+      }
+    }
+    /** Shows the hut's residents resting on beds or around the hearth. */
+    showResidents(h: FlammableHouse, items: Furnishing[]) {
+      const ids = [...this.indoors].filter(([, hid]) => hid === h.id).map(([id]) => id);
+      const spots = restSpots(items, ids.length, isNight(clockOf(this.clock).minutesOfDay));
+      ids.forEach((id, i) => {
+        const sp = spots[i]; if (!sp) return;
+        const tex = this.campers.find(c => c.template.id === id)?.template.id ?? this.folk.find(f => f.c.id === id)?.t.tex; if (!tex) return;
+        const img = this.add.image(sp.x, sp.y, tex, 2).setOrigin(0.5, 0.9).setDepth(60000 + sp.y + 4);
+        if (sp.lying) img.setRotation(-Math.PI / 2); else img.setFrame(sp.x < (items.find(f => f.kind === 'hearth')?.x ?? sp.x) ? 0 : 4);
+        this.residentViews.push(img);
+      });
+      if (ids.length) { this.message = `${hutTitle(h.owner, h.name)} · ${ids.length === 1 ? 'Jemand ruht hier' : `${ids.length} Bewohner ruhen hier`}`; this.messageUntil = this.time.now + 2600; }
+    }
     /** Huts the player can walk into right now (burning or ruined huts stay closed). */
     openHutAt(x: number, y: number) { return hutDoorAt(FLAMMABLE_HOUSES.filter(h => !this.fires[h.id]), x, y); }
     enterHut(h: FlammableHouse, restore = false) {
@@ -295,6 +345,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const style = styleOf(h.owner), items = furnishHut(h.id, style, hutOptions(h.id, h.owner, h.owner === 'nordic'));
       this.hut = { house: h, style, items };
       this.hutView = renderHut(this, h.id, style, items, this.lootedHouses.includes(h.id));
+      this.showResidents(h, items);
       this.hutCollider = this.physics.add.collider([p, ...followers.map(a => a.sprite)], this.hutView.walls);
       this.physics.world.setBounds(0, 0, POCKET.w, POCKET.h);
       this.cameras.main.setBounds(0, 0, POCKET.w, POCKET.h);
@@ -303,13 +354,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       followers.forEach((a, i) => { a.sprite.setPosition(s.x + (i % 2 ? 1 : -1) * (18 + Math.floor(i / 2) * 16), s.y - 6 - Math.floor(i / 2) * 10); this.companionMovement.reset(a.id); });
       p.setVelocity(0, 0); this.cameras.main.centerOn(p.x, p.y);
       this.nearBed = false; this.nearChest = false; this.nearRack = null; this.nearDrum = false; this.cavePrompt = null;
-      this.message = hutTitle(h.owner, h.name); this.messageUntil = this.time.now + 2400;
+      if (!this.residentViews.length) { this.message = hutTitle(h.owner, h.name); this.messageUntil = this.time.now + 2400; }
       this.lastAction = input.action;
       if (!restore) this.persist();
     }
     exitHut() {
       const p = this.player, hut = this.hut; if (!p || !hut) return;
-      this.hutCollider?.destroy(); this.hutView?.destroy(); this.hutView = undefined; this.hutCollider = undefined;
+      this.hutCollider?.destroy(); this.hutView?.destroy(); for (const v of this.residentViews) v.destroy(); this.residentViews = []; this.hutView = undefined; this.hutCollider = undefined;
       for (const [o, visible] of this.caveHidden) if (o.active && 'setVisible' in o) (o as Phaser.GameObjects.Image).setVisible(visible);
       for (const b of this.caveDisabled) b.enable = true;
       this.caveHidden.clear(); this.caveDisabled = []; this.hut = null; this.cavePrompt = null;
@@ -1876,6 +1927,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.tickCarriers(time, input.paused || this.dead || this.health <= 0 || this.sleeping);
       if (this.closeness) controlled.add(this.closeness.id);
       for (const id of this.duelIds()) controlled.add(id);
+      this.tickResidents(time, controlled, input.paused || this.dead || this.health <= 0 || this.sleeping);
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
@@ -2179,6 +2231,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const armedFolk = this.folk.filter(o => o.combat.phase === 'ready' && o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
+        if (this.indoors.has(f.c.id)) { this.folkMood.get(f.c.id)?.icon.setVisible(false); this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
         if (duelIds.has(f.c.id) && f.combat.phase !== 'dead') { if (f.combat.phase !== 'downed') this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
         if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
@@ -2315,7 +2368,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           fear: this.villageFear(f.t.village), tributePaid: !canDemandTribute(this.fear, vk, clockOf(this.clock).day) && fearOf(this.fear, vk) >= 50,
         };
       } else this.talk = null;
-      const ally = this.companionActors().filter(a => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
+      const ally = this.companionActors().filter(a => !this.indoors.has(a.id) && Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
         .sort((a, b) => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) - Math.hypot(b.sprite.x - p.x, b.sprite.y - p.y))[0];
       if (!this.carried && ally && (!best || Math.hypot(ally.sprite.x - p.x, ally.sprite.y - p.y) <= bd)) this.talk = this.allyContext(ally);
     }
