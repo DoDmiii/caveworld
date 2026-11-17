@@ -61,3 +61,4 @@
 - Keep hut residency rules engine-free in hut-residents.ts; world.ts steers/hides residents and never saves indoor state.
 
 - Keep dry-land water, shade, heat and thirst rules engine-free in desert.ts; thirst saves optionally for old saves.
+- Keep dry-land vegetation rules (palm vs. acacia by position, oasis palm rings, thornbush scatter, canopy shade) engine-free in desert-flora.ts; tree looks derive from position so regrown stumps keep their look without extra save data.
