@@ -1,6 +1,7 @@
 # Roadmap
 - [x] Trockengebiet Stufe 1: Durst (Hitze ×4, Rennen ×1,5), Trinken an Fluss/Bach/4 Wasserlöchern, Schatten an Sandsteinfelsen/Unterstand, Wetter Gluthitze/Staubsturm, gespeichert. Tests grün, nicht vor Ort live durchgespielt.
-- [ ] Trockengebiet Stufe 2: Süd-Stamm mit Dorf (wartet auf Sprites).
+- [x] Oshkora-Kral an der Ockerquelle: 8 Lehm-/Steinhütten mit Brandruinen, Dornenzäune, Dornbusch-Hecken als Seitenwände, Nord-/Südtor, Ziegengatter, 3 Hirsefelder, eigener Lehmhütten-Innenraum; Tore, Hecke, Innenraum, Brand und Neuladen live geprüft.
+- [ ] Oshkora-Bewohner und Ziegenherden (wartet auf Sprites).
 - [x] Begehbare Hütten: alle Hütten (Lager, Nord-Dörfer, Drachenterrasse) per [E] an der Tür betretbar; eigener Raum je Volk (rund/Lehm, Bohlen/Blockwand, Schiefer/Schilfmatte), Einrichtung aus den 32 Möbel-Sprites je Hütte fest gewürfelt, Herdlicht/Wärme/Braten, Nord-Beute jetzt im Vorratskorb drinnen, Begleiter kommen mit, gespeichert; Lagerhütte und Frostheim live geprüft.
 - [ ] Bewohner in Hütten: Paare und Kinder gehen selbst hinein/hinaus (Zuhause-Zuordnung, Tagesablauf).
 - [x] Brandstiftung: Fackel in der Haupthand + [E] 1,5 s stillhalten zündet Hütten aller Völker an; Glimmen, Vollbrand (halber Spieltag) mit Flammen/Rauch/Licht und Hitzeschaden, dann Ruine. Fremde Dörfer bauen 2 Tage später wieder auf (besiegte Dörfer kehren erst nach 3,5 + 2 Tagen zurück); eigene Hütten nur teuer mit Steinaxt reparierbar. Lagerhütte und Frostheim live geprüft.
