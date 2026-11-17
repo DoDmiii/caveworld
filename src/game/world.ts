@@ -362,7 +362,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.showResidents(h, items);
       this.hutCollider = this.physics.add.collider([p, ...followers.map(a => a.sprite)], this.hutView.walls);
       this.physics.world.setBounds(0, 0, POCKET.w, POCKET.h);
-      this.cameras.main.setBounds(0, 0, POCKET.w, POCKET.h);
+      this.cameras.main.setBounds(-POCKET.w, -POCKET.h, POCKET.w * 3, POCKET.h * 3);  // padded: the black void lets tall phone screens centre the room
       const s = hutSpawn(style);
       if (!restore || !roomWalkable(style, p.x, p.y)) { p.setPosition(s.x, s.y); this.lastFacing = 6; }
       followers.forEach((a, i) => { a.sprite.setPosition(s.x + (i % 2 ? 1 : -1) * (18 + Math.floor(i / 2) * 16), s.y - 6 - Math.floor(i / 2) * 10); this.companionMovement.reset(a.id); });
