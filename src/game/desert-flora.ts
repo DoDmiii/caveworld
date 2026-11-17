@@ -2,6 +2,7 @@
 // thornbush scatter and canopy shade. world.ts only spawns sprites from these rules.
 import { biomeAt, riverX } from './biomes';
 import { WATERHOLES, OUTCROPS } from './desert';
+import { oshkoraAt } from './oshkora';
 
 export type DesertTreeKind = 'palm' | 'acacia';
 export const PALM_VARIANTS = 4;
@@ -53,6 +54,7 @@ export function thornbushes(count = 90, bounds = { x: -1024, y: 2300, w: 3000, h
     if (biomeAt(x, y) !== 'dry' || Math.abs(x - riverX(y)) < 130) continue;
     if (WATERHOLES.some(w => Math.hypot(x - w.x, y - w.y) < w.r + 26)) continue;
     if (OUTCROPS.some(o => Math.hypot(x - o.x, y - o.y) < o.r + 10)) continue;
+    if (oshkoraAt(x, y, 20)) continue;
     if (out.some(b => Math.hypot(x - b.x, y - b.y) < 40)) continue;
     const h = hash(x, y);
     out.push({ x, y, variant: h % THORNBUSH_VARIANTS, flip: ((h >>> 5) & 1) === 1 });

@@ -3,7 +3,7 @@
 import type { Stock } from './harvest';
 import { VILLAGE_RESPAWN_MINUTES } from './raid';
 
-export type HouseOwner = 'camp' | 'nordic' | 'dragon';
+export type HouseOwner = 'camp' | 'nordic' | 'dragon' | 'desert';
 /** One hut that has been set alight. `village` is the FOLK_HOMES index for foreign huts. */
 export type Fire = { litAt: number; owner: HouseOwner; village?: number | undefined };
 export type FireState = Record<string, Fire>;

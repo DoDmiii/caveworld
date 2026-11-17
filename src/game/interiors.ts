@@ -3,17 +3,18 @@
 // so a hut always looks the same, while neighbouring huts differ.
 import type { HouseOwner } from './arson';
 
-export type HutStyle = 'wenja' | 'nordic' | 'dragon';
+export type HutStyle = 'wenja' | 'nordic' | 'dragon' | 'desert';
 export const styleOf = (owner: HouseOwner): HutStyle => owner === 'camp' ? 'wenja' : owner;
 
 /** Pocket space the room is drawn into (outdoor objects are hidden meanwhile, like caves). */
 export const POCKET = { w: 480, h: 360 } as const;
 export const ROOM_CENTER = { x: 240, y: 172 } as const;
-/** Half sizes of the walkable floor. Wenja: round, Nordic: rounded rectangle, Dragon people: octagon. */
+/** Half sizes of the walkable floor. Wenja: round, Nordic: rounded rectangle, Dragon people: octagon, Oshkora: round clay room. */
 export const ROOMS: Record<HutStyle, { rx: number; ry: number; ambient: number }> = {
   wenja: { rx: 112, ry: 80, ambient: 14 },
   nordic: { rx: 124, ry: 74, ambient: 12 },
   dragon: { rx: 108, ry: 84, ambient: 14 },
+  desert: { rx: 104, ry: 80, ambient: 16 },
 };
 /** Half width of the door gap in the south wall. */
 export const DOOR_HALF = 13;
@@ -28,7 +29,7 @@ export function inRoomShape(style: HutStyle, x: number, y: number, grow = 0): bo
   const { rx: r0, ry: q0 } = ROOMS[style];
   const rx = r0 + grow, ry = q0 + grow, dx = Math.abs(x - ROOM_CENTER.x), dy = Math.abs(y - ROOM_CENTER.y);
   if (rx <= 0 || ry <= 0) return false;
-  if (style === 'wenja') return (dx / rx) ** 2 + (dy / ry) ** 2 <= 1;
+  if (style === 'wenja' || style === 'desert') return (dx / rx) ** 2 + (dy / ry) ** 2 <= 1;
   if (style === 'nordic') {
     if (dx > rx || dy > ry) return false;
     const c = 24, ex = dx - (rx - c), ey = dy - (ry - c);
@@ -113,7 +114,9 @@ export type FurnishOptions = { beds: number; cradle: boolean; stash: boolean; ba
 export function hutOptions(id: string, owner: HouseOwner, stash: boolean): FurnishOptions {
   const r = rng(hashId(`opt:${id}`));
   const beds = owner === 'camp' ? 2 + (r() < 0.4 ? 1 : 0) : owner === 'nordic' ? 1 + Math.floor(r() * 3) : 1 + Math.floor(r() * 2);
-  return { beds, cradle: r() < 0.4, stash, baskets: 1 + Math.floor(r() * 3), pots: 2 + Math.floor(r() * 4) };
+  // Oshkora farmers store grain: more baskets and jars.
+  const farm = owner === 'desert' ? 1 : 0;
+  return { beds, cradle: r() < 0.4, stash, baskets: 1 + farm + Math.floor(r() * 3), pots: 2 + farm * 2 + Math.floor(r() * 4) };
 }
 
 /** Lays out hearth, beds, cradle, baskets and pots; same ID → same room. */
@@ -182,5 +185,5 @@ export const nearestFurnishing = (items: Furnishing[], x: number, y: number, kin
   return best;
 };
 export function hutTitle(owner: HouseOwner, village: string) {
-  return owner === 'camp' ? 'Deine Hütte im Höhlenlager' : owner === 'nordic' ? `Langhütte in ${village}` : `Schieferhütte auf der ${village}`;
+  return owner === 'camp' ? 'Deine Hütte im Höhlenlager' : owner === 'nordic' ? `Langhütte in ${village}` : owner === 'desert' ? `Lehmhütte in ${village}` : `Schieferhütte auf der ${village}`;
 }

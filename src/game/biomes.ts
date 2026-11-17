@@ -67,6 +67,10 @@ export const VILLAGES = [
 ] as const;
 /** Dragon-people terrace village in the north-eastern mountains. */
 export const DRAGON_VILLAGE = { name: 'Drachenterrasse', x: 2330, y: -720, r: 200 } as const;
+/** Oshkora: kraal of goat herders and farmers around the Ockerquelle in the dry land. */
+export const OSHKORA = { name: 'Oshkora', x: 420, y: 2980, r: 280 } as const;
+/** Fire/rebuild village index for Oshkora, after the Nordic villages and the dragon village. */
+export const OSHKORA_HOME = VILLAGES.length + 1;
 export const dragonVillageAt = (x: number, y: number, margin = 0) =>
   Math.hypot(x - DRAGON_VILLAGE.x, y - DRAGON_VILLAGE.y) < DRAGON_VILLAGE.r + margin;
 

@@ -12,8 +12,9 @@ import { campWarrior, hornReady, recallOrders, alarmThreats, campResponse, campA
 import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
-import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, streamDist, STREAM_HALF } from './biomes';
+import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, OSHKORA, streamDist, STREAM_HALF } from './biomes';
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
+import { OSHKORA_TEXTURES, OSHKORA_HOUSES, OSHKORA_FENCES, oshkoraAt, oshkoraGround } from './oshkora';
 import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, findCompanionPath, clearCompanionPoint, type CompanionActor, type Block } from './companion-movement';
@@ -410,7 +411,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const hearth = nearestFurnishing(hut.items, p.x, p.y, 'hearth', 40);
       if (hearth) { const r = roast(this.pantry()); if (r) { this.setPantry(r); say('Fleisch am Herdfeuer gebraten · [3] essen'); } else { this.stamina = 100; say('Am Herdfeuer aufgewärmt'); } return; }
       if (near?.stash) { say('Dieser Vorratskorb ist bereits leer'); return; }
-      if (near?.kind === 'basket' || near?.kind === 'pot') { say(hut.house.owner === 'camp' ? 'Getrocknete Beeren und Wurzeln deiner Sippe' : 'Nur Wurzeln und Asche – nichts von Wert'); return; }
+      if (near?.kind === 'basket' || near?.kind === 'pot') { say(hut.house.owner === 'camp' ? 'Getrocknete Beeren und Wurzeln deiner Sippe' : hut.house.owner === 'desert' ? 'Hirsekörner und getrocknete Datteln der Oshkora' : 'Nur Wurzeln und Asche – nichts von Wert'); return; }
       if (near?.kind === 'cradle') { say('Eine Fellwiege aus Mammutrippen'); return; }
       if (near?.kind === 'bed') { say('Ein Schlaflager aus Fellen und Moos'); return; }
       say('Hier gibt es nichts zu tun', 1600);
@@ -1630,7 +1631,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
-      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES,...RUIN_TEXTURES})) this.load.image(k,u);
+      for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES,...OSHKORA_TEXTURES,...RUIN_TEXTURES})) this.load.image(k,u);
       this.load.spritesheet('house-flame',FLAME_SHEET.url,{frameWidth:FLAME_SHEET.w,frameHeight:FLAME_SHEET.h});this.load.spritesheet('smoke-column',SMOKE_SHEET.url,{frameWidth:SMOKE_SHEET.w,frameHeight:SMOKE_SHEET.h});
       for (let i = 0; i < 8; i++) {
         this.load.image(`tiger-idle-${i}`, TIGER.idle[i]!);
@@ -1750,7 +1751,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(let j=0;j<bh;j++){const wy=MAP.y+j*BS;const rx=riverX(wy);const ford=isFord(wy);
           for(let i=0;i<bw;i++){const wx=MAP.x+i*BS;const d=Math.abs(wx-rx);let col:readonly [number,number,number];
             if(d<56)col=ford?[125,154,146]:d<32?[92,135,138]:[75,115,120];else if(d<72)col=[122,124,112];
-            else{const sd=wy<400?streamDist(wx,wy):Infinity;if(sd<STREAM_HALF)col=sd<STREAM_HALF-5?[88,132,140]:[110,140,138];else if(sd<STREAM_HALF+5)col=[128,124,110];else{const wh=WATERHOLES.find(h=>Math.hypot(wx-h.x,wy-h.y)<h.r+10),oc=OUTCROPS.find(o=>Math.hypot(wx-o.x,wy-o.y)<o.r*0.7);if(wh){const d=Math.hypot(wx-wh.x,wy-wh.y);col=d<wh.r-8?[70,118,138]:d<wh.r?[96,140,140]:[96,112,62];}else if(oc){col=nr()<.3?[150,96,62]:[176,116,72];}else{const b=biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48);col=b==='dragon'&&(sd<90||nr()<.18)?[70,98,62]:b==='dragon'&&nr()<.12?[74,74,82]:BIOME_COLOR[b];}}}
+            else{const sd=wy<400?streamDist(wx,wy):Infinity;if(sd<STREAM_HALF)col=sd<STREAM_HALF-5?[88,132,140]:[110,140,138];else if(sd<STREAM_HALF+5)col=[128,124,110];else{const wh=WATERHOLES.find(h=>Math.hypot(wx-h.x,wy-h.y)<h.r+10),oc=OUTCROPS.find(o=>Math.hypot(wx-o.x,wy-o.y)<o.r*0.7);if(wh){const d=Math.hypot(wx-wh.x,wy-wh.y);col=d<wh.r-8?[70,118,138]:d<wh.r?[96,140,140]:[96,112,62];}else if(oc){col=nr()<.3?[150,96,62]:[176,116,72];}else if(oshkoraAt(wx,wy,8)&&oshkoraGround(wx,wy))col=oshkoraGround(wx,wy)!;else{const b=biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48);col=b==='dragon'&&(sd<90||nr()<.18)?[70,98,62]:b==='dragon'&&nr()<.12?[74,74,82]:BIOME_COLOR[b];}}}
             const n=(nr()-.5)*16,o=(j*bw+i)*4;img.data[o]=col[0]+n;img.data[o+1]=col[1]+n;img.data[o+2]=col[2]+n;img.data[o+3]=255;}}
         ctx.putImageData(img,0,0);bt.refresh();}
       this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS).setDepth(MAP.y-200);
@@ -1811,7 +1812,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||oshkoraAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Dry land: date-palm rings at the waterholes and low thornbushes in the open sand.
       for(const pt of oasisPalms())choppable(pt.x,pt.y-40,0);
       for(const tb of thornbushes()){const o=obstacle(tb.x,tb.y,`thornbush-${tb.variant}`,28,8);if(o&&tb.flip)o.setFlipX(true);}
@@ -1828,6 +1829,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
         const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
       }
+      // Oshkora kraal: hut backs, thorn fences and thornbush hedges.
+      for(const pc of OSHKORA_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o)this.houseSprites.set(pc.id,o);}
+      for(const pc of OSHKORA_FENCES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
       for (const h of NORDIC_HOUSES) {
         this.villageSupplies.set(h.id, this.add.image(h.x, h.y + 38, h.variant === 0 ? 'spear-proj' : 'res-wood').setScale(h.variant === 0 ? 0.55 : 1).setDepth(h.y + 38));
       }
@@ -2006,6 +2010,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),isNight(minutesOfDay))*armorCold(this.armorNow())*caveColdFactor(this.caves)*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         {const run=!!(input.sprint||this.keys?.['SHIFT']?.isDown);const shaded=inOutcropShade(p.x,p.y)||this.inTreeShade(p.x,p.y)||this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const heat=heatLevel({biome:biomeAt(p.x,p.y),minutesOfDay,weather:this.weatherNow(p),shaded});const vel=(p.body as Phaser.Physics.Arcade.Body).velocity;const drinking=canDrinkAt(p.x,p.y)&&Math.hypot(vel.x,vel.y)<5&&this.thirst<100;if(drinking&&!this.drinking){this.message='Du trinkst';this.messageUntil=time+1200;}this.drinking=drinking;this.thirst=tickThirst(this.thirst,{seconds:dt,heat,running:run,drinking});if(heat>0.3&&this.stamina<100)this.stamina=Math.max(0,this.stamina-13*(1-heatStaminaFactor(heat))*dt);this.health=Math.max(0,this.health-thirstDamage(this.thirst,dt));if(this.thirst<THIRST_WARN&&time>this.nextThirstWarn&&time>=this.messageUntil){this.nextThirstWarn=time+25000;this.message='Deine Kehle ist trocken – bleib an Wasser stehen, um zu trinken';this.messageUntil=time+2600;}}
+        {const inO=!this.hut&&oshkoraAt(p.x,p.y);if(inO&&!this.inOshkora){this.message='Oshkora · der Kral der Ziegenhirten liegt still, alle sind draußen auf den Weiden und Feldern';this.messageUntil=time+3600;}this.inOshkora=inO;}
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt)-bleedDamage(this.bleedUntil,time,dt));if(isBleeding(this.bleedUntil,time)&&time>this.nextTrail){this.nextTrail=time+450;this.bleed(p.x,p.y+6,0,1,2);}
         if(time>=this.messageUntil){
           if(this.warmth<COLD_WARN&&time>this.nextColdWarn){this.nextColdWarn=time+25000;this.message='Dir ist kalt – such ein Feuer';this.messageUntil=time+2400;}
@@ -2480,6 +2485,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     fireFx = new Map<string, { phase: string; objs: Phaser.GameObjects.GameObject[] }>();
     igniting?: { house: FlammableHouse; until: number } | undefined;
     nextHeatWarn = 0;
+    inOshkora = false;
     fireHouseNear(p: { x: number; y: number }) { return FLAMMABLE_HOUSES.find(h => { const d = doorPoint(h); return Math.hypot(p.x - d.x, p.y - d.y) < IGNITE_RANGE; }); }
     /** Swaps hut/ruin textures and spawns flames, smoke and glow whenever a hut changes phase. */
     syncFireFx(time: number) {
@@ -2501,7 +2507,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           objs.push(glow);
           flame(-13, 10, 0.72, 2); flame(12, 8, 0.8, 5); flame(0, -2, 1, 0); flame(-4, 18, 0.5, 3); flame(9, 19, 0.45, 6);
           smoke(2, -30, 1.25, 0.85);
-          if (prev === 'smolder' && f && f.owner !== 'camp') {
+          if (prev === 'smolder' && f && f.owner === 'desert') { this.message = `Feuer in ${h.name}! Rauch steigt über dem Kral auf`; this.messageUntil = time + 3200; }
+          else if (prev === 'smolder' && f && f.owner !== 'camp') {
             this.rel = raiseAlarm(this.rel, villageKey(h.name), Date.now());
             this.message = `Feuer in ${h.name}! Die Wachen suchen den Brandstifter`; this.messageUntil = time + 3200;
           }
@@ -2535,7 +2542,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.message = 'Du hast deine eigene Hütte angezündet!';
       } else {
         this.message = `${h.name} · das Dach fängt Feuer!`;
-        if (h.village !== undefined) this.witnessDeed({ t: { village: h.village }, c: { id: `house:${h.id}` }, sprite: { x: h.x, y: h.y + 20 } }, 'arson', 'arson');
+        if (h.village !== undefined && FOLK_HOMES[h.village]) this.witnessDeed({ t: { village: h.village }, c: { id: `house:${h.id}` }, sprite: { x: h.x, y: h.y + 20 } }, 'arson', 'arson');
       }
       this.messageUntil = time + 2600; this.syncFireFx(time); this.persist();
     }
@@ -3090,7 +3097,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           else body.setVelocity(0, 0);
         }
         // Villages are off-limits: steer wildlife back out of the protected zone.
-        const vil = villageAt(s.x, s.y, 50);
+        const vil = villageAt(s.x, s.y, 50) ?? (oshkoraAt(s.x, s.y, 50) ? OSHKORA : undefined);
         if (vil) {
           const ox = s.x - vil.x, oy = s.y - vil.y, ol = Math.max(1, Math.hypot(ox, oy));
           body.setVelocity(ox / ol * 60, oy / ol * 60);
@@ -3141,7 +3148,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       {const tint=playerTint(input.armor,this.health);if (time < this.hitFlash) p.setTint(0xff5050); else if (tint!==null) p.setTint(tint); else p.clearTint();}
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':oshkoraAt(p.x,p.y)?'Oshkora':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

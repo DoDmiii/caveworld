@@ -12,6 +12,8 @@ const PALETTE: Record<HutStyle, Pal> = {
   // Nordic: spruce planks, horizontal log walls.
   nordic: { floor: [0x7b5a38, 0x70512f, 0x84613d, 0x6a4b2c], fleck: 0x94704a, seam: 0x3c2817, face: [0x5e4024, 0x6b4a2b, 0x53381f], faceDark: 0x2a1a0e, rim: 0x3a2716, trim: 0x9c7a52 },
   // Dragon people: slate flagstones, reed mat, stacked slate walls.
+  // Oshkora: packed ochre clay with a palm-leaf mat, flat stones under clay plaster.
+  desert: { floor: [0x9a7448, 0x926c42, 0xa27c4e, 0x8a663e], fleck: 0xc8a468, seam: 0x6a4e30, face: [0xb08a5c, 0xa48052, 0xbc9666], faceDark: 0x5a4028, rim: 0x6e5034, trim: 0x8c8274 },
   dragon: { floor: [0x535a5e, 0x4b5256, 0x5c6367, 0x474d51], fleck: 0x9a8a58, seam: 0x2c3134, face: [0x434a4e, 0x4d5458, 0x3c4246], faceDark: 0x1c2022, rim: 0x2e3336, trim: 0x8a9499 },
 };
 const n2 = (x: number, y: number) => { let h = (x * 374761393 + y * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) % 1000; };
@@ -33,6 +35,10 @@ function floorColor(style: HutStyle, p: Pal, x: number, y: number) {
     if ((x + (ty % 2) * 8) % 16 === 0 || y % 14 === 0) return p.seam;
     return p.floor[n2(tx, ty) % p.floor.length]!;
   }
+  if (style === 'desert' && (dx / 50) ** 2 + ((dy + 6) / 30) ** 2 <= 1) {
+    if ((dx / 50) ** 2 + ((dy + 6) / 30) ** 2 > 0.86) return 0x6e5530;
+    return (x + y) % 6 < 3 ? 0xb4a060 : (x - y + 600) % 6 < 3 ? 0xa08c52 : 0x948048;
+  }
   const v = n2(x >> 2, y >> 2) % p.floor.length;
   const s = n2(x, y);
   return s < 18 ? p.fleck : s < 40 ? p.seam : p.floor[v]!;
@@ -41,6 +47,8 @@ function faceColor(style: HutStyle, p: Pal, x: number, y: number, depth: number)
   // depth: 0 at the floor line, grows upwards along the north wall face.
   if (style === 'nordic') { const band = Math.floor(depth / 6); if (depth % 6 === 0) return p.faceDark; return p.face[band % p.face.length]!; }
   if (style === 'dragon') { const row = Math.floor(depth / 7), bx = (x + (row % 2) * 6) % 12; if (depth % 7 === 0 || bx === 0) return p.faceDark; return p.face[n2(Math.floor((x + (row % 2) * 6) / 12), row) % p.face.length]!; }
+  // Oshkora: flat stones in the lower wall, clay plaster above.
+  if (style === 'desert') { if (depth < 9) { const row = Math.floor(depth / 3), bx = (x + (row % 2) * 5) % 10; if (depth % 3 === 0 || bx === 0) return p.faceDark; return [0x8c8274, 0x9a8f80, 0x7e7466][n2(Math.floor((x + (row % 2) * 5) / 10), row) % 3]!; } return n2(x >> 1, depth >> 1) < 60 ? p.trim : p.face[(Math.floor(x / 18) + depth) % p.face.length]!; }
   // Wenja: hide panels with seams and pale bone ribs.
   if (x % 26 < 2 && depth > 2) return p.trim;
   if (x % 26 === 13) return p.faceDark;

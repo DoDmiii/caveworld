@@ -3,7 +3,7 @@
 import type { Weather } from './weather';
 import type { Furnishing } from './interiors';
 
-export type ResidentHut = { id: string; owner: 'camp' | 'nordic' | 'dragon'; village?: number; x: number; y: number };
+export type ResidentHut = { id: string; owner: 'camp' | 'nordic' | 'dragon' | 'desert'; village?: number; x: number; y: number };
 export type Resident = { id: string; home: 'camp' | number };
 
 /** Deterministic round-robin: residents sorted by ID fill their own village's huts in ID order. */

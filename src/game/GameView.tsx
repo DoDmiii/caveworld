@@ -60,7 +60,7 @@ const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, nu
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
 const STORABLE_ICON: Record<Storable, string> = { wood: resWood.url, stone: resStone.url, flint: resFlint.url, fiber: resFiber.url, berries: '✦', meat: '🥩', cooked: '🍖' };
 
-const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',300,3000],['Dschungel der Afrikans',2450,3000]] as const;
+const MAP_LABELS = [['Schneegebirge der Nordics',300,-700],['Gebirge der Drachenmenschen',2450,-700],['Westliches Tal der Wenja',500,1300],['Tal der unbekannten Wenja',2450,1200],['Trockengebiet',-350,3200],['Oshkora',420,2960],['Dschungel der Afrikans',2450,3000]] as const;
 /** Paints the biome layout into a small image for the mini and world map. */
 function renderBiomeMap(){
  const S=32,w=MAP.w/S,h=MAP.h/S;const cv=document.createElement('canvas');cv.width=w;cv.height=h;const c=cv.getContext('2d');if(!c)return '';
