@@ -748,7 +748,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image; skorra?: string }[] = [];
     meat = 0;
-    trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite; shade?: DesertTreeKind }[] = [];
+    trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite; shade?: DesertTreeKind | undefined }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
