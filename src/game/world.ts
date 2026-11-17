@@ -51,6 +51,17 @@ import tree7 from '@/assets/tree-north-east.png.asset.json';
 import snowTree0 from '@/assets/snow/snow-tree-0.png.asset.json';
 import snowTree1 from '@/assets/snow/snow-tree-1.png.asset.json';
 import snowTree2 from '@/assets/snow/snow-tree-2.png.asset.json';
+import datePalm0 from '@/assets/desert/date-palm-0.png.asset.json';
+import datePalm1 from '@/assets/desert/date-palm-1.png.asset.json';
+import datePalm2 from '@/assets/desert/date-palm-2.png.asset.json';
+import datePalm3 from '@/assets/desert/date-palm-3.png.asset.json';
+import acacia0 from '@/assets/desert/acacia-0.png.asset.json';
+import acacia1 from '@/assets/desert/acacia-1.png.asset.json';
+import acacia2 from '@/assets/desert/acacia-2.png.asset.json';
+import thornbush0 from '@/assets/desert/thornbush-0.png.asset.json';
+import thornbush1 from '@/assets/desert/thornbush-1.png.asset.json';
+import thornbush2 from '@/assets/desert/thornbush-2.png.asset.json';
+import { desertTree, oasisPalms, thornbushes, inCanopyShade, type DesertTreeKind } from './desert-flora';
 import snowRock0 from '@/assets/snow/snow-rock-0.png.asset.json';
 import snowRock1 from '@/assets/snow/snow-rock-1.png.asset.json';
 import snowRock2 from '@/assets/snow/snow-rock-2.png.asset.json';
@@ -58,6 +69,7 @@ import snowRock3 from '@/assets/snow/snow-rock-3.png.asset.json';
 import snowRock4 from '@/assets/snow/snow-rock-4.png.asset.json';
 import snowRock5 from '@/assets/snow/snow-rock-5.png.asset.json';
 const SNOW_TREES=[snowTree0,snowTree1,snowTree2];
+const DESERT_PLANTS:Record<string,{url:string}>={'date-palm-0':datePalm0,'date-palm-1':datePalm1,'date-palm-2':datePalm2,'date-palm-3':datePalm3,'acacia-0':acacia0,'acacia-1':acacia1,'acacia-2':acacia2,'thornbush-0':thornbush0,'thornbush-1':thornbush1,'thornbush-2':thornbush2};
 const SNOW_ROCKS=[snowRock0,snowRock1,snowRock2,snowRock3,snowRock4,snowRock5];
 import walkEast from '@/assets/walk-east.png.asset.json';
 import walkSouthEast from '@/assets/walk-south-east.png.asset.json';
@@ -736,7 +748,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     allyGear = new Map<string, { img: Phaser.GameObjects.Image; next: number; swingUntil: number }>();
     meatPickups: { x: number; y: number; sprite: Phaser.GameObjects.Image; skorra?: string }[] = [];
     meat = 0;
-    trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite }[] = [];
+    trees: { x: number; y: number; dir: number; hp: number; tint: number; sprite: Phaser.Physics.Arcade.Sprite; shade?: DesertTreeKind | undefined }[] = [];
     stumps: { x: number; y: number; dir: number; sprite?: Phaser.GameObjects.Image }[] = [];
     minedRocks: [number, number][] = [];
     lootedHouses: string[] = [];
@@ -1611,6 +1623,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       RACK_TEX.forEach((a,i)=>this.load.image(`rack-${i}`,a.url));SHELTER_TEX.forEach((a,i)=>this.load.image(`shelter-${i}`,a.url));BARRICADE_TEX.forEach((a,i)=>this.load.image(`barricade-${i}`,a.url));TOTEM_TEX.forEach((a,i)=>this.load.image(`totem-${i}`,a.url));this.load.image('severed-skull',skullAsset.url);this.load.image('pelt-wolfPelt',wolfPeltIcon.url);this.load.image('pelt-sabrePelt',sabrePeltIcon.url);
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
+      for (const [key, asset] of Object.entries(DESERT_PLANTS)) this.load.image(key, asset.url);
       SNOW_ROCKS.forEach((asset, i) => this.load.image(`snow-rock-${i}`, asset.url));
       this.load.image('res-wood', resWood.url);
       this.load.image('res-stone', resStone.url);
@@ -1767,10 +1780,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return obj;
       };
       const choppable=(x:number,y:number,dir:number)=>{
-        const snow=biomeAt(x,y)==='nordics';
-        const obj=obstacle(x,y,snow?`snow-tree-${dir%3}`:`tree${dir}`,22,10);if(!obj)return;
-        const tint=snow?0xffffff:BIOME_FLORA[biomeAt(x,y)].tint;obj.setTint(tint);
-        this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj});
+        const b=biomeAt(x,y),snow=b==='nordics',dt=b==='dry'?desertTree(x,y):null;
+        const obj=obstacle(x,y,dt?dt.key:snow?`snow-tree-${dir%3}`:`tree${dir}`,dt?(dt.kind==='palm'?14:16):22,dt?8:10);if(!obj)return;
+        if(dt?.flip)obj.setFlipX(true);
+        const tint=snow||dt?0xffffff:BIOME_FLORA[b].tint;obj.setTint(tint);
+        this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj,shade:dt?.kind});
       };
       this.plantTree=choppable;
       this.makeObstacle=obstacle;
@@ -1798,6 +1812,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
         if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+      // Dry land: date-palm rings at the waterholes and low thornbushes in the open sand.
+      for(const pt of oasisPalms())choppable(pt.x,pt.y-40,0);
+      for(const tb of thornbushes()){const o=obstacle(tb.x,tb.y,`thornbush-${tb.variant}`,28,8);if(o&&tb.flip)o.setFlipX(true);}
       // Nordic villages.
       for(const pc of NORDIC_LAYOUT){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
@@ -1988,7 +2005,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.hunger=tickHunger(this.hunger,dt*partyHungerFactor(this.followingPids())*((input.sprint||this.keys?.['SHIFT']?.isDown)?caveSprintFactor(this.caves):1));{const day=clockOf(this.clock).day;if(this.snackDay<0)this.snackDay=day;else if(day>this.snackDay){this.snackDay=day;const left=nukaSnack(this.count,this.tribePids().includes('nuka'));if(left<this.count){this.count=left;this.message='Nuka hat heimlich eine Beere genascht';this.messageUntil=time+2600;}}}
         {const wx=this.weatherNow(p);const sheltered=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const roofed=this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-CAMP.x,s.y-CAMP.y-FIRE_DY)<60);const before=this.warmth;let after=tickWarmth(before,{ambient:ambientTemp(biomeAt(p.x,p.y),minutesOfDay)+WEATHER[wx].temp,nearFire:nearWarmth,seconds:dt});if(nearWarmth&&after>before)after=before+(after-before)*fireStrength(wx,roofed);this.warmth=after<before?before-(before-after)*coldFactor(input.torch?this.owned:this.owned.filter(i=>i!=='torch'),isNight(minutesOfDay))*armorCold(this.armorNow())*caveColdFactor(this.caves)*(biomeAt(p.x,p.y)==='nordics'?bonus.snowCold:1)*(sheltered?0.5:1)*weatherColdFactor(wx,sheltered):after;if(WEATHER[wx].warn&&!sheltered&&time>=this.messageUntil&&time>this.nextWeatherWarn){this.nextWeatherWarn=time+30000;this.message=WEATHER[wx].warn;this.messageUntil=time+2600;}}
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
-        {const run=!!(input.sprint||this.keys?.['SHIFT']?.isDown);const shaded=inOutcropShade(p.x,p.y)||this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const heat=heatLevel({biome:biomeAt(p.x,p.y),minutesOfDay,weather:this.weatherNow(p),shaded});const vel=(p.body as Phaser.Physics.Arcade.Body).velocity;const drinking=canDrinkAt(p.x,p.y)&&Math.hypot(vel.x,vel.y)<5&&this.thirst<100;if(drinking&&!this.drinking){this.message='Du trinkst';this.messageUntil=time+1200;}this.drinking=drinking;this.thirst=tickThirst(this.thirst,{seconds:dt,heat,running:run,drinking});if(heat>0.3&&this.stamina<100)this.stamina=Math.max(0,this.stamina-13*(1-heatStaminaFactor(heat))*dt);this.health=Math.max(0,this.health-thirstDamage(this.thirst,dt));if(this.thirst<THIRST_WARN&&time>this.nextThirstWarn&&time>=this.messageUntil){this.nextThirstWarn=time+25000;this.message='Deine Kehle ist trocken – bleib an Wasser stehen, um zu trinken';this.messageUntil=time+2600;}}
+        {const run=!!(input.sprint||this.keys?.['SHIFT']?.isDown);const shaded=inOutcropShade(p.x,p.y)||this.inTreeShade(p.x,p.y)||this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const heat=heatLevel({biome:biomeAt(p.x,p.y),minutesOfDay,weather:this.weatherNow(p),shaded});const vel=(p.body as Phaser.Physics.Arcade.Body).velocity;const drinking=canDrinkAt(p.x,p.y)&&Math.hypot(vel.x,vel.y)<5&&this.thirst<100;if(drinking&&!this.drinking){this.message='Du trinkst';this.messageUntil=time+1200;}this.drinking=drinking;this.thirst=tickThirst(this.thirst,{seconds:dt,heat,running:run,drinking});if(heat>0.3&&this.stamina<100)this.stamina=Math.max(0,this.stamina-13*(1-heatStaminaFactor(heat))*dt);this.health=Math.max(0,this.health-thirstDamage(this.thirst,dt));if(this.thirst<THIRST_WARN&&time>this.nextThirstWarn&&time>=this.messageUntil){this.nextThirstWarn=time+25000;this.message='Deine Kehle ist trocken – bleib an Wasser stehen, um zu trinken';this.messageUntil=time+2600;}}
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt)-bleedDamage(this.bleedUntil,time,dt));if(isBleeding(this.bleedUntil,time)&&time>this.nextTrail){this.nextTrail=time+450;this.bleed(p.x,p.y+6,0,1,2);}
         if(time>=this.messageUntil){
           if(this.warmth<COLD_WARN&&time>this.nextColdWarn){this.nextColdWarn=time+25000;this.message='Dir ist kalt – such ein Feuer';this.messageUntil=time+2400;}
@@ -2212,6 +2229,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           i++;
         }
       }
+    }
+    /** Standing under a palm or acacia crown in the dry land. */
+    inTreeShade(px: number, py: number): boolean {
+      if (biomeAt(px, py) !== 'dry') return false;
+      const near = this.trees.filter(t => t.shade && Math.abs(t.x - px) < 48 && Math.abs(t.y - py) < 80);
+      return inCanopyShade(px, py, near.map(t => ({ x: t.x, y: t.y + t.sprite.height / 2 - 8, kind: t.shade! })));
     }
     /** Nach dem Schlafen wachsen alle Stümpfe zu neuen Bäumen nach; gibt die Anzahl zurück. */
     regrowTrees(): number {
