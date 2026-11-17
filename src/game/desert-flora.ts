@@ -36,7 +36,7 @@ export function oasisPalms() {
     const n = 3 + (hash(w.x, w.y) % 3);
     for (let k = 0; k < n; k++) {
       const a = (k / n) * Math.PI * 2 + i * 0.9 + (hash(k, i) % 100) / 160;
-      const d = w.r + 18 + (hash(i, k) % 26);
+      const d = w.r + 28 + (hash(i, k) % 22);
       out.push({ x: Math.round(w.x + Math.cos(a) * d), y: Math.round(w.y + Math.sin(a) * d) });
     }
   });
