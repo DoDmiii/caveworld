@@ -1,3 +1,4 @@
+import { sexLine } from './gender';
 import { Crosshair, Flame, Heart, Leaf, Shield } from 'lucide-react';
 import { SKILLS, SKILL_LABEL, relationName, trustLabel, type Profile, type ProfileState } from './profiles';
 
@@ -9,7 +10,7 @@ export function ProfileDetails({ profile }: { profile: ProfileView }) {
   return <div className="profile-details" role="tabpanel" id="npc-profile-panel" aria-labelledby="npc-profile-tab">
     <section className="profile-intro">
       <div className="profile-portrait"><img src={profile.portrait} alt={`${p.name} ${p.epithet}`} /></div>
-      <div><span className="eyebrow">{p.origin}</span><h3>{p.epithet || p.name}</h3><p>{p.role}</p></div>
+      <div><span className="eyebrow">{sexLine(p.id, p.origin)}</span><h3>{p.epithet || p.name}</h3><p>{p.role}</p></div>
     </section>
     <div className="profile-trust"><span>Vertrauen</span><strong>{state.trust}/100 · {trustLabel(state.trust)}</strong></div>
     <section className="profile-section"><h3>Fähigkeiten</h3><div className="profile-skills">{SKILLS.map(skill => {

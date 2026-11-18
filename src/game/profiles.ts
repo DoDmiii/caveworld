@@ -90,7 +90,7 @@ export function getProfile(actorId: string): Profile | undefined {
   const name = OTHER_NAMES[actorId]; if (!name) return undefined;
   const origin = actorId.endsWith('-e') || actorId === 'nordic-m2' ? 'Eisfurt' : actorId.includes('-g') ? 'Gipfelwacht' : 'Frostheim';
   const guard = ['nordic-m2-g','nordic-m0-gw','nordic-m2-e'].includes(actorId);
-  return { id: actorId, name, epithet: '', role: guard ? 'Dorfwache' : 'Dorfbewohner', origin, skills: skills(2,2,2,2,2), strength: { label: 'Heimatverbunden', effect: `Kennt die Umgebung von ${origin}.` }, quirk: { label: 'Zurückhaltend', effect: 'Begegnet Fremden vorsichtig.' }, background: `Gehört zur Gemeinschaft von ${origin}.`, relations: actorId === 'nordic-w0' ? [{ with: 'ilvar', note: 'Schwester von Ilvar.' }] : [] };
+  return { id: actorId, name, epithet: '', role: guard ? 'Dorfwache' : /-w\d/.test(actorId) ? 'Dorfbewohnerin' : 'Dorfbewohner', origin, skills: skills(2,2,2,2,2), strength: { label: 'Heimatverbunden', effect: `Kennt die Umgebung von ${origin}.` }, quirk: { label: 'Zurückhaltend', effect: 'Begegnet Fremden vorsichtig.' }, background: `Gehört zur Gemeinschaft von ${origin}.`, relations: actorId === 'nordic-w0' ? [{ with: 'ilvar', note: 'Schwester von Ilvar.' }] : [] };
 }
 export function profileState(profile: Profile, saved?: ProfileState): ProfileState {
   return saved ? { trust: saved.trust, skills: { ...saved.skills } } : { trust: profile.origin === 'Deine Sippe' ? 100 : 0, skills: { ...profile.skills } };
