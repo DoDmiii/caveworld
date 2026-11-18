@@ -63,4 +63,3 @@
 - Keep dry-land water, shade, heat and thirst rules engine-free in desert.ts; thirst saves optionally for old saves.
 - Keep dry-land vegetation rules (palm vs. acacia by position, oasis palm rings, thornbush scatter, canopy shade) engine-free in desert-flora.ts; tree looks derive from position so regrown stumps keep their look without extra save data.
 - Keep the Oshkora kraal layout (huts, horizontal thorn fences, thornbush hedges as vertical walls, pen, fields, ground) in oshkora.ts; its huts burn as owner 'desert' with a village index after FOLK_HOMES, so witness code must skip homes without inhabitants.
-- Keep music track choice, combat hold and biome hysteresis engine-free in music.ts; music-player.ts only crossfades HTML audio and is imported dynamically from GameView.

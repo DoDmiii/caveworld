@@ -1,0 +1,1 @@
+- Keep music track choice, combat hold and biome hysteresis engine-free in music.ts; music-player.ts only crossfades HTML audio and is imported dynamically from GameView.
