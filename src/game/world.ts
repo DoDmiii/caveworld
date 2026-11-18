@@ -13,7 +13,8 @@ import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
 import { MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, OSHKORA, streamDist, STREAM_HALF } from './biomes';
-import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_FENCES } from './dragon';
+import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_GATE, DRAGON_PROPS, DRAGON_FIRE, DRAGON_GROUND_BOX, dragonGroundsAt, dragonPaddyAt } from './dragon';
+import { paintDragonGround, DRAGON_PROP_ART } from './dragon-render';
 import { OSHKORA_TEXTURES, OSHKORA_HOUSES, OSHKORA_FENCES, oshkoraAt, oshkoraGround } from './oshkora';
 import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
@@ -1582,7 +1583,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for (const b of this.caves.builds[this.caves.current] ?? []) if(b.kind==='fire') hole(b.x,b.y,140,0.98);
         hole(p.x,p.y,(this.owned.includes('torch')&&!!input.torch)?120+Math.sin(this.time.now/120)*3:22,(this.owned.includes('torch')&&!!input.torch)?0.98:0.28);
       } else { for (const h of FLAMMABLE_HOUSES) { const f = this.fires[h.id]; if (!f) continue; const ph = firePhase(f, this.clock); if (ph === 'blaze') hole(h.x, h.y, 160 + Math.sin(this.time.now / 90 + h.x) * 6, 0.95); else if (ph === 'smolder') hole(h.x, h.y, 55, 0.6); }
-        hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); hole(p.x, p.y, (this.owned.includes('torch')&&!!input.torch)?120:70, (this.owned.includes('torch')&&!!input.torch)?0.9:0.35); }                  // Restlicht um den Spieler
+        hole(CAMP.x, CAMP.y + FIRE_DY, 190, 0.92); hole(DRAGON_FIRE.x, DRAGON_FIRE.y, 150, 0.85); hole(p.x, p.y, (this.owned.includes('torch')&&!!input.torch)?120:70, (this.owned.includes('torch')&&!!input.torch)?0.9:0.35); }                  // Restlicht um den Spieler
       ctx.globalCompositeOperation = 'source-over';
       tex.refresh();
       img.setVisible(true).setPosition(wx, wy).setDisplaySize(ww, wh);
@@ -1775,6 +1776,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             c.fillStyle='#8a8c84';c.fillRect(x-1,y-1,3,1);}
           tt.refresh();this.add.image(ox,oy,'terraces').setOrigin(0).setDepth(MAP.y-198);}
       }
+      // Drachenterrasse grounds: slate plaza, rice paddies, canals, pier; props sort with the player.
+      {const B=DRAGON_GROUND_BOX,gt=this.textures.exists('dragon-ground')?null:this.textures.createCanvas('dragon-ground',B.w,B.h);
+        if(gt){gt.context.imageSmoothingEnabled=false;paintDragonGround(gt.context);gt.refresh();}
+        this.add.image(B.x,B.y,'dragon-ground').setOrigin(0).setDepth(MAP.y-197);
+        for(const [k,a] of Object.entries(DRAGON_PROP_ART))if(!this.textures.exists(k)){const t=this.textures.createCanvas(k,a.w,a.h);if(t){a.draw(t.context);t.refresh();}}
+        for(const pr of DRAGON_PROPS)this.add.image(pr.x,pr.y,pr.key).setOrigin(0.5,1).setFlipX(!!pr.flip).setDepth(pr.y);}
       const obstacle=(x:number,y:number,key:string,bw:number,bh:number)=> {
         const obj=this.obstacles?.create(x,y,key) as Phaser.Physics.Arcade.Sprite | undefined;
         if(!obj)return undefined;obj.setDepth(y+obj.height/2-6); const body=obj.body as Phaser.Physics.Arcade.StaticBody;body.setSize(bw,bh);body.setOffset((obj.width-bw)/2,obj.height-bh-4);
@@ -1812,7 +1819,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        if(villageAt(x,y,40)||dragonVillageAt(x,y,40)||oshkoraAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40)||dragonGroundsAt(x,y,30)||oshkoraAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
       // Dry land: date-palm rings at the waterholes and low thornbushes in the open sand.
       for(const pt of oasisPalms())choppable(pt.x,pt.y-40,0);
       for(const tb of thornbushes()){const o=obstacle(tb.x,tb.y,`thornbush-${tb.variant}`,28,8);if(o&&tb.flip)o.setFlipX(true);}
@@ -1825,10 +1832,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const o=this.obstacles?.create(pt.x,yy,'__DEFAULT') as Phaser.Physics.Arcade.Sprite|undefined;if(o){o.setVisible(false);(o.body as Phaser.Physics.Arcade.StaticBody).setSize(18,pt.ny>0.25?CLIFF_H:18);}}
       // Dragon-people terrace village.
       for(const pc of DRAGON_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o)this.houseSprites.set(pc.id,o);}
-      for(const pc of DRAGON_FENCES){
+      for(const pc of DRAGON_GATE){
         if(pc.bw === 0){this.add.image(pc.x,pc.y,pc.key).setDepth(pc.y-32);continue;}
-        const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);
+        obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);
       }
+      {const g=this.add.image(DRAGON_FIRE.x,DRAGON_FIRE.y+6,'glow').setDepth(DRAGON_FIRE.y-10).setBlendMode(Phaser.BlendModes.ADD);
+        this.tweens.add({targets:g,alpha:{from:.35,to:.55},scale:{from:.9,to:1},duration:460,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
+        obstacle(DRAGON_FIRE.x,DRAGON_FIRE.y,'fire',20,8);}
       // Oshkora kraal: hut backs, thorn fences and thornbush hedges.
       for(const pc of OSHKORA_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o)this.houseSprites.set(pc.id,o);}
       for(const pc of OSHKORA_FENCES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
@@ -3148,7 +3158,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       {const tint=playerTint(input.armor,this.health);if (time < this.hitFlash) p.setTint(0xff5050); else if (tint!==null) p.setTint(tint); else p.clearTint();}
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':oshkoraAt(p.x,p.y)?'Oshkora':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':oshkoraAt(p.x,p.y)?'Oshkora':dragonPaddyAt(p.x,p.y)?'Reisterrassen der Drachenterrasse':dragonVillageAt(p.x,p.y)?'Drachenterrasse':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;

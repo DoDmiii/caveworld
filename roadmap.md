@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Drachenterrasse neu: Zaunring entfernt (Klippen sind die Mauer), Hütten gestaffelt um einen Schieferplatz mit Feuer, Tor mit Totems, geschwungene Reisterrassen auf zwei Ebenen mit Bewässerungskanälen, Trittsteine, Fischersteg, Reusen, Vogelscheuchen und Trockengestelle. Live angesehen, 431 Tests grün.
 - [x] Trockengebiet Stufe 1: Durst (Hitze ×4, Rennen ×1,5), Trinken an Fluss/Bach/4 Wasserlöchern, Schatten an Sandsteinfelsen/Unterstand, Wetter Gluthitze/Staubsturm, gespeichert. Tests grün, nicht vor Ort live durchgespielt.
 - [x] Oshkora-Kral an der Ockerquelle: 8 Lehm-/Steinhütten mit Brandruinen, Dornenzäune, Dornbusch-Hecken als Seitenwände, Nord-/Südtor, Ziegengatter, 3 Hirsefelder, eigener Lehmhütten-Innenraum; Tore, Hecke, Innenraum, Brand und Neuladen live geprüft.
 - [ ] Oshkora-Bewohner und Ziegenherden (wartet auf Sprites).
