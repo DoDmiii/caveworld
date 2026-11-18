@@ -23,6 +23,7 @@ export function createMusicPlayer() {
   raf = requestAnimationFrame(step);
   const playCur = () => { if (current && unlocked && !muted) { const a = el(current); if (a.paused) { a.play().catch(() => {}); } } };
   return {
+    get state() { return { current, unlocked, muted, playing: (Object.keys(els) as Track[]).filter(t => !els[t].paused) }; },
     unlock() { if (!unlocked) { unlocked = true; playCur(); } },
     set(t: Track | null) { if (t === current) return; if (t === 'battle' && els.battle) els.battle.currentTime = 0; current = t; playCur(); },
     setDim(v: number) { dim = v; },
