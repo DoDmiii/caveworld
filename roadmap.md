@@ -63,3 +63,5 @@
 - [x] Rüstungen Wolfspelz (3 Wolfsfelle, schneller, stärkster Kälteschutz) und Säbelzahnpelz (3 Säbelzahnfelle, +20 % Schaden, Kälteschutz); Felle fallen beim Erlegen; Blut-Look ab ≤50 % LP. Platzhalter-Färbung, nicht live geprüft.
 - [ ] Echte Rüstungs-/Blut-Skins, Wolf-Rennanimation und Fell-Icons einbauen (wartet auf Grafiken).
 - [x] Holzkeule: eigenes Inventar-Symbol und hochgeladene Keulen-Bewegungen (Stehen, Gehen, Schlagen; Wolfspelz auch Rennen) für normale Figur, Wolfspelz, Säbelzahnpelz und Blut; normale Figur live geprüft.
+
+- [x] Schlafen in Hüttenbetten (fremde Hütten: Bewohner merken es und werden misstrauisch)

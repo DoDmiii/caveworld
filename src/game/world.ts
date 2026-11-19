@@ -40,7 +40,7 @@ import { RUIN_TEXTURES, FLAME_SHEET, SMOKE_SHEET, FLAMMABLE_HOUSES, doorPoint, r
 import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
 import { lootHouse } from './village-loot';
 import { assignResidents, wantsIndoors, restSpots, DOOR_REACH, DOOR_PATIENCE } from './hut-residents';
-import { styleOf, furnishHut, hutOptions, hutDoorAt, hutDoor, hutSpawn, hutExit, leavesHut, outsideSpot, nearestFurnishing, hutTitle, roomWalkable, POCKET, ROOMS, ROOM_CENTER, HEARTH_WARM_RANGE, type HutStyle, type Furnishing } from './interiors';
+import { styleOf, furnishHut, hutOptions, hutDoorAt, hutDoor, hutSpawn, hutExit, leavesHut, outsideSpot, nearestFurnishing, bedFor, sleepSpot, hutTitle, roomWalkable, POCKET, ROOMS, ROOM_CENTER, HEARTH_WARM_RANGE, type HutStyle, type Furnishing } from './interiors';
 import { renderHut, FURNITURE_ATLAS } from './interior-render';
 import tree0 from '@/assets/tree-east.png.asset.json';
 import tree1 from '@/assets/tree-south-east.png.asset.json';
@@ -97,6 +97,7 @@ import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadChildren, syncChildren, tickChildren, type Kid } from './child-folk';
 import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, folkTex, type Folk } from './nordic-folk';
+import { bedTrespass } from './bed-trespass';
 import { isWolfHunter, bareTex, wearsFur, isCold, FIRE_WARMTH_RANGE } from './wolf-fur';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
@@ -390,6 +391,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const hut = this.hut; if (!hut) return null;
       const ex = hutExit(hut.style); if (Math.hypot(p.x - ex.x, p.y - ex.y) < 34) return 'Hütte verlassen';
       const stash = nearestFurnishing(hut.items, p.x, p.y, 'basket'); if (stash?.stash && !this.lootedHouses.includes(hut.house.id)) return 'Vorräte durchsuchen';
+      const bed = bedFor(hut.items, p.x, p.y, this.lyingResidents()); if (bed && !bed.taken) return 'Schlafen';
       const hearth = nearestFurnishing(hut.items, p.x, p.y, 'hearth', 40); if (hearth && this.meat > 0) return 'Fleisch braten';
       return null;
     }
@@ -410,13 +412,43 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         say(`${hut.house.name} · +4 Holz, +3 Stein, +2 Fasern, +1 Feuerstein · +3 Beeren, +1 Fleisch, +2 Gebratenes${weapon ? ` · ${name}` : ''}`, 3200);
         this.persist(); return;
       }
+      const bed = bedFor(hut.items, p.x, p.y, this.lyingResidents());
+      if (bed) { if (bed.taken) say('Hier schläft schon jemand'); else this.sleepInHut(bed.bed); return; }
       const hearth = nearestFurnishing(hut.items, p.x, p.y, 'hearth', 40);
       if (hearth) { const r = roast(this.pantry()); if (r) { this.setPantry(r); say('Fleisch am Herdfeuer gebraten · [3] essen'); } else { this.stamina = 100; say('Am Herdfeuer aufgewärmt'); } return; }
       if (near?.stash) { say('Dieser Vorratskorb ist bereits leer'); return; }
       if (near?.kind === 'basket' || near?.kind === 'pot') { say(hut.house.owner === 'camp' ? 'Getrocknete Beeren und Wurzeln deiner Sippe' : hut.house.owner === 'desert' ? 'Hirsekörner und getrocknete Datteln der Oshkora' : 'Nur Wurzeln und Asche – nichts von Wert'); return; }
       if (near?.kind === 'cradle') { say('Eine Fellwiege aus Mammutrippen'); return; }
-      if (near?.kind === 'bed') { say('Ein Schlaflager aus Fellen und Moos'); return; }
       say('Hier gibt es nichts zu tun', 1600);
+    }
+    lyingResidents() { return this.residentViews.filter(v => v.rotation !== 0).map(v => ({ x: v.x, y: v.y })); }
+    /** Lies down in a hut bed: same rest as the camp bed, waking up beside it. */
+    sleepInHut(bed: Furnishing) {
+      const p = this.player, hut = this.hut; if (!p || !hut || this.sleeping) return;
+      const spot = sleepSpot(bed), house = hut.house;
+      const residents = Object.entries(this.residentHomes).filter(([, h]) => h === house.id).map(([id]) => id);
+      const village = house.village !== undefined && FOLK_HOMES[house.village] ? villageKey(FOLK_HOMES[house.village]!.name) : null;
+      const trespass = bedTrespass({ foreign: house.owner !== 'camp' && !!village, residents: residents.length, inside: residents.filter(id => this.indoors.get(id) === house.id).length, roll: Math.random() });
+      this.sleeping = true; p.anims.stop(); p.setVelocity(0, 0); p.setPosition(spot.x, spot.y).setTexture('sleep').setDepth(60000 + bed.y + 2);
+      this.message = 'Du legst dich schlafen …'; this.messageUntil = this.time.now + 1600;
+      const cam = this.cameras.main; cam.fadeOut(900, 8, 6, 4);
+      this.time.delayedCall(1700, () => { this.health = 100; this.stamina = 100; cam.fadeIn(900, 8, 6, 4); });
+      this.time.delayedCall(3200, () => {
+        const wake = [{ x: bed.x, y: bed.y + 14 }, { x: bed.x + bed.w / 2 + 12, y: bed.y }, { x: bed.x - bed.w / 2 - 12, y: bed.y }].find(o => roomWalkable(hut.style, o.x, o.y)) ?? hutSpawn(hut.style);
+        if (this.hut === hut) p.setPosition(wake.x, wake.y);
+        if (trespass.noticed && village) {
+          this.rel = changeVillageRelationship(this.rel, village, trespass.relationship);
+          for (const id of residents) this.rel = changePersonalRelationship(this.rel, id, trespass.relationship, village);
+        }
+        this.wakeUp();
+        if (trespass.noticed) { this.message = trespass.caught ? `Die Bewohner haben dich in ihrem Bett ertappt · ${house.name} wird misstrauisch` : `Ausgeschlafen · die Bewohner merken, dass jemand in ihrem Bett lag`; this.messageUntil = this.time.now + 3200; this.persist(); }
+      });
+    }
+    wakeUp() {
+      this.sleeping = false; input.sleep = false; this.hunger = Math.max(5, this.hunger - SLEEP_HUNGER_COST); this.warmth = Math.max(this.warmth, 90);
+      const grown = this.regrowTrees();
+      this.message = grown === 1 ? 'Ausgeschlafen · ein Baum ist nachgewachsen' : grown > 1 ? `Ausgeschlafen · ${grown} Bäume sind nachgewachsen` : 'Ausgeschlafen · voll erholt';
+      this.messageUntil = this.time.now + 2400; this.persist();
     }
     updateHut(time: number, delta: number) {
       const p = this.player, hut = this.hut; if (!p || !hut) return;
@@ -426,6 +458,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       else if (time - this.lastAutosave > 15000) { this.lastAutosave = time; this.persist(); }
       if (this.health <= 0 && !this.dead) { this.dead = true; this.playDeath(p); }
       if (this.dead) { p.setVelocity(0, 0); if (input.respawn !== this.lastRespawn) { this.lastRespawn = input.respawn; this.dead = false; this.health = 100; this.hunger = 50; this.warmth = 80; this.exitHut(); p.setPosition(CAMP.x, CAMP.y - 30); p.anims.stop(); this.persist(); } this.report(time, p); return; }
+      if (this.sleeping) {
+        if (!input.paused) { this.clock += SLEEP_CLOCK_PER_SEC * dt; this.tickTrust(0); this.tickTasks(); }
+        p.setVelocity(0, 0); this.lastAction = input.action; this.cavePrompt = null; this.report(time, p); return;
+      }
       let dx = input.x, dy = input.y;
       if (k?.['A']?.isDown || k?.['LEFT']?.isDown) dx = -1; if (k?.['D']?.isDown || k?.['RIGHT']?.isDown) dx = 1;
       if (k?.['W']?.isDown || k?.['UP']?.isDown) dy = -1; if (k?.['S']?.isDown || k?.['DOWN']?.isDown) dy = 1;
@@ -2053,7 +2089,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.sleeping=true;p.anims.stop();p.setVelocity(0,0);p.setPosition(bedX,bedY-4);p.setTexture('sleep');
         const cam=this.cameras.main;cam.fadeOut(900,8,6,4);
         this.time.delayedCall(1700,()=>{this.health=100;this.stamina=100;cam.fadeIn(900,8,6,4);});
-        this.time.delayedCall(3200,()=>{this.sleeping=false;input.sleep=false;this.hunger=Math.max(5,this.hunger-SLEEP_HUNGER_COST);this.warmth=Math.max(this.warmth,90);p.setPosition(bedX,bedY+18);const grown=this.regrowTrees();this.message=grown===1?'Ausgeschlafen · ein Baum ist nachgewachsen':grown>1?`Ausgeschlafen · ${grown} Bäume sind nachgewachsen`:'Ausgeschlafen · voll erholt';this.messageUntil=this.time.now+2400;this.persist();});
+        this.time.delayedCall(3200,()=>{p.setPosition(bedX,bedY+18);this.wakeUp();});
       }
       if(input.sleep&&!this.nearBed&&!this.sleeping)input.sleep=false;
       if(this.sleeping){p.setVelocity(0,0);p.setDepth(bedY+20);this.report(time,p);return;}

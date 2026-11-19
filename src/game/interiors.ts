@@ -187,3 +187,13 @@ export const nearestFurnishing = (items: Furnishing[], x: number, y: number, kin
 export function hutTitle(owner: HouseOwner, village: string) {
   return owner === 'camp' ? 'Deine Hütte im Höhlenlager' : owner === 'nordic' ? `Langhütte in ${village}` : owner === 'desert' ? `Lehmhütte in ${village}` : `Schieferhütte auf der ${village}`;
 }
+
+/** Where the player lies on a bed (bed sprites stand on their bottom edge). */
+export const sleepSpot = (b: Furnishing) => ({ x: b.x, y: b.y - b.h / 2 + 2 });
+/** A resident lying closer than this to a bed's sleeping place has taken it. */
+export const BED_TAKEN_RANGE = 12;
+/** Nearest bed within reach and whether a lying resident already sleeps in it. */
+export function bedFor(items: readonly Furnishing[], x: number, y: number, lying: readonly { x: number; y: number }[]): { bed: Furnishing; taken: boolean } | null {
+  const bed = nearestFurnishing(items as Furnishing[], x, y, 'bed', 34); if (!bed) return null;
+  return { bed, taken: lying.some(o => Math.hypot(o.x - bed.x, o.y - (bed.y - 6)) < BED_TAKEN_RANGE) };
+}
