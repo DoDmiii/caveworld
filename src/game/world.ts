@@ -2744,8 +2744,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (time < this.nextFurCheck) return; this.nextFurCheck = time + 400;
       const night = isNight(clockOf(this.clock).minutesOfDay), p = this.player;
       for (const f of this.folk) {
-        if (!isWolfHunter(f.c.id) || f.combat.phase === 'dead' || (f.c.state !== 'free' && f.c.state !== 'camp')) continue;
-        const s = f.sprite, v = FOLK_HOMES[f.t.village]!, biome = biomeAt(s.x, s.y);
+        if (!isWolfHunter(f.c.id) || f.combat.phase === 'dead') continue;
+        const s = f.sprite;
+        // Captives keep the pelt look so kneeling, bound and carried frames match one atlas.
+        if (f.c.state !== 'free' && f.c.state !== 'camp') { if (f.tex) { f.tex = undefined; s.setTexture(f.t.tex, s.frame.name); } continue; }
+        const v = FOLK_HOMES[f.t.village]!, biome = biomeAt(s.x, s.y);
         const fighting = f.combat.phase !== 'ready' || (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > time || this.raidRoster.has(f.c.id) || this.duel?.id === f.c.id || this.responseOrders.has(f.c.id);
         const indoors = this.inPocket() && !!p && Math.hypot(s.x - p.x, s.y - p.y) < 260;
         const nearFire = Math.hypot(s.x - DRAGON_FIRE.x, s.y - DRAGON_FIRE.y) < FIRE_WARMTH_RANGE || Math.hypot(s.x - CAMP.x, s.y - CAMP.y - FIRE_DY) < FIRE_WARMTH_RANGE + 40;
