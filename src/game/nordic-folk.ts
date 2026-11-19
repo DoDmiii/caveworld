@@ -6,7 +6,11 @@ import wr from '@/assets/nordic-people/nordic-warrior.png.asset.json';
 import dw0 from '@/assets/dragon-people/dragon-w0.png.asset.json';
 import dw1 from '@/assets/dragon-people/dragon-w1.png.asset.json';
 import dw2 from '@/assets/dragon-people/dragon-w2.png.asset.json';
-import dm0 from '@/assets/dragon-people/dragon-m0.png.asset.json';
+import dw3 from '@/assets/dragon-people/dragon-w3.png.asset.json';
+import dw4 from '@/assets/dragon-people/dragon-w4.png.asset.json';
+import dw2b from '@/assets/dragon-people/dragon-w2-bare.png.asset.json';
+import dw3b from '@/assets/dragon-people/dragon-w3-bare.png.asset.json';
+import dw4b from '@/assets/dragon-people/dragon-w4-bare.png.asset.json';
 import dm1 from '@/assets/dragon-people/dragon-m1.png.asset.json';
 import dm2 from '@/assets/dragon-people/dragon-m2.png.asset.json';
 import dm3 from '@/assets/dragon-people/dragon-m3.png.asset.json';
@@ -17,6 +21,7 @@ import { newFighter, type Fighter } from './combat';
 import { CHAMPION_HP, CHAMPION_SCALE } from './raid';
 import { corpseParts } from './corpse-art';
 import { ATTACK_START, folkDeathFrame } from './folk-animation';
+import { bareTex } from './wolf-fur';
 export { ATTACK_START, DEATH_START } from './folk-animation';
 
 // Atlas: 0–7 idle, then `walk` frames per direction; captives add 8 surrender + 8 bound frames.
@@ -42,11 +47,13 @@ const T = [
   { id: 'champion-0', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 0, dx: 0, dy: -20, champion: true },
   { id: 'champion-1', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 1, dx: 0, dy: -20, champion: true },
   { id: 'champion-2', tex: 'nordic-warrior', url: wr.url, walk: 6, captive: false, village: 2, dx: 0, dy: -20, champion: true },
-  // Dragon people (village 3 = Drachenterrasse): same atlas layout as the Nordic warrior; men are armed warriors.
+  // Dragon people (village 3 = Drachenterrasse): same atlas layout as the Nordic warrior; men and the
+  // three wolf hunters (Yozora, Yuki, Kasumi; pelt atlas + `-bare` atlas) are armed warriors.
   { id: 'dragon-w0', url: dw0.url, walk: 6, captive: true, village: 3, dx: -40, dy: 40, death: true },
   { id: 'dragon-w1', url: dw1.url, walk: 6, captive: true, village: 3, dx: 40, dy: 40, death: true },
-  { id: 'dragon-w2', url: dw2.url, walk: 6, captive: true, village: 3, dx: -110, dy: 60, death: true },
-  { id: 'dragon-m0', url: dm0.url, walk: 6, captive: true, village: 3, dx: -40, dy: -30, warrior: true },
+  { id: 'dragon-w2', url: dw2.url, bareUrl: dw2b.url, walk: 6, captive: true, village: 3, dx: -110, dy: 60, warrior: true },
+  { id: 'dragon-w3', url: dw3.url, bareUrl: dw3b.url, walk: 6, captive: true, village: 3, dx: -40, dy: -30, warrior: true },
+  { id: 'dragon-w4', url: dw4.url, bareUrl: dw4b.url, walk: 6, captive: true, village: 3, dx: -80, dy: 90, warrior: true },
   { id: 'dragon-m1', url: dm1.url, walk: 6, captive: true, village: 3, dx: 40, dy: -30, warrior: true },
   { id: 'dragon-m2', url: dm2.url, walk: 6, captive: false, village: 3, dx: 0, dy: 110, warrior: true },
   { id: 'dragon-m3', url: dm3.url, walk: 6, captive: true, village: 3, dx: 110, dy: 60, warrior: true },
@@ -66,6 +73,8 @@ export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
 
 export type Folk = {
+  /** Current look when it differs from the template (wolf hunters without pelt). Never saved. */
+  tex?: string | undefined;
   beheaded?: boolean | undefined;
   headPosition?: { x: number; y: number } | undefined;
   headSprite?: Phaser.GameObjects.Image | undefined;
@@ -76,17 +85,29 @@ export type Folk = {
   facing: number; next: number; until: number; tx: number; ty: number; seed: number;
 };
 
+/** Texture key currently shown for this inhabitant. */
+export const folkTex = (f: Folk) => f.tex ?? f.t.tex;
+
 export function preloadFolk(scene: Phaser.Scene) {
-  for (const t of NORDIC_FOLK.filter((t, i, a) => a.findIndex(o => o.tex === t.tex) === i)) scene.load.spritesheet(t.tex, t.url, { frameWidth: 32, frameHeight: 32 });
+  for (const t of NORDIC_FOLK.filter((t, i, a) => a.findIndex(o => o.tex === t.tex) === i)) {
+    scene.load.spritesheet(t.tex, t.url, { frameWidth: 32, frameHeight: 32 });
+    if ('bareUrl' in t) scene.load.spritesheet(bareTex(t.tex), t.bareUrl, { frameWidth: 32, frameHeight: 32 });
+  }
+}
+
+function createFolkAnims(scene: Phaser.Scene, t: FolkTemplate, tex: string) {
+  if (scene.anims.exists(`${tex}-walk-0`)) return;
+  for (let d = 0; d < 8; d++) {
+    const s = 8 + d * t.walk;
+    scene.anims.create({ key: `${tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(tex, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
+    if (isWarrior(t)) scene.anims.create({ key: `${tex}-attack-${d}`, frames: scene.anims.generateFrameNumbers(tex, { start: ATTACK_START + d * 9, end: ATTACK_START + d * 9 + 8 }), frameRate: 18, repeat: 0 });
+  }
 }
 
 export function createFolk(scene: Phaser.Scene, obstacles: Phaser.Physics.Arcade.StaticGroup): Folk[] {
   return NORDIC_FOLK.map((t, i) => {
-    if (!scene.anims.exists(`${t.tex}-walk-0`)) for (let d = 0; d < 8; d++) {
-      const s = 8 + d * t.walk;
-      scene.anims.create({ key: `${t.tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(t.tex, { start: s, end: s + t.walk - 1 }), frameRate: 8, repeat: -1 });
-      if (isWarrior(t)) scene.anims.create({ key: `${t.tex}-attack-${d}`, frames: scene.anims.generateFrameNumbers(t.tex, { start: ATTACK_START + d * 9, end: ATTACK_START + d * 9 + 8 }), frameRate: 18, repeat: 0 });
-    }
+    createFolkAnims(scene, t, t.tex);
+    if ('bareUrl' in t) createFolkAnims(scene, t, bareTex(t.tex));
     const sprite = scene.physics.add.sprite(t.x, t.y, t.tex, 2).setSize(10, 7).setOffset(11, 23).setDepth(t.y).setPushable(false);
     if (isChampion(t)) sprite.setScale(CHAMPION_SCALE).setTint(0xffe6c0);
     scene.physics.add.collider(sprite, obstacles);
@@ -104,8 +125,8 @@ function corpseBlood(f: Folk) {
 export function dieFolk(f: Folk) {
   poseFolk(f);
   if (f.beheaded || !hasDeath(f.t)) return;
-  const sc = f.sprite.scene, st = deathStart(f), key = `${f.t.tex}-death-${st}`;
-  if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers(f.t.tex, { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
+  const sc = f.sprite.scene, st = deathStart(f), key = `${folkTex(f)}-death-${st}`;
+  if (!sc.anims.exists(key)) sc.anims.create({ key, frames: sc.anims.generateFrameNumbers(folkTex(f), { start: st, end: st + 6 }), frameRate: 10, repeat: 0 });
   f.sprite.play(key);
 }
 /** Re-applies the visible pose after a state change. */
@@ -117,7 +138,7 @@ export function poseFolk(f: Folk) {
   s.setAngle(0);
   s.setCrop();
   if (f.combat.phase === 'dead' && f.beheaded) {
-    const art = corpseParts(s.scene, f.t.tex);
+    const art = corpseParts(s.scene, folkTex(f));
     if (art) {
       s.setTexture(art.bodyKey).setDepth(s.y - 4);
       corpseBlood(f);
@@ -127,7 +148,7 @@ export function poseFolk(f: Folk) {
       return;
     }
   }
-  if (s.texture.key !== f.t.tex) s.setTexture(f.t.tex);
+  if (s.texture.key !== folkTex(f)) s.setTexture(folkTex(f));
   if (f.combat.phase !== 'dead') {
     f.beheaded = false; f.headPosition = undefined; f.deathClock = undefined; f.skullTaken = undefined;
     f.headSprite?.destroy(); f.headSprite = undefined;
@@ -181,7 +202,7 @@ export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGr
     if (time < f.until && d > 4) {
       s.setVelocity(dx / d * 18, dy / d * 18);
       f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-      s.play(`${f.t.tex}-walk-${f.facing}`, true);
+      s.play(`${folkTex(f)}-walk-${f.facing}`, true);
     } else { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing); }
     s.setDepth(s.y);
   }

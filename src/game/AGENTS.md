@@ -1,1 +1,2 @@
 - Keep music track choice, combat hold and biome hysteresis engine-free in music.ts; music-player.ts only crossfades HTML audio and is imported dynamically from GameView.
+- Keep wolf-hunter pelt rules engine-free in wolf-fur.ts; each hunter has a pelt atlas plus an identical-layout `-bare` atlas, world.ts only swaps the live look (never saved).

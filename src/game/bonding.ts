@@ -8,7 +8,7 @@ export const ADULT_WOMEN = new Set([
   'ally-3', 'ally-4', 'ally-5',
   'nordic-w0', 'nordic-w1', 'nordic-w3', 'nordic-w0-g', 'nordic-w1-g',
   'nordic-w3-g', 'nordic-w1-e', 'nordic-w0-e',
-  'dragon-w0', 'dragon-w1', 'dragon-w2',
+  'dragon-w0', 'dragon-w1', 'dragon-w2', 'dragon-w3', 'dragon-w4',
 ]);
 export type ClosenessContext = {
   adultWoman: boolean; free: boolean; ready: boolean; willing: boolean;

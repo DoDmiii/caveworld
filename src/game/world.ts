@@ -96,7 +96,8 @@ import resFlint from '@/assets/res-flint.png.asset.json';
 import resFiber from '@/assets/res-fiber.png.asset.json';
 import { saveGame, type GameSave } from './save';
 import { preloadChildren, syncChildren, tickChildren, type Kid } from './child-folk';
-import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, type Folk } from './nordic-folk';
+import { FOLK_HOMES, preloadFolk, createFolk, tickFolk, poseFolk, dieFolk, isWarrior, surrenderFrameOf, boundFrame, isChampion, folkTex, type Folk } from './nordic-folk';
+import { isWolfHunter, bareTex, wearsFur, isCold, FIRE_WARMTH_RANGE } from './wolf-fur';
 import { championFallen, assignAllyTargets, recordChampionDeath, villagesToRespawn, clearRespawn, CHAMPION_HP, CHAMPION_DAMAGE, CHAMPION_ALLY_DAMAGE, CHAMPION_NAMES, type RaidState } from './raid';
 import { interact, drop, CARRY_SPEED , canExecute } from './captives';
 import { assignPost, postSpots, canPostHere, GUARD_POST_LABEL, type GuardBook, type GuardPostId } from './guards';
@@ -303,7 +304,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     tickResidents(time: number, controlled: Set<string>, stopped: boolean) {
       const people = [
         ...this.campers.map(c => ({ id: c.template.id, sprite: c.sprite, tex: c.template.id, home: 'camp' as const, warrior: false, ready: true })),
-        ...this.folk.filter(f => (f.c.state === 'free' || f.c.state === 'camp') && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, tex: f.t.tex, home: f.c.state === 'camp' ? 'camp' as const : f.t.village, warrior: isWarrior(f.t), ready: true })),
+        ...this.folk.filter(f => (f.c.state === 'free' || f.c.state === 'camp') && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, tex: folkTex(f), home: f.c.state === 'camp' ? 'camp' as const : f.t.village, warrior: isWarrior(f.t), ready: true })),
       ];
       if (time > this.residentsAt) { this.residentsAt = time + 1000; this.residentHomes = assignResidents(FLAMMABLE_HOUSES, people.map(r => ({ id: r.id, home: r.home }))); }
       const live = new Set(people.map(r => r.id));
@@ -338,7 +339,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const spots = restSpots(items, ids.length, isNight(clockOf(this.clock).minutesOfDay));
       ids.forEach((id, i) => {
         const sp = spots[i]; if (!sp) return;
-        const tex = this.campers.find(c => c.template.id === id)?.template.id ?? this.folk.find(f => f.c.id === id)?.t.tex; if (!tex) return;
+        const tex = this.campers.find(c => c.template.id === id)?.template.id ?? (() => { const f = this.folk.find(o => o.c.id === id); return f && (isWolfHunter(f.c.id) ? bareTex(folkTex(f)) : folkTex(f)); })(); if (!tex) return;
         const img = this.add.image(sp.x, sp.y, tex, 2).setOrigin(0.5, 0.9).setDepth(60000 + sp.y + 4);
         if (sp.lying) img.setRotation(-Math.PI / 2); else img.setFrame(sp.x < (items.find(f => f.kind === 'hearth')?.x ?? sp.x) ? 0 : 4);
         this.residentViews.push(img);
@@ -738,7 +739,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const v = FOLK_HOMES[f.t.village], dx = v.x - s.x, dy = v.y - s.y, d = Math.hypot(dx, dy) || 1;
       s.setVelocity(dx / d * 46, dy / d * 46); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-      s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
+      s.play(`${folkTex(f)}-walk-${f.facing}`, true); s.setDepth(s.y);
     }
     squad() {
       return this.companionActors().filter(a => this.companionOrders.get(a.id)?.mode === 'follow').map(a => {
@@ -805,7 +806,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (!body.blocked.none && (!st || time > st.until + 400)) this.stuck.set(f.c.id, { until: time + 700, turn: f.seed % 2 ? 1 : -1 });
       const cur = this.stuck.get(f.c.id); if (cur && time < cur.until) { const t = cur.turn; [dx, dy] = [-dy * t, dx * t]; }
       s.setVelocity(dx * speed, dy * speed); f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-      s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y); return dl;
+      s.play(`${folkTex(f)}-walk-${f.facing}`, true); s.setDepth(s.y); return dl;
     }
     obstacleBlocks(): Block[] {
       return (this.obstacles?.getChildren() ?? []).flatMap(o => { const b = (o as Phaser.Physics.Arcade.Sprite).body; return b ? [{ x: b.x, y: b.y, width: b.width, height: b.height }] : []; });
@@ -1015,7 +1016,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (dl < 10 || (!body.blocked.none && time > f.until)) { this.patrolStep.set(f.c.id, step + 1); f.until = time + 800; if (Math.random() < 0.15) this.bark(f.c.id, s, 'patrol', time); return; }
         s.setVelocity(dx / dl * 30, dy / dl * 30);
         f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-        s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
+        s.play(`${folkTex(f)}-walk-${f.facing}`, true); s.setDepth(s.y);
       });
       return ids;
     }
@@ -1218,9 +1219,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       s.setVelocity(v.x, v.y); s.setDepth(s.y);
       const striking = d.ai.state === 'strike';
       if (th.strikeStarted) {
-        if (d.rules.arms === 'weapons') s.play(`${f.t.tex}-attack-${f.facing}`);
+        if (d.rules.arms === 'weapons') s.play(`${folkTex(f)}-attack-${f.facing}`);
         else { s.anims.stop(); s.setFrame(f.facing); this.tweens.add({ targets: s, scaleX: s.scaleX * 1.12, scaleY: s.scaleY * 0.92, duration: 110, yoyo: true }); }
-      } else if (!striking) { if (Math.hypot(v.x, v.y) > 4) { const vf = (Math.round(Math.atan2(v.y, v.x) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${d.ai.state === 'backstep' ? f.facing : vf}`, true); } else { s.anims.stop(); s.setFrame(f.facing); } }
+      } else if (!striking) { if (Math.hypot(v.x, v.y) > 4) { const vf = (Math.round(Math.atan2(v.y, v.x) / (Math.PI / 4)) + 8) % 8; s.play(`${folkTex(f)}-walk-${d.ai.state === 'backstep' ? f.facing : vf}`, true); } else { s.anims.stop(); s.setFrame(f.facing); } }
       if (th.landHit && !this.finisher) {
         const dmg = opponentDamage(d.rules.arms), ux = (p.x - s.x) / Math.max(1, dist), uy = (p.y - s.y) / Math.max(1, dist);
         this.hurtPlayer(dmg, time); this.hitFlash = time + 200; this.lastDamage = time;
@@ -1972,6 +1973,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       tickCampers(this.campers, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
       for (const id of this.tickPatrols(time, input.paused || this.dead || this.health <= 0 || this.sleeping)) controlled.add(id);
       tickFolk(this.folk, this.obstacles, time, input.paused || this.dead || this.health <= 0 || this.sleeping, controlled);
+      this.tickWolfFur(time);
       if (this.kids.length !== this.repro.children.length) this.kids = syncChildren(this, this.kids, this.repro.children, this.folk);
       tickChildren(this.kids, this.folk, this.obstacles, time, delta, input.paused || this.dead || this.health <= 0 || this.sleeping, p);
       this.tickIlvar(time, input.paused || this.dead || this.health <= 0);
@@ -2130,7 +2132,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // Bound captive lies across the shoulders and bobs with the walk cycle.
         const side=[0,1,7,6].includes(this.lastFacing)?0:4;
         const bob=p.anims.isPlaying?(p.anims.currentFrame?.index??0)%2:0;
-        this.carryImg.setTexture(this.carried.t.tex,boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
+        this.carryImg.setTexture(folkTex(this.carried),boundFrame(this.carried.t,side)).setPosition(p.x,p.y-13+bob).setDepth(this.lastFacing===6||this.lastFacing===5||this.lastFacing===7?p.y-1:p.y+1).setVisible(true);
       }
       const eatKey:Food|null=k?.['ONE']&&Phaser.Input.Keyboard.JustDown(k['ONE'])?'berries':k?.['TWO']&&Phaser.Input.Keyboard.JustDown(k['TWO'])?'meat':k?.['THREE']&&Phaser.Input.Keyboard.JustDown(k['THREE'])?'cooked':k?.['FOUR']&&Phaser.Input.Keyboard.JustDown(k['FOUR'])?'jerky':null;
       this.tickBuild(input,p,time);this.drawDryBars();this.tickTraps(time);
@@ -2297,7 +2299,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const dx = p.x - s.x, dy = p.y - s.y, len = Math.max(1, d);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
           m.icon.setText('!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true);
-          if (isWarrior(f.t) && d > SHOVE_RANGE) { s.setVelocity(dx / len * 65, dy / len * 65); s.play(`${f.t.tex}-walk-${f.facing}`, true); }
+          if (isWarrior(f.t) && d > SHOVE_RANGE) { s.setVelocity(dx / len * 65, dy / len * 65); s.play(`${folkTex(f)}-walk-${f.facing}`, true); }
           else {
             s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing);
             if (isWarrior(f.t) && d <= SHOVE_RANGE) {
@@ -2331,16 +2333,16 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
           if (gl > 4 && inRange && !(lunging && (near ? Math.hypot(near.x - s2.x, near.y - s2.y) : d) <= 15)) {
             const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
-            s2.setVelocity(gx * spd, gy * spd); if (!attackingNow) s2.play(`${f.t.tex}-walk-${f.facing}`, true);
+            s2.setVelocity(gx * spd, gy * spd); if (!attackingNow) s2.play(`${folkTex(f)}-walk-${f.facing}`, true);
           } else { s2.setVelocity(0, 0); if (!attackingNow) { s2.anims.stop(); s2.setFrame(f.facing); } }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
           const vic = lunging ? pickVictim(s2, p, this.standingAllies(), 19) : undefined;
           if (vic && vic !== 'player' && time > ((m as { allyHitAt?: number }).allyHitAt ?? 0)) {
-            (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
+            (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${folkTex(f)}-attack-${f.facing}`);
             this.hitCompanion(vic, isChampion(f.t) ? CHAMPION_ALLY_DAMAGE : f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
           } else if (vic === 'player' && time > this.lastDamage + 900) {
             this.hurtPlayer(isChampion(f.t) ? CHAMPION_DAMAGE : f.t.captive ? 5 : 7, time); this.hitFlash = time + 200; this.lastDamage = time;
-            (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${f.t.tex}-attack-${f.facing}`);
+            (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${folkTex(f)}-attack-${f.facing}`);
             this.bleed(p.x, p.y, dx / Math.max(1, d), dy / Math.max(1, d), 6);
             this.message = isChampion(f.t) ? `${CHAMPION_NAMES[f.t.village]} trifft dich hart!` : f.t.captive ? 'Ein Dorfbewohner schlägt mit seiner Waffe zu!' : 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400;
           }
@@ -2356,7 +2358,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           const ax = s.x - p.x, ay = s.y - p.y, al = Math.max(1, Math.hypot(ax, ay));
           const hx = v.x - s.x, hy = v.y - s.y, far = Math.hypot(hx, hy) > v.r * 1.2;
           const vx = far ? hx : ax / al * 100 + Math.sin(time / 300 + f.seed) * 30, vy = far ? hy : ay / al * 100 + Math.cos(time / 300 + f.seed) * 30, vl = Math.max(1, Math.hypot(vx, vy));
-          if (d < 200) { s.setVelocity(vx / vl * 78, vy / vl * 78); f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); }
+          if (d < 200) { s.setVelocity(vx / vl * 78, vy / vl * 78); f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${folkTex(f)}-walk-${f.facing}`, true); }
           else { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(surrenderFrameOf(f)); }
           m.icon.setText('!!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true); s.setDepth(s.y);
           if (time > m.next) { m.next = time + 1500 + (f.seed % 900); if (d < 200) this.bark(f.c.id, s, 'flee', time); }
@@ -2378,7 +2380,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (stop) continue;
         const dx = p.x - s.x, dy = p.y - s.y, len = Math.max(1, d);
         const home = Math.hypot(s.x - v.x, s.y - v.y) < v.r;
-        const face = (vx: number, vy: number) => { f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); };
+        const face = (vx: number, vy: number) => { f.facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8; s.play(`${folkTex(f)}-walk-${f.facing}`, true); };
         // Tense first contact: distrustful people stare, block, warn, shove and finally strike.
         if (!dec.shouldAttack && !dec.shouldFlee && dec.state !== 'friendly' && guardsSpace(getPersonalRelationship(this.rel, f.c.id, vk))) {
           const mm = m as { shoveAt?: number };
@@ -2647,7 +2649,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const f = this.folk.find(o => o.c.id === st.id); if (!f) continue;
         const s = f.sprite;
         if (stop) { s.setVelocity(0, 0); continue; }
-        s.setVelocity(st.vx, st.vy); f.facing = (Math.round(Math.atan2(st.vy, st.vx) / (Math.PI / 4)) + 8) % 8; s.play(`${f.t.tex}-walk-${f.facing}`, true); s.setDepth(s.y);
+        s.setVelocity(st.vx, st.vy); f.facing = (Math.round(Math.atan2(st.vy, st.vx) / (Math.PI / 4)) + 8) % 8; s.play(`${folkTex(f)}-walk-${f.facing}`, true); s.setDepth(s.y);
         const m = this.folkMood.get(f.c.id); if (m) { m.icon.setText('!!').setPosition(s.x, s.y - 14).setDepth(s.y + 2000).setVisible(true); m.weapon?.setVisible(false); }
       }
       for (const c of [...r.escaped, ...r.silenced]) { const f = this.folk.find(o => o.c.id === c.id); this.folkMood.get(c.id)?.icon.setVisible(false); if (f && f.combat.phase === 'ready' && f.c.state === 'free') { f.sprite.setVelocity(0, 0); f.sprite.anims.stop(); poseFolk(f); } }
@@ -2681,7 +2683,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       return [
         ...this.campers.map(c => ({ id: c.template.id, sprite: c.sprite, texture: c.template.id,
           home: { x: c.template.x, y: c.template.y }, facing: c.facing, face: (d: number) => { c.facing = d; }, pace: companionPace(PROFILE_IDS[c.template.id] ?? '') })),
-        ...this.folk.filter(f => f.c.state === 'camp' && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, texture: f.t.tex,
+        ...this.folk.filter(f => f.c.state === 'camp' && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, texture: folkTex(f),
           home: { x: 940 + this.folk.indexOf(f) % 4 * 38, y: 735 }, facing: f.facing, face: (d: number) => { f.facing = d; }, pace: companionPace(PROFILE_IDS[f.c.id] ?? '') })),
       ];
     }
@@ -2736,6 +2738,27 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Player shoves past villagers: brief knockback velocity overriding movement. */
     shove?: { vx: number; vy: number; until: number };
     pressStrikes = new Map<string, { strikes: number; at: number }>();
+    nextFurCheck = 0;
+    /** Wolf hunters put their pelt on outdoors, at night and in a fight, and take it off at home or by a fire. */
+    tickWolfFur(time: number) {
+      if (time < this.nextFurCheck) return; this.nextFurCheck = time + 400;
+      const night = isNight(clockOf(this.clock).minutesOfDay), p = this.player;
+      for (const f of this.folk) {
+        if (!isWolfHunter(f.c.id) || f.combat.phase === 'dead' || (f.c.state !== 'free' && f.c.state !== 'camp')) continue;
+        const s = f.sprite, v = FOLK_HOMES[f.t.village]!, biome = biomeAt(s.x, s.y);
+        const fighting = f.combat.phase !== 'ready' || (this.folkMood.get(f.c.id)?.armedUntil ?? 0) > time || this.raidRoster.has(f.c.id) || this.duel?.id === f.c.id || this.responseOrders.has(f.c.id);
+        const indoors = this.inPocket() && !!p && Math.hypot(s.x - p.x, s.y - p.y) < 260;
+        const nearFire = Math.hypot(s.x - DRAGON_FIRE.x, s.y - DRAGON_FIRE.y) < FIRE_WARMTH_RANGE || Math.hypot(s.x - CAMP.x, s.y - CAMP.y - FIRE_DY) < FIRE_WARMTH_RANGE + 40;
+        const atHome = f.c.state === 'camp' ? this.inCampAt(s.x, s.y) : Math.hypot(s.x - v.x, s.y - v.y) < v.r;
+        const cold = isCold({ night, weather: this.inPocket() ? 'clear' : weatherAt(regionOf(biome), this.clock), snowyBiome: biome === 'nordics' });
+        const want = wearsFur({ indoors, fighting, nearFire, cold, atHome }) ? undefined : bareTex(f.t.tex);
+        if (want === f.tex) continue;
+        f.tex = want;
+        const key = folkTex(f), playing = s.anims.isPlaying ? s.anims.currentAnim?.key ?? '' : '';
+        if (playing.includes('-walk-')) s.play(`${key}-walk-${f.facing}`, true);
+        else if (!playing) s.setTexture(key, s.frame.name);
+      }
+    }
     armFolk(f: Folk, time: number, radius = 200) {
       for (const ally of this.folk.filter(a => a.c.state === 'camp')) this.trustEvent(ally.c.id, 'violence');
       for (const o of this.folk) {
@@ -2921,7 +2944,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     /** Split the victim's own lying artwork at the neck, then throw that exact head. */
     severHead(f:Folk,fx:number,fy:number){
-      const art=corpseParts(this,f.t.tex);if(!art)return;
+      const art=corpseParts(this,folkTex(f));if(!art)return;
       const s=f.sprite,x=s.x+art.headX*s.scaleX,y=s.y+art.headY*s.scaleY,side=Math.random()<0.5?-1:1;
       const nx=s.x+art.neckX*s.scaleX,ny=s.y+art.neckY*s.scaleY;
       this.bleed(nx,ny+6,-fy*side,fx*side,30);

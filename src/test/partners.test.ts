@@ -31,13 +31,13 @@ describe('partners', () => {
 
 import { getProfile } from '@/game/profiles';
 describe('dragon profiles', () => {
-  it('the wolf girl is Yuri das Wolfsmädchen and single', () => {
-    const y = getProfile('dragon-w2');
-    expect(y?.name).toBe('Yuri'); expect(y?.epithet).toBe('das Wolfsmädchen');
-    expect(partnerOf(EMPTY_COUPLES, 'dragon-w2')).toBeUndefined();
+  it('the three wolf hunters are Yozora, Yuki and Kasumi, all single', () => {
+    expect(['dragon-w2', 'dragon-w3', 'dragon-w4'].map(id => getProfile(id)?.name)).toEqual(['Yozora', 'Yuki', 'Kasumi']);
+    for (const id of ['dragon-w2', 'dragon-w3', 'dragon-w4']) expect(partnerOf(EMPTY_COUPLES, id)).toBeUndefined();
   });
-  it('dragon couples are Mei-Ra & Taro-Ka and Suli & Bao', () => {
-    expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w0')!)?.name).toBe('Taro-Ka');
+  it('Taro-Ka is gone', () => expect(getProfile('dragon-m0')).toBeUndefined());
+  it('dragon couples are Mei-Ra & Gorun and Suli & Bao', () => {
+    expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w0')!)?.name).toBe('Gorun');
     expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w1')!)?.name).toBe('Bao');
   });
 });
