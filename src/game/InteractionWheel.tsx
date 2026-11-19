@@ -104,7 +104,7 @@ export function InteractionWheel({ context, onChoose, onClose, name, profile, di
             onConfirm={() => onChoose(option.id)}/>;
           return <Button key={option.id} type="button" variant="outline" className="interaction-option" disabled={option.disabled} title={option.disabledReason ?? option.description} onClick={() => onChoose(option.id)}>
             <span><Icon size={19}/><strong>{option.id === 'assign' ? `Aufgabe: ${context.task ?? 'Keine'}` : option.label}</strong></span>
-            <small>Risiko: {RISK_LABEL[option.risk]}</small>
+            <small>{option.id === 'bond' && option.disabled && option.disabledReason ? option.disabledReason : `Risiko: ${RISK_LABEL[option.risk]}`}</small>
           </Button>;
         })}
       </div>}
