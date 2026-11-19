@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ADULT_WOMEN, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from '../game/bonding';
+import { ADULT_WOMEN, isWillingByRelationship, closenessReluctance, willingRelationship, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from '../game/bonding';
 import type { Observer } from '../game/events';
 import { getAvailableInteractions } from '../game/interactions';
 const eligible: ClosenessContext = { adultWoman: true, playerAdult: true, free: true, ready: true, willing: true, playerArmed: false, carrying: false, inRange: true };
@@ -29,5 +29,18 @@ describe('voluntary closeness', () => {
     const rect = { x: 40, y: -10, width: 20, height: 20 };
     expect(blocksSight(0, 0, 100, 0, rect)).toBe(true);
     expect(blocksSight(0, 30, 100, 30, rect)).toBe(false);
+  });
+  it('Drachenfrauen stimmen früher zu als andere Fremde, nie bei Alarm', () => {
+    expect(willingRelationship('dragon-w2')).toBeLessThan(willingRelationship('nordic-w0'));
+    expect(isWillingByRelationship('dragon-w2', 30, false)).toBe(true);
+    expect(isWillingByRelationship('nordic-w0', 30, false)).toBe(false);
+    expect(isWillingByRelationship('dragon-w2', 90, true)).toBe(false);
+    expect(isWillingByRelationship('dragon-w2', 10, false)).toBe(false);
+  });
+  it('nennt dem Spieler den Grund statt nur abzulehnen', () => {
+    expect(closenessReluctance('dragon-w2', 10, false)).toContain('10/25');
+    expect(closenessReluctance('nordic-w0', 10, false)).toContain('10/55');
+    expect(closenessReluctance('dragon-w2', 90, true)).toContain('Alarm');
+    expect(closenessRefusal({ ...eligible, willing: false, reluctance: 'Grund X' })).toBe('Grund X');
   });
 });

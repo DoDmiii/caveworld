@@ -10,16 +10,32 @@ export const ADULT_WOMEN = new Set([
   'nordic-w3-g', 'nordic-w1-e', 'nordic-w0-e',
   'dragon-w0', 'dragon-w1', 'dragon-w2', 'dragon-w3', 'dragon-w4',
 ]);
+/** Beziehung, ab der eine fremde Frau freiwillig zustimmt. */
+export const WILLING_RELATIONSHIP = 55;
+/** Drachenfrauen finden Wenja- und Nordic-Männer laut Lore besonders anziehend: Sie sind schneller bereit. */
+export const DRAGON_WILLING_RELATIONSHIP = 25;
+export const isDragonWoman = (id: string) => id.startsWith('dragon-');
+export const willingRelationship = (id: string) => (isDragonWoman(id) ? DRAGON_WILLING_RELATIONSHIP : WILLING_RELATIONSHIP);
+/** Gleiche Regel wie bisher (keine Zustimmung bei Alarm), nur mit volksabhängiger Schwelle. */
+export const isWillingByRelationship = (id: string, relationship: number, alarm: boolean) => relationship >= willingRelationship(id) && !alarm;
+/** Sagt dem Spieler, woran es liegt, statt nur abzulehnen. */
+export function closenessReluctance(id: string, relationship: number, alarm: boolean): string {
+  if (alarm) return 'Das Dorf ist in Alarm · sie hat gerade keinen Sinn für Nähe.';
+  const need = willingRelationship(id);
+  return relationship < need ? `Sie kennt dich noch zu wenig · Beziehung ${Math.max(0, Math.round(relationship))}/${need}. Grüße sie oder bring ein Geschenk.` : 'Sie möchte gerade keine Nähe.';
+}
 export type ClosenessContext = {
   adultWoman: boolean; free: boolean; ready: boolean; willing: boolean;
   playerAdult: boolean; playerArmed: boolean; carrying: boolean; inRange: boolean;
+  /** Optional: Begründung, wenn sie nicht zustimmt. */
+  reluctance?: string | undefined;
 };
 export function closenessRefusal(c: ClosenessContext): string | null {
   if (!c.playerAdult || !c.adultWoman) return 'Nur zwischen erwachsenen Frauen und der erwachsenen Spielfigur.';
   if (!c.free || !c.ready) return 'Gefangene oder überwältigte Personen sind ausgeschlossen.';
   if (!c.inRange) return 'Außer Reichweite.';
   if (c.playerArmed || c.carrying) return 'Mach zuerst die Hände frei.';
-  if (!c.willing) return 'Sie möchte gerade keine Nähe.';
+  if (!c.willing) return c.reluctance ?? 'Sie möchte gerade keine Nähe.';
   return null;
 }
 export function closenessWitnesses(

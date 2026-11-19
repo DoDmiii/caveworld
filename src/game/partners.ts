@@ -24,6 +24,11 @@ export const COUPLES: Record<string, string> = {
 export const LURE_NEEDED = 40;
 export const GIFT_LURE = 20;
 export const GREET_LURE = 5;
+/** Drachenfrauen sind für Wenja-Männer schneller zu gewinnen (Lore): halbe Schwelle, doppelter Zuwachs. */
+export const DRAGON_LURE_NEEDED = 20;
+export const DRAGON_LURE_FACTOR = 2;
+export const lureNeeded = (woman: string) => (woman.startsWith('dragon-') ? DRAGON_LURE_NEEDED : LURE_NEEDED);
+export const lureGain = (woman: string, base: number) => (woman.startsWith('dragon-') ? base * DRAGON_LURE_FACTOR : base);
 export const GOSSIP_SUSPICION = 35;
 export const SECRET_SUSPICION = 10;
 export const CONFRONT_AT = 100;
@@ -46,7 +51,8 @@ export function addLure(s: CouplesState, woman: string, amount: number): Couples
 export function seductionRefusal(s: CouplesState, woman: string, partnerName: string | undefined, isAlive?: (id: string) => boolean): string | null {
   if (!partnerOf(s, woman, isAlive)) return null;
   const lure = s.lure[woman] ?? 0;
-  return lure >= LURE_NEEDED ? null : `Sie gehört zu ${partnerName ?? 'einem anderen'} · erst Geschenke und Aufmerksamkeit (${lure}/${LURE_NEEDED}).`;
+  const need = lureNeeded(woman);
+  return lure >= need ? null : `Sie gehört zu ${partnerName ?? 'einem anderen'} · erst Geschenke und Aufmerksamkeit (${lure}/${need}).`;
 }
 
 export type WitnessReaction = 'rage' | 'gossip' | 'protest';

@@ -21,8 +21,8 @@ import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS
 import { CompanionMovement, findCompanionPath, clearCompanionPoint, type CompanionActor, type Block } from './companion-movement';
 import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
-import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, type CouplesState, type WitnessReaction } from './partners';
-import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
+import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, lureNeeded, lureGain, type CouplesState, type WitnessReaction } from './partners';
+import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, isWillingByRelationship, closenessReluctance, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon, FIGHTER_HP } from './combat';
 import north from '@/assets/north.png.asset.json';
 import { corpseParts } from './corpse-art';
@@ -2835,7 +2835,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       return { adultWoman: ADULT_WOMEN.has(id), playerAdult: true,
         free: !!camper || f?.c.state === 'free' || f?.c.state === 'camp',
         ready: !!camper ? !allyDowned(this.allyHealth(id)) : f?.combat.phase === 'ready' && (!own || !allyDowned(this.allyHealth(id))),
-        willing: peaceful && (!!camper || (own ? (this.profiles[id]?.trust ?? 0) >= 75 : getPersonalRelationship(this.rel, id, vk) >= 55 && !isAlarmActive(this.rel, vk, Date.now()))),
+        willing: peaceful && (!!camper || (own ? (this.profiles[id]?.trust ?? 0) >= 75 : isWillingByRelationship(id, getPersonalRelationship(this.rel, id, vk), isAlarmActive(this.rel, vk, Date.now())))),
+        reluctance: !own && !camper ? closenessReluctance(id, getPersonalRelationship(this.rel, id, vk), isAlarmActive(this.rel, vk, Date.now())) : undefined,
         playerArmed: this.held !== 'none' || input.weapon !== 'none', carrying: !!this.carried,
         inRange: !!p && !!sprite && Math.hypot(p.x - sprite.x, p.y - sprite.y) <= INTERACTION_RANGE };
     }
@@ -2939,7 +2940,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (id === 'adopt' && !this.inCampAt(f.sprite.x, f.sprite.y)) { this.message = 'Nur im Höhlenlager möglich'; this.messageUntil = time + 1600; return; }
       const o = resolveInteraction(id, { state: f.c.state, capturable: f.t.captive, relationship: getPersonalRelationship(this.rel, f.c.id, vk), goods: { berries: this.count, cooked: this.cooked, flint: this.stock.flint, fiber: this.stock.fiber } });
       if (isSocialAction(id)) this.lastSocial.set(`${f.c.id}:${id}`, Date.now());
-      if ((id === 'gift' || id === 'greet') && COUPLES[f.c.id] && f.c.state === 'free' && o.rel && o.rel > 0) { this.couples = addLure(this.couples, f.c.id, id === 'gift' ? GIFT_LURE : GREET_LURE); o.message += ` · sie lächelt dich an (${this.couples.lure[f.c.id]}/40)`; }
+      if ((id === 'gift' || id === 'greet') && COUPLES[f.c.id] && f.c.state === 'free' && o.rel && o.rel > 0) { this.couples = addLure(this.couples, f.c.id, lureGain(f.c.id, id === 'gift' ? GIFT_LURE : GREET_LURE)); o.message += ` · sie lächelt dich an (${this.couples.lure[f.c.id]}/${lureNeeded(f.c.id)})`; }
       if (o.carry && this.carried) { this.message = 'Du trägst schon jemanden'; this.messageUntil = time + 1600; return; }
       if (id === 'trade' && o.goods.cooked > this.cooked && this.tribePids().includes('ymra')) { const ymra = this.folk.find(f => PROFILE_IDS[f.c.id] === 'ymra' && f.c.state === 'camp'); if (ymra) this.trustEvent(ymra.c.id, 'trade'); if (ymra && (this.profiles[ymra.c.id]?.trust ?? 0) >= 60) { const y = bonusYield(o.goods.cooked - this.cooked, YMRA_TRADE_BONUS, this.tradeCarry); this.tradeCarry = y.carry; if (y.amount > o.goods.cooked - this.cooked) o.message += ' · Ymra handelt 1 extra heraus'; o.goods.cooked = this.cooked + y.amount; } }
       this.count = o.goods.berries; this.cooked = o.goods.cooked; this.stock.flint = o.goods.flint; this.stock.fiber = o.goods.fiber;

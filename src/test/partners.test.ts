@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, partnerOf, LURE_NEEDED } from '@/game/partners';
+import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, partnerOf, LURE_NEEDED, DRAGON_LURE_NEEDED, lureNeeded, lureGain, GIFT_LURE } from '@/game/partners';
 
 describe('partners', () => {
   it('a partnered woman refuses until seduced to 40', () => {
@@ -40,4 +40,13 @@ describe('dragon profiles', () => {
     expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w0')!)?.name).toBe('Gorun');
     expect(getProfile(partnerOf(EMPTY_COUPLES, 'dragon-w1')!)?.name).toBe('Bao');
   });
+  it('Drachenfrauen sind schneller zu gewinnen (Lore): halbe Schwelle, doppelter Zuwachs', () => {
+    expect(lureNeeded('dragon-w0')).toBe(DRAGON_LURE_NEEDED);
+    expect(lureNeeded('nordic-w1')).toBe(LURE_NEEDED);
+    expect(lureGain('dragon-w0', GIFT_LURE)).toBe(GIFT_LURE * 2);
+    expect(lureGain('nordic-w1', GIFT_LURE)).toBe(GIFT_LURE);
+    expect(seductionRefusal({ ...EMPTY_COUPLES, lure: { 'dragon-w0': DRAGON_LURE_NEEDED } }, 'dragon-w0', 'Gorun')).toBeNull();
+    expect(seductionRefusal({ ...EMPTY_COUPLES, lure: { 'dragon-w0': DRAGON_LURE_NEEDED - 1 } }, 'dragon-w0', 'Gorun')).toContain('/20');
+  });
 });
+
