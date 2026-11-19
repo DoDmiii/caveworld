@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CAMP_ALLIES, isCampDestination } from '../game/tribe';
+import { CAMP_LAYOUT } from '../game/camp';
+import { outsideSpot } from '../game/interiors';
 
 describe('allied camp inhabitants', () => {
   it('includes all six distinct uploaded tribe members', () => {
@@ -13,7 +15,13 @@ describe('allied camp inhabitants', () => {
     expect(isCampDestination(950, 710)).toBe(true);
     expect(isCampDestination(1000, 686)).toBe(false);
     expect(isCampDestination(1046, 690)).toBe(false);
-    expect(isCampDestination(900, 700)).toBe(false);
-    expect(isCampDestination(950, 780)).toBe(false);
+    expect(isCampDestination(840, 700)).toBe(false);
+    expect(isCampDestination(950, 790)).toBe(false);
+  });
+  it('counts the doorsteps of all four camp huts as camp ground', () => {
+    for (const h of CAMP_LAYOUT.filter(p => p.key.startsWith('hut-'))) {
+      const o = outsideSpot(h);
+      expect(isCampDestination(o.x, o.y)).toBe(true);
+    }
   });
 });

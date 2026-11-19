@@ -1,5 +1,8 @@
 import type * as Phaser from 'phaser';
-import { CAMP_ALLIES, isCampDestination } from './tribe';
+import { CAMP_ALLIES, CAMP_YARD, inCampYard, isCampDestination } from './tribe';
+import { pickWander, type WanderHome } from './wander';
+
+const CAMP_HOME: WanderHome = { allowed: isCampDestination, within: inCampYard, cx: CAMP_YARD.cx, cy: CAMP_YARD.cy };
 
 export type Camper = {
   sprite: Phaser.Physics.Arcade.Sprite;
@@ -44,7 +47,7 @@ export function createCampers(scene: Phaser.Scene, player: Phaser.Physics.Arcade
 }
 
 export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.StaticGroup | undefined, time: number, stopped: boolean, controlled: ReadonlySet<string> = new Set()) {
-  const clear = (x: number, y: number) => isCampDestination(x, y) && !obstacles?.getChildren().some(object => {
+  const clear = (x: number, y: number) => !obstacles?.getChildren().some(object => {
     const body = (object as Phaser.Physics.Arcade.Sprite).body;
     // Test at the feet, where all actor bodies are anchored.
     return body && x + 6 > body.x && x - 6 < body.x + body.width
@@ -62,14 +65,8 @@ export function tickCampers(campers: Camper[], obstacles: Phaser.Physics.Arcade.
       continue;
     }
     if (time > camper.nextDecision) {
-      camper.targetX = sprite.x; camper.targetY = sprite.y;
-      for (let attempt = 0; attempt < 16; attempt++) {
-        const x = sprite.x + (random() - 0.5) * 100;
-        const y = sprite.y + (random() - 0.5) * 80;
-        const safePath = [0.25, 0.5, 0.75, 1].every(t => clear(sprite.x + (x - sprite.x) * t, sprite.y + (y - sprite.y) * t));
-        if (!safePath) continue;
-        camper.targetX = x; camper.targetY = y; break;
-      }
+      const target = pickWander(sprite.x, sprite.y, CAMP_HOME, clear, random, 100, 80);
+      camper.targetX = target.x; camper.targetY = target.y;
       camper.walkUntil = time + 3200;
       camper.nextDecision = time + 4800 + random() * 2200;
     }

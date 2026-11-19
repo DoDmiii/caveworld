@@ -15,8 +15,13 @@ export const CAMP_ALLIES = [
   { id: 'ally-5', url: ally5.url, walkingFrames: 6, x: 1100, y: 685 },
 ] as const;
 
+/** Camp yard: spans all four hut doors (west huts ~868, east huts ~1138) but stays north of the palisade. */
+export const CAMP_YARD = { x0: 850, x1: 1150, y0: 635, y1: 780, cx: 1000, cy: 715 } as const;
+export const inCampYard = (x: number, y: number) =>
+  x >= CAMP_YARD.x0 && x <= CAMP_YARD.x1 && y >= CAMP_YARD.y0 && y <= CAMP_YARD.y1;
+
 export function isCampDestination(x: number, y: number) {
-  return x >= 910 && x <= 1105 && y >= 635 && y <= 765
+  return inCampYard(x, y)
     && Math.hypot(x - 1000, y - 686) > 30
     && Math.hypot(x - 1046, y - 690) > 28;
 }

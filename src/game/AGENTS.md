@@ -1,3 +1,4 @@
 - Keep music track choice, combat hold and biome hysteresis engine-free in music.ts; music-player.ts only crossfades HTML audio and is imported dynamically from GameView.
 - Keep wolf-hunter pelt rules engine-free in wolf-fur.ts; each hunter has a pelt atlas plus an identical-layout `-bare` atlas, world.ts only swaps the live look (never saved).
 - Keep foreign-bed suspicion rules engine-free in bed-trespass.ts and bed reach/occupancy in interiors.ts; world.ts only applies relationship changes on waking.
+- Keep idle wandering engine-free in wander.ts; anyone outside their home area walks back towards its centre instead of freezing, and the camp yard in tribe.ts must cover every hut doorstep.

@@ -320,7 +320,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const door = hutDoor(hut), b = r.sprite.body as Phaser.Physics.Arcade.Body | null;
         if (inside) {
           if (want) { controlled.add(r.id); continue; }
-          this.indoors.delete(r.id); const o = outsideSpot(hut); r.sprite.setPosition(o.x, o.y).setVisible(true); if (b) b.enable = true; continue;
+          this.indoors.delete(r.id); const o = outsideSpot(hut); r.sprite.setPosition(o.x, o.y).setVisible(true); if (b) b.enable = true;
+          // Step off the doorstep right away instead of idling until the next wander decision.
+          const camper = this.campers.find(c => c.template.id === r.id); if (camper) camper.nextDecision = 0;
+          const folk = this.folk.find(f => f.c.id === r.id); if (folk) folk.next = 0;
+          continue;
         }
         if (!want || stopped) { this.headingIn.delete(r.id); continue; }
         controlled.add(r.id);

@@ -15,7 +15,8 @@ import dm1 from '@/assets/dragon-people/dragon-m1.png.asset.json';
 import dm2 from '@/assets/dragon-people/dragon-m2.png.asset.json';
 import dm3 from '@/assets/dragon-people/dragon-m3.png.asset.json';
 import { VILLAGES, DRAGON_VILLAGE } from './biomes';
-import { isCampDestination } from './tribe';
+import { CAMP_YARD, inCampYard, isCampDestination } from './tribe';
+import { pickWander, type WanderHome } from './wander';
 import type { Captive } from './captives';
 import { newFighter, type Fighter } from './combat';
 import { CHAMPION_HP, CHAMPION_SCALE } from './raid';
@@ -179,21 +180,18 @@ export function tickFolk(folk: Folk[], obstacles: Phaser.Physics.Arcade.StaticGr
     if (f.combat.phase !== 'ready') continue;
     if (f.c.state !== 'free' && f.c.state !== 'camp') continue;
     const s = f.sprite, v = FOLK_HOMES[f.t.village];
-    const home = f.c.state === 'camp'
-      ? (x: number, y: number) => isCampDestination(x, y)
-      : (x: number, y: number) => Math.hypot(x - v.x, y - v.y) < v.r * 0.6;
-    const clear = (x: number, y: number) => home(x, y) && !obstacles?.getChildren().some(o => {
+    const home: WanderHome = f.c.state === 'camp'
+      ? { allowed: isCampDestination, within: inCampYard, cx: CAMP_YARD.cx, cy: CAMP_YARD.cy }
+      : { allowed: (x, y) => Math.hypot(x - v.x, y - v.y) < v.r * 0.6, within: (x, y) => Math.hypot(x - v.x, y - v.y) < v.r * 0.6, cx: v.x, cy: v.y };
+    const clear = (x: number, y: number) => !obstacles?.getChildren().some(o => {
       const b = (o as Phaser.Physics.Arcade.Sprite).body;
       return b && x + 6 > b.x && x - 6 < b.x + b.width && y + 15 > b.y && y + 5 < b.y + b.height;
     });
     const rnd = () => { f.seed = f.seed * 16807 % 2147483647; return f.seed / 2147483647; };
     if (stopped) { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(f.facing); f.next = time + 600; continue; }
     if (time > f.next) {
-      f.tx = s.x; f.ty = s.y;
-      for (let a = 0; a < 16; a++) {
-        const x = s.x + (rnd() - 0.5) * 110, y = s.y + (rnd() - 0.5) * 90;
-        if ([0.25, 0.5, 0.75, 1].every(k => clear(s.x + (x - s.x) * k, s.y + (y - s.y) * k))) { f.tx = x; f.ty = y; break; }
-      }
+      const target = pickWander(s.x, s.y, home, clear, rnd, 110, 90);
+      f.tx = target.x; f.ty = target.y;
       f.until = time + 3200; f.next = time + 4500 + rnd() * 2500;
     }
     const dx = f.tx - s.x, dy = f.ty - s.y, d = Math.hypot(dx, dy);
