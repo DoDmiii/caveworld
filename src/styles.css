@@ -541,7 +541,7 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .pause-panel.lore-panel {width:min(100%,460px);}
 .lore-title {display:flex;align-items:center;gap:8px;}
 .lore-tabs {display:flex;gap:4px;margin-bottom:12px;}
-.lore-tab {flex:1;padding:8px 6px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted-foreground);display:flex;align-items:center;justify-content:center;gap:4px;}
+.lore-tab {flex:1;min-width:0;white-space:nowrap;padding:8px 4px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted-foreground);display:flex;align-items:center;justify-content:center;gap:4px;}
 .lore-tab.is-active {color:var(--foreground);background:var(--glass-soft);border-color:var(--foreground);}
 .lore-page {border:1px solid var(--border);border-radius:5px;padding:16px;background:var(--glass-soft);max-height:52vh;overflow-y:auto;touch-action:pan-y;}
 .lore-page h3 {font-family:'Barlow Condensed',sans-serif;font-size:24px;margin:0;}

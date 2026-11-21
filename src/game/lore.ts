@@ -1,8 +1,8 @@
 // Engine-freies Notizbuch: Hintergrundgeschichte der Stämme, die sich durch Spielen freischaltet.
 // Texte und Freischalt-Regeln stehen hier, damit sie ohne Phaser und React testbar bleiben.
 
-export type TribeId = "wenja" | "nordics" | "dragon";
-export const TRIBE_IDS: readonly TribeId[] = ["wenja", "nordics", "dragon"];
+export type TribeId = "wenja" | "nordics" | "dragon" | "oshkora";
+export const TRIBE_IDS: readonly TribeId[] = ["wenja", "nordics", "dragon", "oshkora"];
 
 /** 0 = nur ein Gerücht, 1 = gesehen, 2 = Kontakt gehabt, 3 = gut bekannt. */
 export type Knowledge = 0 | 1 | 2 | 3;
@@ -118,6 +118,48 @@ export const LORE: Record<TribeId, LoreTribe> = {
       { level: 3, label: "Bräuche", value: "Bunte Feste" },
     ],
   },
+  oshkora: {
+    id: "oshkora",
+    name: "Die Oshkora",
+    subtitle: "Das Volk der roten Quelle",
+    rumor:
+      "Im Süden, wo das Land zu Sand wird, erzählt man sich von Ziegenhirten, die ihre Quelle hüten wie ein Heiligtum.",
+    sections: [
+      {
+        level: 1,
+        title: "Das Land der Quelle",
+        text: "Im trockenen Süden, wo das grüne Tal in Sand übergeht, liegt der Kral der Oshkora rund um eine rote Ockerquelle. Sie sind weder groß noch stark, meist dünn gebaut, zäh und mit wenig Wasser zufrieden. Die Sonne hat ihre Haut dunkel gebrannt, ihr Haar ist schwarz oder dunkelbraun.",
+      },
+      {
+        level: 2,
+        title: "Ziegen, Korn und Lehm",
+        text: "Die Oshkora sind Ziegenhirten und frühe Bauern. Sie sammeln wildes Getreide, halten ihre Herden in Pferchen und schützen ihre Felder mit Dornenhecken. Ihre Häuser bestehen aus Lehm und Schilf, mit niedrigen Türen gegen die Hitze. Den roten Ocker der Quelle tauschen sie und tragen ihn als Farbe auf der Haut. Allein meiden sie den offenen Kampf und werfen lieber Steine aus der Ferne.",
+      },
+      {
+        level: 3,
+        title: "Die Meute",
+        text: "Ein einzelner Oshkora weicht zurück. Wer aber einen von ihnen angreift, hört einen Pfiff, dann ein Horn, und bald steht der ganze Kral vor ihm, Dutzende mit Speeren und Steinen. Wasser ist knapp, und was knapp ist, verteidigt man gemeinsam. In der Gruppe fürchten sie niemanden. Es sind vor allem die Männer, die den Kral im Kampf führen. Kriegerinnen gibt es, doch sie sind selten, und von jeder von ihnen spricht man noch lange.",
+      },
+      {
+        level: 3,
+        title: "Gastrecht und Ahnen",
+        text: "Wer an ihrem Feuer isst, ist für eine Nacht unantastbar. Wer dieses Recht bricht, wird nie vergessen. Ihre Toten begraben sie unter dem Hüttenboden. Die Schädel der Ahnen überziehen sie mit Lehm, bemalen sie mit Ocker und bewahren sie im Haus.",
+      },
+    ],
+    facts: [
+      { level: 1, label: "Heimat", value: "Kral an der Ockerquelle im trockenen Süden" },
+      {
+        level: 1,
+        label: "Gestalt",
+        value: "Schlank, dunkle Haut, schwarzes bis dunkelbraunes Haar",
+      },
+      { level: 2, label: "Lebensweise", value: "Ziegenhirten, Wildgetreide-Bauern" },
+      { level: 2, label: "Handelsgut", value: "Ocker, Ziegenfell, Getreide" },
+      { level: 3, label: "Kampf", value: "Schwach allein, gefährlich im Schwarm" },
+      { level: 3, label: "Haltung", value: "Misstrauisch, aber gastfreundlich am Feuer" },
+      { level: 3, label: "Brauch", value: "Ahnenschädel mit Lehm" },
+    ],
+  },
 };
 
 // ---------- Freischalten ----------
@@ -130,9 +172,9 @@ export type LoreEvent = "met" | "contact" | "champion";
 /** So viele Kontakte (Gespräche, Handel, Kämpfe) machen ein Volk gut bekannt. */
 export const CONTACTS_FOR_FULL = 4;
 
-/** Dorf-Index (FOLK_HOMES) -> Volk. 0 bis 2 sind Nordic-Dörfer, 3 die Drachenterrasse. */
+/** Dorf-Index (FOLK_HOMES) -> Volk. 0 bis 2 sind Nordic-Dörfer, 3 die Drachenterrasse, 4 der Oshkora-Kral. */
 export const tribeOfVillage = (village: number): Exclude<TribeId, "wenja"> =>
-  village === 3 ? "dragon" : "nordics";
+  village === 4 ? "oshkora" : village === 3 ? "dragon" : "nordics";
 
 export function knowledgeOf(state: LoreState, tribe: TribeId): Knowledge {
   if (tribe === "wenja") return 3;

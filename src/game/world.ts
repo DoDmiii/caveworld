@@ -1541,7 +1541,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.fires = { ...(g.fires ?? {}) };
       for (const img of this.peltSprites.values()) img.destroy(); this.peltSprites.clear();
       this.groundPelts = (g.groundPelts ?? []).map(p => ({ ...p }));
-      this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}) } : EMPTY_LORE;
+      this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}), ...(g.lore.oshkora ? { oshkora: { ...g.lore.oshkora } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
@@ -2614,7 +2614,6 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lore: LoreState = EMPTY_LORE;
     /** Vermerkt eine Begegnung im Notizbuch und meldet neue Seiten. */
     noteLore(village: number, event: LoreEvent) {
-      if (village === OSHKORA_HOME) return; // no notebook pages for Oshkora yet
       const tribe = tribeOfVillage(village), r = recordLore(this.lore, tribe, event);
       this.lore = r.state;
       if (r.after > r.before) { this.message = `Notizbuch: neue Seite über ${LORE[tribe].name}`; this.messageUntil = this.time.now + 3200; this.persist(); }

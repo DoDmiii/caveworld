@@ -62,6 +62,7 @@ describe("Notizbuch", () => {
     expect(tribeOfVillage(0)).toBe("nordics");
     expect(tribeOfVillage(2)).toBe("nordics");
     expect(tribeOfVillage(3)).toBe("dragon");
+    expect(tribeOfVillage(4)).toBe("oshkora");
     expect(unlockHint(0)).not.toBe("");
     expect(unlockHint(3)).toBe("");
   });
@@ -71,5 +72,40 @@ describe("Notizbuch", () => {
       LORE.dragon.facts.map((f) => f.value).join(" ");
     for (const w of ["Speer", "kletter", "Wolfsfell", "Drachen", "Feste"])
       expect(all.toLowerCase()).toContain(w.toLowerCase());
+  });
+  it("vier Völker, Oshkora fremd und zunächst unbekannt", () => {
+    expect(TRIBE_IDS).toEqual(["wenja", "nordics", "dragon", "oshkora"]);
+    expect(knowledgeOf(EMPTY_LORE, "oshkora")).toBe(0);
+    expect(entryView(EMPTY_LORE, "oshkora").sections).toEqual([]);
+  });
+  it("Oshkora: schalten sich über Begegnung, Kontakt und viele Kontakte frei", () => {
+    let s = recordLore(EMPTY_LORE, "oshkora", "met");
+    expect([s.before, s.after]).toEqual([0, 1]);
+    s = recordLore(s.state, "oshkora", "contact");
+    expect(s.after).toBe(2);
+    for (let i = 1; i < CONTACTS_FOR_FULL; i++) s = recordLore(s.state, "oshkora", "contact");
+    expect(s.after).toBe(3);
+    const view = entryView(s.state, "oshkora");
+    expect(view.hidden).toBe(0);
+    expect(view.sections.length).toBe(LORE.oshkora.sections.length);
+  });
+  it("Oshkora: Inhalte aus der Vorlage (Ziegen, Ocker, Meute, Gastrecht, Ahnenschädel, wenige Kriegerinnen)", () => {
+    const all = LORE.oshkora.sections
+      .map((s) => `${s.title} ${s.text}`)
+      .join(" ")
+      .toLowerCase();
+    for (const w of [
+      "ziegen",
+      "ocker",
+      "meute",
+      "gastrecht",
+      "schädel",
+      "dünn gebaut",
+      "dunkelbraun",
+      "kriegerinnen",
+      "selten",
+    ]) {
+      expect(all).toContain(w);
+    }
   });
 });
