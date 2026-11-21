@@ -12,7 +12,7 @@ import { campWarrior, hornReady, recallOrders, alarmThreats, campResponse, campA
 import { cameraZoom } from './mobile-controls';
 import { eat, roast, FOOD, type Food, type Pantry } from './food';
 import * as Phaser from 'phaser';
-import { type Biome, MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, OSHKORA, streamDist, STREAM_HALF } from './biomes';
+import { type Biome, MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX, isFord, FORDS, villageAt, VILLAGES, dragonVillageAt, OSHKORA, OSHKORA_HOME, streamDist, STREAM_HALF } from './biomes';
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_GATE, DRAGON_PROPS, DRAGON_FIRE, DRAGON_GROUND_BOX, dragonGroundsAt, dragonPaddyAt } from './dragon';
 import { paintDragonGround, DRAGON_PROP_ART } from './dragon-render';
 import { OSHKORA_TEXTURES, OSHKORA_HOUSES, OSHKORA_FENCES, oshkoraAt, oshkoraGround } from './oshkora';
@@ -2614,6 +2614,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lore: LoreState = EMPTY_LORE;
     /** Vermerkt eine Begegnung im Notizbuch und meldet neue Seiten. */
     noteLore(village: number, event: LoreEvent) {
+      if (village === OSHKORA_HOME) return; // no notebook pages for Oshkora yet
       const tribe = tribeOfVillage(village), r = recordLore(this.lore, tribe, event);
       this.lore = r.state;
       if (r.after > r.before) { this.message = `Notizbuch: neue Seite über ${LORE[tribe].name}`; this.messageUntil = this.time.now + 3200; this.persist(); }

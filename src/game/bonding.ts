@@ -9,6 +9,7 @@ export const ADULT_WOMEN = new Set([
   'nordic-w0', 'nordic-w1', 'nordic-w3', 'nordic-w0-g', 'nordic-w1-g',
   'nordic-w3-g', 'nordic-w1-e', 'nordic-w0-e',
   'dragon-w0', 'dragon-w1', 'dragon-w2', 'dragon-w3', 'dragon-w4',
+  'desert-w0', 'desert-w1', 'desert-w2', 'desert-w3', 'desert-w4',
 ]);
 /** Beziehung, ab der eine fremde Frau freiwillig zustimmt. */
 export const WILLING_RELATIONSHIP = 55;

@@ -33,3 +33,18 @@ describe('NPC profile rules', () => {
     expect(p.skills.hunt).toBe(4);
   });
 });
+import { getProfile as desertProfile } from '@/game/profiles';
+import { COUPLES as DESERT_COUPLES } from '@/game/partners';
+import { ADULT_WOMEN as DESERT_WOMEN } from '@/game/bonding';
+describe('Oshkora inhabitants', () => {
+  it('uses the chosen desert names', () => {
+    expect(['m0','m1','m2','w0','w1','w2','w3','w4'].map(k => desertProfile(`desert-${k}`)?.name)).toEqual(['Khaz','Dur-Am','Zarun','Sahra','Qamra','Azra','Yasu','Dunya']);
+  });
+  it('pairs Sahra with Khaz and Qamra with Zarun', () => {
+    expect(DESERT_COUPLES['desert-w0']).toBe('desert-m0');
+    expect(DESERT_COUPLES['desert-w1']).toBe('desert-m2');
+  });
+  it('treats the five desert women as adults', () => {
+    for (let i = 0; i < 5; i++) expect(DESERT_WOMEN.has(`desert-w${i}`)).toBe(true);
+  });
+});

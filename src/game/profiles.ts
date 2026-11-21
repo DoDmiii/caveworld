@@ -85,11 +85,40 @@ const DRAGON_BIOS: Record<string, DragonBio> = {
     background: 'Die Jüngste und Schnellste, im grauen Pelz wird sie eins mit dem Morgennebel. Sie lacht viel und läuft voraus, auch wenn sie es nicht soll.',
     relations: [{ with: 'dragon-w2', note: 'Yozora bremst sie ständig und hat meistens recht.' }, { with: 'dragon-w3', note: 'Neckt Yuki, weil sie so lange wartet.' }] },
 };
+/** Oshkora biographies (desert kraal): descriptive only, no gameplay bonuses. */
+const DESERT_BIOS: Record<string, DragonBio> = {
+  'desert-m0': { name: 'Khaz', epithet: 'Rundschild', role: 'Anführer der Kraalwache', skills: skills(3,4,1,4,1),
+    background: 'Ernst und wachsam. Er hält die Dornenzäune instand und lässt keinen Fremden ungefragt an die Ockerquelle.',
+    relations: [{ with: 'desert-w0', note: 'Gefährte von Sahra.' }, { with: 'desert-m1', note: 'Bildet Dur-Am zum Speerträger aus.' }] },
+  'desert-m1': { name: 'Dur-Am', epithet: 'Dornläufer', role: 'Ziegenhirte und Speerträger', skills: skills(3,2,2,4,1),
+    background: 'Schlank und zäh, er treibt die Ziegen bis an den Rand der Dünen und kennt jedes Wasserloch.',
+    relations: [{ with: 'desert-m0', note: 'Lernt bei Khaz.' }, { with: 'desert-w2', note: 'Bringt Azra heimlich Ockerstücke mit.' }] },
+  'desert-m2': { name: 'Zarun', epithet: 'Ockerhand', role: 'Krieger und Feldhüter', skills: skills(4,3,2,2,1),
+    background: 'Laut und stolz auf seine Kriegsbemalung. Er bewacht die Hirsefelder vor Tieren und Dieben.',
+    relations: [{ with: 'desert-w1', note: 'Gefährte von Qamra.' }] },
+  'desert-w0': { name: 'Sahra', epithet: 'Korbflechterin', role: 'Sammlerin und Korbflechterin', skills: skills(1,2,4,2,2),
+    background: 'Warmherzig und geschäftig. Ihre Schilfkörbe tragen Hirse, Datteln und Wasserkrüge durch das ganze Dorf.',
+    relations: [{ with: 'desert-m0', note: 'Gefährtin von Khaz.' }, { with: 'desert-w3', note: 'Kümmert sich um die verschlossene Yasu.' }] },
+  'desert-w1': { name: 'Qamra', epithet: 'Mondlicht', role: 'Feldarbeiterin an der Hirse', skills: skills(1,2,4,1,2),
+    background: 'Arbeitet vom ersten Licht an auf den Feldern und singt dabei, damit die Vögel fernbleiben.',
+    relations: [{ with: 'desert-m2', note: 'Gefährtin von Zarun. Sein Stolz geht ihr oft auf die Nerven.' }] },
+  'desert-w2': { name: 'Azra', epithet: 'Ockerlied', role: 'Farbmischerin an der Ockerquelle', skills: skills(1,1,3,2,4),
+    background: 'Mischt die rote Erde der Quelle zu Bemalung für Feste und Krieger.',
+    relations: [{ with: 'desert-m1', note: 'Freut sich über Dur-Ams Ockerstücke.' }] },
+  'desert-w3': { name: 'Yasu', epithet: 'Halbmaske', role: 'Ziegenhüterin', skills: skills(2,2,2,4,1),
+    background: 'Trägt stets eine Halbmaske und spricht kaum über ihre Herkunft. Die Ziegen folgen ihr wie keinem anderen.',
+    relations: [{ with: 'desert-w0', note: 'Vertraut nur Sahra.' }] },
+  'desert-w4': { name: 'Dunya', epithet: 'Weitblick', role: 'Wasserträgerin', skills: skills(1,3,3,3,1),
+    background: 'Läuft täglich zur Quelle und zurück und sieht als Erste, wer sich dem Kraal nähert.',
+    relations: [{ with: 'desert-w2', note: 'Holt Wasser für Azras Farben.' }] },
+};
 export function getProfile(actorId: string): Profile | undefined {
   const detailed = PROFILES.find(p => p.id === PROFILE_IDS[actorId]);
   if (detailed) return detailed;
   const dragon = DRAGON_BIOS[actorId];
   if (dragon) return { id: actorId, ...dragon, origin: 'Drachenterrasse', strength: { label: 'Bergvolk', effect: 'Kennt die Pässe und Bäche der Drachenterrasse.' }, quirk: { label: 'Misstrauisch', effect: 'Begegnet Fremden aus dem Tal mit Vorsicht.' } };
+  const desert = DESERT_BIOS[actorId];
+  if (desert) return { id: actorId, ...desert, origin: 'Oshkora', strength: { label: 'Wüstenvolk', effect: 'Kennt Wasserlöcher und Schatten rund um die Ockerquelle.' }, quirk: { label: 'Vorsichtig', effect: 'Begegnet Fremden aus dem Tal mit Zurückhaltung.' } };
   const name = OTHER_NAMES[actorId]; if (!name) return undefined;
   const origin = actorId.endsWith('-e') || actorId === 'nordic-m2' ? 'Eisfurt' : actorId.includes('-g') ? 'Gipfelwacht' : 'Frostheim';
   const guard = ['nordic-m2-g','nordic-m0-gw','nordic-m2-e'].includes(actorId);

@@ -20,6 +20,8 @@ export const COUPLES: Record<string, string> = {
   'nordic-w0-e': 'nordic-m2-e',  // Silra & Vindir
   'dragon-w0': 'dragon-m2',     // Mei-Ra & Gorun
   'dragon-w1': 'dragon-m1',     // Suli & Bao
+  'desert-w0': 'desert-m0',     // Sahra & Khaz
+  'desert-w1': 'desert-m2',     // Qamra & Zarun
 };
 export const LURE_NEEDED = 40;
 export const GIFT_LURE = 20;

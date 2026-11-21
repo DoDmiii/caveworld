@@ -14,7 +14,15 @@ import dw4b from '@/assets/dragon-people/dragon-w4-bare.png.asset.json';
 import dm1 from '@/assets/dragon-people/dragon-m1.png.asset.json';
 import dm2 from '@/assets/dragon-people/dragon-m2.png.asset.json';
 import dm3 from '@/assets/dragon-people/dragon-m3.png.asset.json';
-import { VILLAGES, DRAGON_VILLAGE } from './biomes';
+import sw0 from '@/assets/desert-people/desert-w0.png.asset.json';
+import sw1 from '@/assets/desert-people/desert-w1.png.asset.json';
+import sw2 from '@/assets/desert-people/desert-w2.png.asset.json';
+import sw3 from '@/assets/desert-people/desert-w3.png.asset.json';
+import sw4 from '@/assets/desert-people/desert-w4.png.asset.json';
+import sm0 from '@/assets/desert-people/desert-m0.png.asset.json';
+import sm1 from '@/assets/desert-people/desert-m1.png.asset.json';
+import sm2 from '@/assets/desert-people/desert-m2.png.asset.json';
+import { VILLAGES, DRAGON_VILLAGE, OSHKORA } from './biomes';
 import { CAMP_YARD, inCampYard, isCampDestination } from './tribe';
 import { pickWander, type WanderHome } from './wander';
 import type { Captive } from './captives';
@@ -58,17 +66,26 @@ const T = [
   { id: 'dragon-m1', url: dm1.url, walk: 6, captive: true, village: 3, dx: 40, dy: -30, warrior: true },
   { id: 'dragon-m2', url: dm2.url, walk: 6, captive: false, village: 3, dx: 0, dy: 110, warrior: true },
   { id: 'dragon-m3', url: dm3.url, walk: 6, captive: true, village: 3, dx: 110, dy: 60, warrior: true },
+  // Oshkora (village 4): desert goat herders and farmers; the three men carry spears.
+  { id: 'desert-w0', url: sw0.url, walk: 6, captive: true, village: 4, dx: -60, dy: 10, death: true },
+  { id: 'desert-w1', url: sw1.url, walk: 6, captive: true, village: 4, dx: 60, dy: 85, death: true },
+  { id: 'desert-w2', url: sw2.url, walk: 6, captive: true, village: 4, dx: -20, dy: 70, death: true },
+  { id: 'desert-w3', url: sw3.url, walk: 6, captive: true, village: 4, dx: -110, dy: 40, death: true },
+  { id: 'desert-w4', url: sw4.url, walk: 6, captive: true, village: 4, dx: 90, dy: -20, death: true },
+  { id: 'desert-m0', url: sm0.url, walk: 6, captive: false, village: 4, dx: 0, dy: -60, warrior: true },
+  { id: 'desert-m1', url: sm1.url, walk: 6, captive: true, village: 4, dx: 110, dy: 60, warrior: true },
+  { id: 'desert-m2', url: sm2.url, walk: 6, captive: true, village: 4, dx: -70, dy: -50, warrior: true },
 ] as const;
-/** Home settlements of all folk: the Nordic villages, then the dragon terrace. */
-export const FOLK_HOMES = [...VILLAGES, DRAGON_VILLAGE] as const;
+/** Home settlements of all folk: the Nordic villages, the dragon terrace, then Oshkora (= OSHKORA_HOME). */
+export const FOLK_HOMES = [...VILLAGES, DRAGON_VILLAGE, OSHKORA] as const;
 export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: FOLK_HOMES[t.village].x + t.dx, y: FOLK_HOMES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
 export const isChampion = (t: FolkTemplate) => 'champion' in t;
 /** Men are warriors: armed, fight to the death. Women gather and panic when the village is attacked. */
 export const isWarrior = (t: FolkTemplate) => t.tex === 'nordic-warrior' || 'warrior' in t;
-/** Nordic warriors have four death directions; dragon inhabitants have all eight. */
+/** Nordic warriors have four death directions; dragon and desert inhabitants have all eight. */
 export const hasDeath = (t: FolkTemplate) => isWarrior(t) || 'death' in t;
-const deathStart = (f: Folk) => folkDeathFrame(f.facing, f.t.village === 3);
+const deathStart = (f: Folk) => folkDeathFrame(f.facing, f.t.village >= 3);
 const surrenderFrame = (t: FolkTemplate, f: number) => 8 + 8 * t.walk + f;
 export const surrenderFrameOf = (f: Folk) => surrenderFrame(f.t, f.facing);
 export const boundFrame = (t: FolkTemplate, f: number) => 16 + 8 * t.walk + f;
