@@ -65,3 +65,5 @@
 - [x] Holzkeule: eigenes Inventar-Symbol und hochgeladene Keulen-Bewegungen (Stehen, Gehen, Schlagen; Wolfspelz auch Rennen) für normale Figur, Wolfspelz, Säbelzahnpelz und Blut; normale Figur live geprüft.
 
 - [x] Schlafen in Hüttenbetten (fremde Hütten: Bewohner merken es und werden misstrauisch)
+
+- [ ] Nacht-Musik für Schneegebirge, Drachenland, Oshkora/Trockenland, Dschungel und Flusstal einbauen (wartet auf die Stücke vom Nutzer)

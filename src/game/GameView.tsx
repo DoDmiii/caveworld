@@ -109,7 +109,7 @@ export default function GameView(){
  const [heroName,setHeroName]=useState<string|null>(null);const [nameDraft,setNameDraft]=useState('');
  const music=useRef<ReturnType<typeof import('./music-player').createMusicPlayer>|null>(null);const musicState=useRef(newMusicState());const [muted,setMuted]=useState(false);
  useEffect(()=>{let gone=false;let m=false;try{m=localStorage.getItem('caveworld:muted')==='1';}catch{/* ignore */}setMuted(m);import('./music-player').then(({createMusicPlayer})=>{if(gone)return;const p=createMusicPlayer();p.setMuted(m);music.current=p;(window as unknown as {__music?:unknown}).__music=p;});const unlock=()=>music.current?.unlock();window.addEventListener('pointerdown',unlock,true);window.addEventListener('keydown',unlock,true);window.addEventListener('touchstart',unlock,true);return()=>{gone=true;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);window.removeEventListener('touchstart',unlock,true);music.current?.destroy();music.current=null;};},[]);
- useEffect(()=>{const p=music.current;if(!p)return;p.set(status.dead?null:pickTrack(musicState.current,performance.now(),status.indoors||status.caves?.current?undefined:status.biome,!!status.danger||!!status.duel));p.setDim(status.indoors?0.5:1);},[status]);
+ 
  const toggleMute=()=>{const m=!muted;setMuted(m);music.current?.setMuted(m);try{localStorage.setItem('caveworld:muted',m?'1':'0');}catch{/* ignore */}};
  useEffect(()=>{try{setHeroName(localStorage.getItem('caveworld:name')??'');}catch{setHeroName('Höhlenmensch');}},[]);
  const saveName=(n:string)=>{const v=n.trim().slice(0,16)||'Höhlenmensch';setHeroName(v);try{localStorage.setItem('caveworld:name',v);}catch{}};
@@ -118,6 +118,7 @@ export default function GameView(){
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if((e.key==='b'||e.key==='B')&&!e.repeat){setBuildOpen(o=>{if(o)input.current.build={op:'cancel'};return !o;});}};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|'lore'|'camp'|null>(null);
+ useEffect(()=>{const p=music.current;if(!p)return;p.set(pickTrack(musicState.current,performance.now(),{biome:status.indoors||status.caves?.current?undefined:status.biome,danger:!!status.danger||!!status.duel,night:isNight(status.minutes),paused,dead:status.dead}));p.setDim(status.indoors&&!paused&&!status.dead?0.5:1);},[status,paused]);
  const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',off:null,head:null,chest:null,feet:null});
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  const [tab,setTab]=useState<'inv'|'craft'>('inv');
