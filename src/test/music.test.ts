@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { newMusicState, pickTrack, BIOME_SETTLE_MS, BATTLE_HOLD_MS, type MusicMoment } from '@/game/music';
+import { newMusicState, pickTrack, parseVolume, BIOME_SETTLE_MS, BATTLE_HOLD_MS, type MusicMoment } from '@/game/music';
 const at = (biome: MusicMoment['biome'], extra: Partial<MusicMoment> = {}): MusicMoment => ({ biome, danger: false, ...extra });
 const first = (m: MusicMoment) => pickTrack(newMusicState(), 1, m);
 describe('music', () => {
@@ -11,11 +11,23 @@ describe('music', () => {
     expect(first(at('dry'))).toBe('desert');
     expect(first(at('jungle'))).toBe('jungle');
   });
-  it('the green valley switches to Moonlit Canopy at night, other areas keep their theme for now', () => {
+  it('every area has its own night song', () => {
     expect(first(at('wenjaWest', { night: true }))).toBe('valleyNight');
-    expect(first(at('wenjaEast', { night: true }))).toBe('valleyNight');
-    expect(first(at('dragon', { night: true }))).toBe('dragon');
-    expect(first(at('dry', { night: true }))).toBe('desert');
+    expect(first(at('wenjaEast', { night: true }))).toBe('riverNight');
+    expect(first(at('nordics', { night: true }))).toBe('snowNight');
+    expect(first(at('dragon', { night: true }))).toBe('dragonNight');
+    expect(first(at('dry', { night: true }))).toBe('desertNight');
+    expect(first(at('jungle', { night: true }))).toBe('jungleNight');
+  });
+  it('caves and huts have their own songs, day or night', () => {
+    expect(first(at('nordics', { place: 'cave', night: true }))).toBe('cave');
+    expect(first(at('dry', { place: 'hut' }))).toBe('hut');
+  });
+  it('volume defaults to half and stays within 0..1', () => {
+    expect(parseVolume(null)).toBe(0.5);
+    expect(parseVolume('0.2')).toBe(0.2);
+    expect(parseVolume('3')).toBe(1);
+    expect(parseVolume('x')).toBe(0.5);
   });
   it('waits before switching area theme', () => {
     const s = newMusicState(); pickTrack(s, 1, at('wenjaEast'));

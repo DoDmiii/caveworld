@@ -56,7 +56,7 @@ import barricadeIcon from '@/assets/build/barricade-2.png.asset.json';
 import totemIcon from '@/assets/totem/totem-2.png.asset.json';
 import { STRUCTURES, STRUCTURE_KINDS, canAfford } from './building';
 import { TRAPS, TRAP_KINDS } from './traps';
-import { newMusicState, pickTrack } from './music';
+import { newMusicState, pickTrack, parseVolume } from './music';
 const BUILD_ICON: Record<string, string>={drum:DRUM_ICON,rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url,totem:totemIcon.url};
 const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, number>>; effect: string }>={...STRUCTURES,...TRAPS};
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
@@ -107,9 +107,10 @@ export default function GameView(){
  const duelPrompt=status.duel?.phase==='prompt';
  const [buildOpen,setBuildOpen]=useState(false);
  const [heroName,setHeroName]=useState<string|null>(null);const [nameDraft,setNameDraft]=useState('');
- const music=useRef<ReturnType<typeof import('./music-player').createMusicPlayer>|null>(null);const musicState=useRef(newMusicState());const [muted,setMuted]=useState(false);
- useEffect(()=>{let gone=false;let m=false;try{m=localStorage.getItem('caveworld:muted')==='1';}catch{/* ignore */}setMuted(m);import('./music-player').then(({createMusicPlayer})=>{if(gone)return;const p=createMusicPlayer();p.setMuted(m);music.current=p;(window as unknown as {__music?:unknown}).__music=p;});const unlock=()=>music.current?.unlock();window.addEventListener('pointerdown',unlock,true);window.addEventListener('keydown',unlock,true);window.addEventListener('touchstart',unlock,true);return()=>{gone=true;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);window.removeEventListener('touchstart',unlock,true);music.current?.destroy();music.current=null;};},[]);
+ const music=useRef<ReturnType<typeof import('./music-player').createMusicPlayer>|null>(null);const musicState=useRef(newMusicState());const [muted,setMuted]=useState(false);const [volume,setVolumeState]=useState(0.5);
+ useEffect(()=>{let gone=false;let m=false;let vol=0.5;try{m=localStorage.getItem('caveworld:muted')==='1';vol=parseVolume(localStorage.getItem('caveworld:volume'));}catch{/* ignore */}setMuted(m);setVolumeState(vol);import('./music-player').then(({createMusicPlayer})=>{if(gone)return;const p=createMusicPlayer();p.setMuted(m);p.setVolume(vol);music.current=p;(window as unknown as {__music?:unknown}).__music=p;});const unlock=()=>music.current?.unlock();window.addEventListener('pointerdown',unlock,true);window.addEventListener('keydown',unlock,true);window.addEventListener('touchstart',unlock,true);return()=>{gone=true;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);window.removeEventListener('touchstart',unlock,true);music.current?.destroy();music.current=null;};},[]);
  
+ const changeVolume=(v:number)=>{setVolumeState(v);music.current?.setVolume(v);if(muted&&v>0){setMuted(false);music.current?.setMuted(false);try{localStorage.setItem('caveworld:muted','0');}catch{/* ignore */}}try{localStorage.setItem('caveworld:volume',String(v));}catch{/* ignore */}};
  const toggleMute=()=>{const m=!muted;setMuted(m);music.current?.setMuted(m);try{localStorage.setItem('caveworld:muted',m?'1':'0');}catch{/* ignore */}};
  useEffect(()=>{try{setHeroName(localStorage.getItem('caveworld:name')??'');}catch{setHeroName('Höhlenmensch');}},[]);
  const saveName=(n:string)=>{const v=n.trim().slice(0,16)||'Höhlenmensch';setHeroName(v);try{localStorage.setItem('caveworld:name',v);}catch{}};
@@ -118,7 +119,7 @@ export default function GameView(){
  useEffect(()=>{const k=(e:KeyboardEvent)=>{if((e.key==='b'||e.key==='B')&&!e.repeat){setBuildOpen(o=>{if(o)input.current.build={op:'cancel'};return !o;});}};window.addEventListener('keydown',k);return()=>window.removeEventListener('keydown',k);},[]);
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|'lore'|'camp'|null>(null);
- useEffect(()=>{const p=music.current;if(!p)return;p.set(pickTrack(musicState.current,performance.now(),{biome:status.indoors||status.caves?.current?undefined:status.biome,danger:!!status.danger||!!status.duel,night:isNight(status.minutes),paused,dead:status.dead}));p.setDim(status.indoors&&!paused&&!status.dead?0.5:1);},[status,paused]);
+ useEffect(()=>{const p=music.current;if(!p)return;p.set(pickTrack(musicState.current,performance.now(),{biome:status.biome,place:status.caves?.current?'cave':status.indoors?'hut':undefined,danger:!!status.danger||!!status.duel,night:isNight(status.minutes),paused,dead:status.dead}));p.setDim(1);},[status,paused]);
  const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',off:null,head:null,chest:null,feet:null});
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  const [tab,setTab]=useState<'inv'|'craft'>('inv');
@@ -278,6 +279,7 @@ export default function GameView(){
       {!!status.caves?.paintings.length&&<div className="cave-blessings"><strong>Höhlenmalereien</strong>{status.caves.paintings.map(id=><p key={id}>{PAINTINGS[id].name} · {PAINTINGS[id].effect}</p>)}</div>}
       {status.caves?.sharpened&&<p>Obsidian-Klingen · Speer und Keule +25 % Schaden</p>}
       <p>Deine Wildnis wartet auf dich. Dein Fortschritt wird automatisch gespeichert.</p>
+      <div className="setting-row" style={{gap:8}}><span>Musik</span><Button variant="ghost" size="icon" aria-label={muted?'Musik an':'Musik aus'} onClick={toggleMute}>{muted?'🔇':'🎵'}</Button><input type="range" min={0} max={100} step={5} value={muted?0:Math.round(volume*100)} aria-label="Musiklautstärke" onChange={e=>changeVolume(Number(e.target.value)/100)} style={{flex:1,accentColor:'hsl(var(--primary))'}}/><span style={{minWidth:36,textAlign:'right'}}>{muted?0:Math.round(volume*100)} %</span></div>
       <details className="controls-overview" style={{textAlign:'left',maxHeight:'40vh',overflowY:'auto',fontSize:12,lineHeight:1.5}}><summary style={{cursor:'pointer',fontWeight:700}}>Steuerung</summary>
        <table style={{width:'100%',borderCollapse:'collapse'}}><tbody>{([
         ['WASD / Pfeile · Joystick','Laufen'],['Shift','Sprinten'],['C / Strg','Ducken / Verstecken'],['Q / Linksklick','Schlagen / Angreifen'],['F / Rechtsklick','Ziel anvisieren'],['R','Speer werfen · im Baumodus drehen'],['E','Sammeln / Kiste / Gestell / Trommel / Aufnehmen'],['T','Personen-Optionsrad öffnen'],['Tab','Inventar & Ausrüstung'],['H','Kriegshorn · Jagdtrupp zusammenrufen'],['B','Baumenü öffnen'],['Leertaste','Bau platzieren'],['X','Eigenen Bau abbauen'],['1 / 2 / 3 / 4','Beeren / Fleisch / Gebratenes / Dörrfleisch essen'],

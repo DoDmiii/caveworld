@@ -9,8 +9,15 @@ import jungle from '@/assets/music/Pulse_Beneath_the_Leaves.mp3.asset.json';
 import battle from '@/assets/music/Stone_Bone_and_Blood.mp3.asset.json';
 import death from '@/assets/music/The_Last_Hearth.mp3.asset.json';
 import pause from '@/assets/music/Shadows_on_Stone.mp3.asset.json';
+import riverNight from '@/assets/music/Beneath_the_Nocturnal_Bough.mp3.asset.json';
+import snowNight from '@/assets/music/Beneath_the_Midnight_Ice.mp3.asset.json';
+import dragonNight from '@/assets/music/Cold_Moon_Over_Crags.mp3.asset.json';
+import desertNight from '@/assets/music/Where_the_Stones_Cool.mp3.asset.json';
+import jungleNight from '@/assets/music/Where_the_Ferns_Breathe.mp3.asset.json';
+import cave from '@/assets/music/The_Limestone_Throat.mp3.asset.json';
+import hut from '@/assets/music/Hearth_in_the_Hollow.mp3.asset.json';
 import { type Track, FADE_IN_MS, BATTLE_FADE_MS, RESTART_TRACKS } from './music';
-const SRC: Record<Track, string> = { valley: valley.url, valleyNight: valleyNight.url, river: river.url, snow: snow.url, dragon: dragon.url, desert: desert.url, jungle: jungle.url, battle: battle.url, death: death.url, pause: pause.url };
+const SRC: Record<Track, string> = { valley: valley.url, valleyNight: valleyNight.url, river: river.url, snow: snow.url, dragon: dragon.url, desert: desert.url, jungle: jungle.url, battle: battle.url, death: death.url, pause: pause.url, riverNight: riverNight.url, snowNight: snowNight.url, dragonNight: dragonNight.url, desertNight: desertNight.url, jungleNight: jungleNight.url, cave: cave.url, hut: hut.url };
 export function createMusicPlayer() {
   const els = {} as Partial<Record<Track, HTMLAudioElement>>;
   let current: Track | null = null, volume = 0.5, muted = false, dim = 1, raf = 0, unlocked = false;
@@ -35,6 +42,7 @@ export function createMusicPlayer() {
     unlock() { if (!unlocked) { unlocked = true; playCur(); } },
     set(t: Track | null) { if (t === current) return; if (t && RESTART_TRACKS.includes(t) && els[t]) els[t].currentTime = 0; current = t; playCur(); },
     setDim(v: number) { dim = v; },
+    setVolume(v: number) { volume = Math.min(1, Math.max(0, v)); },
     setMuted(m: boolean) { muted = m; playCur(); },
     destroy() { cancelAnimationFrame(raf); for (const a of Object.values(els)) { a.pause(); a.src = ''; } },
   };
