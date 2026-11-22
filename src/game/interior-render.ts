@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import atlas from '@/assets/interior/hut-furniture-atlas.png.asset.json';
+import { HEARTH_SHEET, HEARTH_ROWS, hearthAnimKey, fireStartFrame, createFireAnims } from './campfire-art';
 import { POCKET, ROOM_CENTER, ROOMS, DOOR_HALF, FURNITURE_FRAMES, inRoomShape, roomFloor, hutExit, footprint, type HutStyle, type Furnishing } from './interiors';
 
 /** Packed furniture sprites uploaded by the player (hearths, beds, cradles, baskets, pots). */
@@ -109,9 +110,15 @@ export function renderHut(scene: Phaser.Scene, key: string, style: HutStyle, ite
   // Furniture.
   const tex = scene.textures.get(FURNITURE_ATLAS.key);
   for (const f of FURNITURE_FRAMES) if (!tex.has(f.id)) tex.add(f.id, 0, f.x, f.y, f.w, f.h);
-  const sprites = new Map<string, Phaser.GameObjects.Image>();
+  const sprites = new Map<string, Phaser.GameObjects.Image | Phaser.GameObjects.Sprite>();
+  createFireAnims(scene);
   for (const it of items) {
-    const o = scene.add.image(it.x, it.y, FURNITURE_ATLAS.key, it.frame).setOrigin(0.5, 1).setFlipX(it.flip).setDepth(60000 + it.y - (it.kind === 'bed' ? 10 : 0));
+    const fire = it.kind === 'hearth' ? HEARTH_ROWS[it.frame] : undefined;
+    const depth = 60000 + it.y - (it.kind === 'bed' ? 10 : 0);
+    // Hearths loop their uploaded fire animation; the sprite's bottom row sits where the old still image stood.
+    const o = fire && scene.textures.exists(HEARTH_SHEET.key)
+      ? scene.add.sprite(it.x, it.y, HEARTH_SHEET.key, fire.row * HEARTH_SHEET.cols).setOrigin(0.5, (fire.bottom + 1) / 32).setFlipX(it.flip).setDepth(depth).play({ key: hearthAnimKey(it.frame), startFrame: fireStartFrame(it.x, it.y, fire.frames) })
+      : scene.add.image(it.x, it.y, FURNITURE_ATLAS.key, it.frame).setOrigin(0.5, 1).setFlipX(it.flip).setDepth(depth);
     if (it.stash && looted) o.setTint(0x6a6560);
     sprites.set(it.id, o); objects.push(o);
     const fp = footprint(it); const z = scene.add.zone(fp.x, fp.y, fp.w, fp.h); scene.physics.add.existing(z, true); walls.add(z); objects.push(z);

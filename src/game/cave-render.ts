@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { CAMPFIRE_SHEET, playCampfire } from './campfire-art';
 import { CAVE_SIZE, TILE, CAVE_EXIT, PAINT_WALL, caveFloor, caveDeposits, type CaveState, type CaveId } from './caves';
 
 /** Pixel cave renderer: no outdoor assets, actors or physics are recreated on entry. */
@@ -45,7 +46,7 @@ export function renderCave(scene: Phaser.Scene, id: CaveId, state: CaveState) {
   const drawBuilds = () => {
     buildObjects.forEach(o => o.destroy()); buildObjects.length = 0;
     for (const b of state.builds[id] ?? []) {
-      const o = scene.add.image(b.x, b.y, b.kind === 'fire' ? 'fire' : 'shelter-2').setDepth(60000 + b.y); buildObjects.push(o);
+      const o = b.kind === 'fire' && scene.textures.exists(CAMPFIRE_SHEET.key) ? playCampfire(scene.add.sprite(b.x, b.y, CAMPFIRE_SHEET.key, 0)).setDepth(60000 + b.y) : scene.add.image(b.x, b.y, b.kind === 'fire' ? 'fire' : 'shelter-2').setDepth(60000 + b.y); buildObjects.push(o);
     }
   };
   drawBuilds();

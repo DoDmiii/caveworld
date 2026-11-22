@@ -36,6 +36,7 @@ import northWest from '@/assets/north-west.png.asset.json';
 import campfire from '@/assets/campfire.png.asset.json';
 import { CAMP_TEXTURES, CAMP_LAYOUT } from './camp';
 import { EMPTY_FIRES, IGNITE_MS, IGNITE_RANGE, HEAT_DAMAGE_PER_SEC, firePhase, ruinSmoking, isBurning, ignite, inHeat, rebuildDue, respawnExtra, clearVillageFires, removeFires, repairHut, repairBlock, repairCostText, type FireState } from './arson';
+import { CAMPFIRE_SHEET, loadFireSheets, createFireAnims, playCampfire } from './campfire-art';
 import { RUIN_TEXTURES, FLAME_SHEET, SMOKE_SHEET, FLAMMABLE_HOUSES, doorPoint, ruinKey, type FlammableHouse } from './fire-art';
 import { NORDIC_TEXTURES, NORDIC_LAYOUT, NORDIC_HOUSES } from './nordic';
 import { lootHouse } from './village-loot';
@@ -1673,6 +1674,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.load.image('res-flint', resFlint.url);
       this.load.image('res-fiber', resFiber.url);
       this.load.image('fire', campfire.url);
+      loadFireSheets(this);
       for(const [k,u] of Object.entries({...CAMP_TEXTURES,...NORDIC_TEXTURES,...DRAGON_TEXTURES,...OSHKORA_TEXTURES,...RUIN_TEXTURES})) this.load.image(k,u);
       this.load.spritesheet('house-flame',FLAME_SHEET.url,{frameWidth:FLAME_SHEET.w,frameHeight:FLAME_SHEET.h});this.load.spritesheet('smoke-column',SMOKE_SHEET.url,{frameWidth:SMOKE_SHEET.w,frameHeight:SMOKE_SHEET.h});
       for (let i = 0; i < 8; i++) {
@@ -1800,6 +1802,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.add.image(0,0,'ground').setOrigin(0).setDepth(MAP.y-199);
       this.physics.world.setBounds(MAP.x,MAP.y,MAP.w,MAP.h);
       this.obstacles=this.physics.add.staticGroup();
+      createFireAnims(this);
       if(!this.anims.exists('house-flame'))this.anims.create({key:'house-flame',frames:this.anims.generateFrameNumbers('house-flame',{start:0,end:FLAME_SHEET.frames-1}),frameRate:FLAME_SHEET.fps,repeat:-1});
       if(!this.anims.exists('smoke-column'))this.anims.create({key:'smoke-column',frames:this.anims.generateFrameNumbers('smoke-column',{start:0,end:SMOKE_SHEET.frames-1}),frameRate:SMOKE_SHEET.fps,repeat:-1});
       // Dragon mountain terraces: height shading, cliff faces and blocking edges with open passes.
@@ -1879,7 +1882,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       {const g=this.add.image(DRAGON_FIRE.x,DRAGON_FIRE.y+6,'glow').setDepth(DRAGON_FIRE.y-10).setBlendMode(Phaser.BlendModes.ADD);
         this.tweens.add({targets:g,alpha:{from:.35,to:.55},scale:{from:.9,to:1},duration:460,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-        obstacle(DRAGON_FIRE.x,DRAGON_FIRE.y,'fire',20,8);}
+        {const o=obstacle(DRAGON_FIRE.x,DRAGON_FIRE.y,CAMPFIRE_SHEET.key,20,8);if(o)playCampfire(o);}}
       // Oshkora kraal: hut backs, thorn fences and thornbush hedges.
       for(const pc of OSHKORA_HOUSES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);if(o)this.houseSprites.set(pc.id,o);}
       for(const pc of OSHKORA_FENCES){const o=obstacle(pc.x,pc.y,pc.key,pc.bw,pc.bh);if(o&&pc.flip)o.setFlipX(true);}
@@ -1891,7 +1894,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       for(let x=0;x<WORLD;x+=16){const e=mEdge(x+8);const zone=this.add.zone(x+8,(e-4)/2,16,e-4);this.physics.add.existing(zone,true);this.obstacles.add(zone);}
       const glow=this.add.image(CAMP.x,CAMP.y+FIRE_DY+6,'glow').setDepth(CAMP.y).setBlendMode(Phaser.BlendModes.ADD);
       this.tweens.add({targets:glow,alpha:{from:.4,to:.6},scale:{from:.95,to:1.06},duration:420,yoyo:true,repeat:-1,ease:'Sine.easeInOut'});
-      obstacle(CAMP.x,CAMP.y+FIRE_DY,'fire',20,8);
+      {const o=obstacle(CAMP.x,CAMP.y+FIRE_DY,CAMPFIRE_SHEET.key,20,8);if(o)playCampfire(o);}
       // Sleeping place next to the campfire.
       this.bed=this.add.image(CAMP.x+46,CAMP.y+FIRE_DY+10,'bed').setDepth(CAMP.y+FIRE_DY+16);
       // Storage chest on the other side of the fire; small collider, reachable for E.
