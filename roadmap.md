@@ -67,3 +67,6 @@
 - [x] Schlafen in Hüttenbetten (fremde Hütten: Bewohner merken es und werden misstrauisch)
 
 - [ ] Nacht-Musik für Schneegebirge, Drachenland, Oshkora/Trockenland, Dschungel und Flusstal einbauen (wartet auf die Stücke vom Nutzer)
+
+- [x] Geräusche: Schritte (Gras, Wasser, Schnee, Hütte/Höhle; Sand vorerst Gras), Faust-/Waffentreffer, Finisher, Fluss- und Regenrauschen, Menü-Klick, Geräusche-Regler
+- [ ] Eigene Sand- und Fels-Schritte, sobald der Nutzer sie liefert

@@ -57,6 +57,7 @@ import totemIcon from '@/assets/totem/totem-2.png.asset.json';
 import { STRUCTURES, STRUCTURE_KINDS, canAfford } from './building';
 import { TRAPS, TRAP_KINDS } from './traps';
 import { newMusicState, pickTrack, parseVolume } from './music';
+import { parseSfxVolume, riverLevel, rainLevel, type SoundEvent } from './sfx';
 const BUILD_ICON: Record<string, string>={drum:DRUM_ICON,rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url,totem:totemIcon.url};
 const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, number>>; effect: string }>={...STRUCTURES,...TRAPS};
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
@@ -111,6 +112,9 @@ export default function GameView(){
  useEffect(()=>{let gone=false;let m=false;let vol=0.5;try{m=localStorage.getItem('caveworld:muted')==='1';vol=parseVolume(localStorage.getItem('caveworld:volume'));}catch{/* ignore */}setMuted(m);setVolumeState(vol);import('./music-player').then(({createMusicPlayer})=>{if(gone)return;const p=createMusicPlayer();p.setMuted(m);p.setVolume(vol);music.current=p;(window as unknown as {__music?:unknown}).__music=p;});const unlock=()=>music.current?.unlock();window.addEventListener('pointerdown',unlock,true);window.addEventListener('keydown',unlock,true);window.addEventListener('touchstart',unlock,true);return()=>{gone=true;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);window.removeEventListener('touchstart',unlock,true);music.current?.destroy();music.current=null;};},[]);
  
  const changeVolume=(v:number)=>{setVolumeState(v);music.current?.setVolume(v);if(muted&&v>0){setMuted(false);music.current?.setMuted(false);try{localStorage.setItem('caveworld:muted','0');}catch{/* ignore */}}try{localStorage.setItem('caveworld:volume',String(v));}catch{/* ignore */}};
+ const sfx=useRef<ReturnType<typeof import('./sfx-player').createSfxPlayer>|null>(null);const [sfxVolume,setSfxVolume]=useState(0.7);
+ useEffect(()=>{let gone=false;let vol=0.7;try{vol=parseSfxVolume(localStorage.getItem('caveworld:sfx'));}catch{/* ignore */}setSfxVolume(vol);import('./sfx-player').then(({createSfxPlayer})=>{if(gone)return;const p=createSfxPlayer();p.setVolume(vol);sfx.current=p;(window as unknown as {__sfx?:unknown}).__sfx=p;});const unlock=()=>sfx.current?.unlock();const click=(e:MouseEvent)=>{const t=e.target as Element|null;if(t?.closest?.('button,[role=tab],summary')&&!t.closest('.touch-controls'))sfx.current?.play({id:'click',gain:0.8});};window.addEventListener('pointerdown',unlock,true);window.addEventListener('keydown',unlock,true);window.addEventListener('touchstart',unlock,true);window.addEventListener('click',click,true);return()=>{gone=true;window.removeEventListener('pointerdown',unlock,true);window.removeEventListener('keydown',unlock,true);window.removeEventListener('touchstart',unlock,true);window.removeEventListener('click',click,true);sfx.current?.destroy();sfx.current=null;};},[]);
+ const changeSfxVolume=(v:number)=>{setSfxVolume(v);sfx.current?.setVolume(v);try{localStorage.setItem('caveworld:sfx',String(v));}catch{/* ignore */}};
  const toggleMute=()=>{const m=!muted;setMuted(m);music.current?.setMuted(m);try{localStorage.setItem('caveworld:muted',m?'1':'0');}catch{/* ignore */}};
  useEffect(()=>{try{setHeroName(localStorage.getItem('caveworld:name')??'');}catch{setHeroName('Höhlenmensch');}},[]);
  const saveName=(n:string)=>{const v=n.trim().slice(0,16)||'Höhlenmensch';setHeroName(v);try{localStorage.setItem('caveworld:name',v);}catch{}};
@@ -120,6 +124,7 @@ export default function GameView(){
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [panel,setPanel]=useState<'map'|'settings'|'gear'|'lore'|'camp'|null>(null);
  useEffect(()=>{const p=music.current;if(!p)return;p.set(pickTrack(musicState.current,performance.now(),{biome:status.biome,place:status.caves?.current?'cave':status.indoors?'hut':undefined,danger:!!status.danger||!!status.duel,night:isNight(status.minutes),paused,dead:status.dead}));p.setDim(1);},[status,paused]);
+ useEffect(()=>{const place=status.caves?.current?'cave':status.indoors?'hut':undefined;sfx.current?.setAmbience(riverLevel(status.x,status.y,place),rainLevel(status.weather,place),!paused&&!status.dead);},[status,paused]);
  const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',off:null,head:null,chest:null,feet:null});
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  const [tab,setTab]=useState<'inv'|'craft'>('inv');
@@ -146,7 +151,7 @@ export default function GameView(){
   }
   setUiRestored(true);
  };
- useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null);destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
+ useEffect(()=>{let cancelled=false;let destroy:(()=>void)|undefined;const saved=loadSave();restoreUi(saved?.ui,saved?.game?.owned??['axe']);import('./world').then(({createWorld})=>{if(cancelled||!host.current)return;const game=createWorld(host.current,input.current,s=>{setStatus(s);setReady(true);},saved?.game??null,(e:SoundEvent)=>sfx.current?.play(e));destroy=()=>game.destroy(true);}).catch(()=>setError(true));return()=>{cancelled=true;destroy?.();};},[]);
  useEffect(()=>{if(!uiRestored)return;saveGame({ui:{hotbar,hand:equipped.hand??'fists',active,armor:(equipped.chest as ArmorId|null)??null,off:equipped.off??null}});},[uiRestored,hotbar,equipped.hand,equipped.off,equipped.chest,active]);
  useEffect(()=>{input.current.paused=paused||heroName===''||panel!==null||talk!==null||!!status.chestOpen||duelPrompt;input.current.x=0;input.current.y=0;input.current.sprint=false;input.current.crouch=false;input.current.focus=false;input.current.throwSpear=false;},[paused,panel,talk,status.chestOpen,heroName,duelPrompt]);
  useEffect(()=>{const t=(e:KeyboardEvent)=>{if(e.key==='Escape')setTalk(null);if((e.key==='t'||e.key==='T')&&!e.repeat){setTalk(c=>c?null:talkRef.current);}};window.addEventListener('keydown',t);return()=>window.removeEventListener('keydown',t);},[]);
@@ -280,6 +285,7 @@ export default function GameView(){
       {status.caves?.sharpened&&<p>Obsidian-Klingen · Speer und Keule +25 % Schaden</p>}
       <p>Deine Wildnis wartet auf dich. Dein Fortschritt wird automatisch gespeichert.</p>
       <div className="setting-row" style={{gap:8}}><span>Musik</span><Button variant="ghost" size="icon" aria-label={muted?'Musik an':'Musik aus'} onClick={toggleMute}>{muted?'🔇':'🎵'}</Button><input type="range" min={0} max={100} step={5} value={muted?0:Math.round(volume*100)} aria-label="Musiklautstärke" onChange={e=>changeVolume(Number(e.target.value)/100)} style={{flex:1,accentColor:'hsl(var(--primary))'}}/><span style={{minWidth:36,textAlign:'right'}}>{muted?0:Math.round(volume*100)} %</span></div>
+      <div className="setting-row" style={{gap:8}}><span>Geräusche</span><input type="range" min={0} max={100} step={5} value={Math.round(sfxVolume*100)} aria-label="Geräuschlautstärke" onChange={e=>changeSfxVolume(Number(e.target.value)/100)} style={{flex:1,accentColor:'hsl(var(--primary))'}}/><span style={{minWidth:36,textAlign:'right'}}>{Math.round(sfxVolume*100)} %</span></div>
       <details className="controls-overview" style={{textAlign:'left',maxHeight:'40vh',overflowY:'auto',fontSize:12,lineHeight:1.5}}><summary style={{cursor:'pointer',fontWeight:700}}>Steuerung</summary>
        <table style={{width:'100%',borderCollapse:'collapse'}}><tbody>{([
         ['WASD / Pfeile · Joystick','Laufen'],['Shift','Sprinten'],['C / Strg','Ducken / Verstecken'],['Q / Linksklick','Schlagen / Angreifen'],['F / Rechtsklick','Ziel anvisieren'],['R','Speer werfen · im Baumodus drehen'],['E','Sammeln / Kiste / Gestell / Trommel / Aufnehmen'],['T','Personen-Optionsrad öffnen'],['Tab','Inventar & Ausrüstung'],['H','Kriegshorn · Jagdtrupp zusammenrufen'],['B','Baumenü öffnen'],['Leertaste','Bau platzieren'],['X','Eigenen Bau abbauen'],['1 / 2 / 3 / 4','Beeren / Fleisch / Gebratenes / Dörrfleisch essen'],

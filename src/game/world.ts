@@ -23,6 +23,7 @@ import { getAvailableInteractions } from './interactions';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER, type ReproState } from './reproduction';
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, lureNeeded, lureGain, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, isWillingByRelationship, closenessReluctance, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
+import { surfaceAt, STEP_SOUND, stepAdvance, hitSound, finisherSound, distanceGain, type SoundEvent, type SoundId } from './sfx';
 import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon, FIGHTER_HP } from './combat';
 import north from '@/assets/north.png.asset.json';
 import { corpseParts } from './corpse-art';
@@ -193,7 +194,7 @@ const WORLD = 2048;
 const CAMP = { x: 1000, y: 640 };
 const FIRE_DY = 40;
 
-export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void, initial: GameSave | null = null) {
+export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s: GameStatus) => void, initial: GameSave | null = null, onSound?: (e: SoundEvent) => void) {
   class Wilderness extends Phaser.Scene {
     caves: CaveState = newCaves();
     caveView: ReturnType<typeof renderCave> | undefined;
@@ -1265,7 +1266,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       } else if (!striking) { if (Math.hypot(v.x, v.y) > 4) { const vf = (Math.round(Math.atan2(v.y, v.x) / (Math.PI / 4)) + 8) % 8; s.play(`${folkTex(f)}-walk-${d.ai.state === 'backstep' ? f.facing : vf}`, true); } else { s.anims.stop(); s.setFrame(f.facing); } }
       if (th.landHit && !this.finisher) {
         const dmg = opponentDamage(d.rules.arms), ux = (p.x - s.x) / Math.max(1, dist), uy = (p.y - s.y) / Math.max(1, dist);
-        this.hurtPlayer(dmg, time); this.hitFlash = time + 200; this.lastDamage = time;
+        this.hurtPlayer(dmg, time, d.rules.arms === 'weapons' ? 'hit' : 'punch'); this.hitFlash = time + 200; this.lastDamage = time;
         this.shove = { vx: ux * 170, vy: uy * 170, until: time + 150 };
         this.bleed(p.x, p.y, ux, uy, d.rules.arms === 'weapons' ? 6 : 2);
         this.message = d.rules.arms === 'weapons' ? `${this.personName(d.id)} trifft dich mit der Waffe!` : `${this.personName(d.id)} schlägt dir ins Gesicht!`; this.messageUntil = time + 1200;
@@ -1277,6 +1278,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (d.phase !== 'fight') return;
       if (isDodging(d.ai, time)) { this.message = `${this.personName(d.id)} weicht aus!`; this.messageUntil = time + 900; return; }
       const dmg = playerDuelDamage(base), r = hitDuelist(f.combat, dmg, time, d.rules.goal);
+      this.sfx(d.rules.arms === 'weapons' ? 'hit' : 'punch');
       f.combat = r.fighter; d.ai = staggerAi(d.ai, time); d.knock = { vx: fx * 140, vy: fy * 140, until: time + 140 };
       this.punch(dmg); this.bleed(f.sprite.x, f.sprite.y, fx, fy, d.rules.arms === 'weapons' ? 12 : 4);
       f.sprite.setTint(0xff6b4a); this.time.delayedCall(140, () => f.sprite.clearTint());
@@ -1398,8 +1400,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hitFlash = 0;
     bleedUntil = 0;
     nextTrail = 0;
+    stepAcc = 0; stepFrom: { x: number; y: number } | undefined;
+    /** Footstep sound every few pixels walked, picked by the ground under the player. */
+    tickSteps(p: Phaser.Physics.Arcade.Sprite) {
+      const from = this.stepFrom; this.stepFrom = { x: p.x, y: p.y };
+      if (!from || input.paused || this.dead || this.sleeping || this.attacking) { this.stepAcc = 0; return; }
+      const r = stepAdvance(this.stepAcc, Math.hypot(p.x - from.x, p.y - from.y)); this.stepAcc = r.acc;
+      if (!r.step) return;
+      const st = STEP_SOUND[surfaceAt(p.x, p.y, this.hut ? 'hut' : this.caves.current ? 'cave' : undefined)];
+      onSound?.({ id: st.id, gain: st.gain * (this.crouching ? 0.5 : 1), rate: st.rate });
+    }
+    /** Sound effect, quieter the further (x, y) is from the player. */
+    sfx(id: SoundId, x?: number, y?: number, gain = 1) { const p = this.player; const g = x === undefined || y === undefined || !p ? 1 : distanceGain(Math.hypot(x - p.x, y - p.y)); if (g > 0) onSound?.({ id, gain: g * gain }); }
     punch(dmg: number, finisher = false) { if (!this.physics.world.isPaused) { this.physics.pause(); this.anims.pauseAll(); this.time.delayedCall(hitstopMs(dmg, finisher), () => { this.physics.resume(); this.anims.resumeAll(); }); } this.cameras.main.shake(finisher ? 260 : 110, finisher ? 0.012 : Math.min(0.008, 0.002 + dmg * 0.0003)); if (finisher) { this.cameras.main.zoomTo(this.cameras.main.zoom * 1.08, 120, 'Sine.easeOut', true); this.time.delayedCall(500, () => this.cameras.main.zoomTo(this.cameras.main.zoom / 1.08, 300, 'Sine.easeIn', true)); } }
-    hurtPlayer(dmg: number, time: number) { this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.punch(dmg); }
+    hurtPlayer(dmg: number, time: number, kind: SoundId = 'hit') { this.sfx(kind, undefined, undefined, 0.8); this.health = Math.max(0, this.health - dmg); this.bleedUntil = woundFrom(this.bleedUntil, dmg, Math.random(), time, this.owned.includes('bandage')); this.punch(dmg); }
     attackPending = false;
     lastDamage = 0;
     target: Creature | undefined = undefined;
@@ -2001,6 +2015,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
+      this.tickSteps(p);
       if (this.caves.current) { this.updateCave(time, delta); return; }
       if (this.hut) { this.updateHut(time, delta); return; }
       { const door = this.carried || (input.torch === 'main' && this.owned.includes('torch')) ? undefined : this.openHutAt(p.x, p.y);
@@ -2433,7 +2448,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             const strikes = nextStrikes(this.pressStrikes.get(f.c.id), time); this.pressStrikes.set(f.c.id, { strikes, at: time });
             const step = shoveStep(strikes, this.held !== 'none');
             if (step === 'warn') { this.bark(f.c.id, s, 'warn', time, true, isWarrior(f.t) ? 'Zurück, Fremder!' : 'Komm mir nicht zu nah!'); this.shove = { vx: dx / len * SHOVE_SPEED * 0.4, vy: dy / len * SHOVE_SPEED * 0.4, until: time + SHOVE_MS }; }
-            else if (step === 'shove') { this.shove = { vx: dx / len * SHOVE_SPEED, vy: dy / len * SHOVE_SPEED, until: time + SHOVE_MS }; this.hurtPlayer(SHOVE_DAMAGE, time); this.hitFlash = time + 150; this.cameras.main.shake(140, 0.004); this.bark(f.c.id, s, 'warn', time, true, isWarrior(f.t) ? 'Verschwinde! Letzte Warnung!' : 'Weg von mir!'); this.message = 'Du wirst weggestoßen'; this.messageUntil = time + 1400; }
+            else if (step === 'shove') { this.shove = { vx: dx / len * SHOVE_SPEED, vy: dy / len * SHOVE_SPEED, until: time + SHOVE_MS }; this.hurtPlayer(SHOVE_DAMAGE, time, 'punch'); this.hitFlash = time + 150; this.cameras.main.shake(140, 0.004); this.bark(f.c.id, s, 'warn', time, true, isWarrior(f.t) ? 'Verschwinde! Letzte Warnung!' : 'Weg von mir!'); this.message = 'Du wirst weggestoßen'; this.messageUntil = time + 1400; }
             else if (isWarrior(f.t)) { this.rel = raiseAlarm(this.rel, vk, now); this.armFolk(f, time); this.message = `${v.name} hat genug · sie greifen an!`; this.messageUntil = time + 2200; }
             else this.kinAlarm(f, time);
           } else if (d < PERSONAL_SPACE) stare();
@@ -2524,6 +2539,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         g.next = time + ALLY_STRIKE_MS + Math.random() * 300; g.swingUntil = time + 220;
         const fx = dx / Math.max(1, d), fy = dy / Math.max(1, d);
         const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8; a.face(dir);
+        this.sfx('hit', a.sprite.x, a.sprite.y, 0.6);
         if ('kind' in t.ref) { if (t.ref.state !== 'dead') this.hurt(t.ref, ALLY_DAMAGE*caveDamageFactor(this.caves,companionWeapon(a.id)), fx, fy, time); }
         else {
           const f = t.ref; if (f.combat.phase !== 'ready' || f.c.state !== 'free') continue;
@@ -2981,6 +2997,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     landFinisher(){
       const f=this.finisher,p=this.player;if(!f||!p||this.dead||f.combat.phase!=='downed')return;
+      this.sfx(finisherSound(this.beheading));
       if(this.duel?.phase==='fight'&&f.c.id===this.duel.id){f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);const fx=Math.cos(this.lastFacing*Math.PI/4),fy=Math.sin(this.lastFacing*Math.PI/4);this.bleed(f.sprite.x,f.sprite.y,fx,fy,this.fistFinish?24:40);if(this.beheading)this.severHead(f,fx,fy);this.beheading=false;this.punch(40,true);this.endDuel('win',this.time.now);return;}
       f.combat=finishFighter(f.combat);f.beheaded=this.beheading;dieFolk(f);this.armFolk(f,this.time.now);
       if(isChampion(f.t)){this.raid=recordChampionDeath(this.raid,f.t.village,this.clock);this.xp+=120;this.cameras.main.shake(400,0.012);this.time.delayedCall(1900,()=>{this.message=`${CHAMPION_NAMES[f.t.village as 0]} ist gefallen · ${FOLK_HOMES[f.t.village].name} ist befreit!`;this.messageUntil=this.time.now+5000;});this.persist();}
@@ -3077,12 +3094,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const fx = Math.cos(fa), fy = Math.sin(fa);
       if (this.attackPending && (hw !== 'wedge' || (p.anims.currentFrame?.index ?? 0) >= 7)) {
         this.attackPending = false;
+        let struck = false;
         for (const c of this.creatures) {
           if (c.state === 'dead') continue;
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
-          this.allyFocus = 'c' + this.creatures.indexOf(c);
+          this.allyFocus = 'c' + this.creatures.indexOf(c); struck = true;
           this.hurt(c, (hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : this.clubNow() ? 16 : 10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow()), fx, fy, time);
         }
         for (const f of this.folk) {
@@ -3091,7 +3109,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
           if(this.duel&&this.duel.phase!=='done'){if(f.c.id===this.duel.id){if(this.duel.phase==='fight')this.duelStruck(f,hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10,fx,fy,time);else this.duel=null;if(this.duel)continue;}else if(this.inDuelFight())continue;}
-          this.allyFocus='f'+f.c.id;
+          this.allyFocus='f'+f.c.id; struck = true;
           {const dmg=(hw==='wedge'?24:hw==='spear'?22:hw==='axe'?18:this.clubNow()?16:10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow());f.combat=isWarrior(f.t)&&!isChampion(f.t)?hitWarrior(f.combat,dmg,time,isLethalWeapon(hw)):hitFighter(f.combat,dmg,time);this.punch(dmg);}
           this.armFolk(f,time);
           this.bleed(f.sprite.x,f.sprite.y,fx,fy,f.combat.phase==='dead'?30:16);
@@ -3101,6 +3119,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.messageUntil=time+2000;
           if(f.combat.phase!=='dead')this.witnessDeed(f,'attack');
         }
+        if (struck) this.sfx(hitSound(hw, this.clubNow()));
         this.chop(time, fx, fy);
       }
       // Creature AI.

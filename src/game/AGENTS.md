@@ -3,3 +3,4 @@
 - Keep foreign-bed suspicion rules engine-free in bed-trespass.ts and bed reach/occupancy in interiors.ts; world.ts only applies relationship changes on waking.
 - Keep idle wandering engine-free in wander.ts; anyone outside their home area walks back towards its centre instead of freezing, and the camp yard in tribe.ts must cover every hut doorstep.
 - Keep campfire/hearth fire animations in campfire-art.ts (one sheet per kind, hearth rows keyed by furniture frame ID); renderers only swap the still image for a looping sprite.
+- Keep sound-effect rules (footstep surface, step cadence, hit/finisher sounds, river/rain ambience levels, distance falloff) engine-free in sfx.ts; one packed sfx sprite holds all one-shots, sfx-player.ts (Web Audio, imported dynamically from GameView) only plays them, and world.ts only reports events through createWorld's onSound callback.
