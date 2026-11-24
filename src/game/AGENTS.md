@@ -5,3 +5,4 @@
 - Keep campfire/hearth fire animations in campfire-art.ts (one sheet per kind, hearth rows keyed by furniture frame ID); renderers only swap the still image for a looping sprite.
 - Keep sound-effect rules (footstep surface, step cadence, hit/finisher sounds, river/rain ambience levels, distance falloff) engine-free in sfx.ts; one packed sfx sprite holds all one-shots, sfx-player.ts (Web Audio, imported dynamically from GameView) only plays them, and world.ts only reports events through createWorld's onSound callback.
 - Keep the title screen in MainMenu.tsx as an overlay over the paused, already-loading world; 'Neues Spiel' reloads with a session flag that skips the menu once.
+- Keep Aruun fir-forest geography (fishing rivers, lakes with wadeable rims and blocking deep cores, fir looks by position) engine-free in aruun.ts; world.ts only paints water, places firs/reeds and lake blockers.

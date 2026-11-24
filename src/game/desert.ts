@@ -1,5 +1,6 @@
 // Engine-free dry-land rules: waterholes, thirst, heat and shade. world.ts only reports position/shade and applies results.
 import { biomeAt, riverX, streamDist, STREAM_HALF } from './biomes';
+import { aruunWaterAt } from './aruun';
 import { daylight } from './survival';
 import type { Weather } from './weather';
 
@@ -30,7 +31,7 @@ export const inOutcropShade = (x: number, y: number) => OUTCROPS.some(o => Math.
 
 /** Player stands at drinkable water: river bank, mountain stream or waterhole. */
 export const canDrinkAt = (x: number, y: number) =>
-  !!waterholeAt(x, y, DRINK_RANGE) || Math.abs(x - riverX(y)) < 64 + DRINK_RANGE || streamDist(x, y) < STREAM_HALF + DRINK_RANGE;
+  !!waterholeAt(x, y, DRINK_RANGE) || Math.abs(x - riverX(y)) < 64 + DRINK_RANGE || streamDist(x, y) < STREAM_HALF + DRINK_RANGE || aruunWaterAt(x, y, DRINK_RANGE);
 
 /** Heat strength 0..1: only the dry land at daytime, more under heat waves; shade cuts it to a quarter. */
 export function heatLevel(o: { biome: ReturnType<typeof biomeAt>; minutesOfDay: number; weather: Weather; shaded: boolean }) {

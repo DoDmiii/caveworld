@@ -1,6 +1,7 @@
 // Engine-free sound-effect rules: footstep surface, hit sounds per weapon, ambience levels and distance falloff.
 // sfx-player.ts only plays what these rules pick; world.ts only reports events.
 import { biomeAt, riverX, streamDist, STREAM_HALF } from './biomes';
+import { aruunWaterAt, aruunRiverDist, ARUUN_RIVER_HALF } from './aruun';
 import { waterholeAt } from './desert';
 import { dragonPaddyAt, canalDist, CANAL_HALF } from './dragon';
 import { isWet, type Weather } from './weather';
@@ -29,7 +30,7 @@ export const RIVER_WATER = 56;
 /** Ground under the player's feet. Huts and caves have packed floors; sand has no own recording yet. */
 export function surfaceAt(x: number, y: number, place: Place): Surface {
   if (place) return 'house';
-  if (Math.abs(x - riverX(y)) < RIVER_WATER || streamDist(x, y) < STREAM_HALF || waterholeAt(x, y) || dragonPaddyAt(x, y) || canalDist(x, y) < CANAL_HALF + 2) return 'water';
+  if (Math.abs(x - riverX(y)) < RIVER_WATER || streamDist(x, y) < STREAM_HALF || waterholeAt(x, y) || dragonPaddyAt(x, y) || canalDist(x, y) < CANAL_HALF + 2 || aruunWaterAt(x, y)) return 'water';
   const b = biomeAt(x, y);
   return b === 'nordics' ? 'snow' : b === 'dry' ? 'sand' : 'grass';
 }
@@ -60,7 +61,7 @@ export const RIVER_FADE = 240;
 export function riverLevel(x: number, y: number, place: Place): number {
   if (place) return 0;
   const fade = (gap: number) => Math.max(0, Math.min(1, 1 - (gap - 20) / RIVER_FADE));
-  return Math.max(fade(Math.abs(x - riverX(y)) - RIVER_WATER), 0.8 * fade(streamDist(x, y) - STREAM_HALF), 0.35 * fade(canalDist(x, y) * 2));
+  return Math.max(fade(Math.abs(x - riverX(y)) - RIVER_WATER), 0.8 * fade(streamDist(x, y) - STREAM_HALF), 0.35 * fade(canalDist(x, y) * 2), 0.7 * fade(aruunRiverDist(x, y) - ARUUN_RIVER_HALF));
 }
 /** Rain ambience by weather; silent inside caves and huts. */
 export function rainLevel(weather: Weather | undefined, place: Place): number {

@@ -10,7 +10,7 @@ export const BIOME_NAME: Record<Biome, string> = {
   nordics: 'Schneegebirge der Nordics',
   dragon: 'Gebirge der Drachenmenschen',
   wenjaWest: 'Westliches Grünes Tal der Wenja',
-  wenjaEast: 'Grünes Tal der unbekannten Wenja',
+  wenjaEast: 'Dunkler Tannenwald der Aruun',
   dry: 'Trockengebiet',
   jungle: 'Dschungel der Afrikans',
 };
@@ -20,7 +20,7 @@ export const BIOME_COLOR: Record<Biome, [number, number, number]> = {
   nordics: [200, 210, 214],
   dragon: [92, 98, 88],
   wenjaWest: [86, 101, 76],
-  wenjaEast: [78, 106, 72],
+  wenjaEast: [50, 66, 54],
   dry: [168, 138, 90],
   jungle: [47, 74, 44],
 };
@@ -30,7 +30,7 @@ export const BIOME_FLORA: Record<Biome, { tint: number; trees: number; rocks: nu
   nordics: { tint: 0xdde8f0, trees: 0.45, rocks: 0.25 },
   dragon: { tint: 0xb4c8a8, trees: 0.4, rocks: 0.45 },
   wenjaWest: { tint: 0xffffff, trees: 0.6, rocks: 0.12 },
-  wenjaEast: { tint: 0xe8ffe0, trees: 0.7, rocks: 0.12 },
+  wenjaEast: { tint: 0xffffff, trees: 0.9, rocks: 0.1 },
   dry: { tint: 0xe0c080, trees: 0.12, rocks: 0.35 },
   jungle: { tint: 0x86b870, trees: 1, rocks: 0.06 },
 };

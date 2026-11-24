@@ -55,6 +55,11 @@ import tree7 from '@/assets/tree-north-east.png.asset.json';
 import snowTree0 from '@/assets/snow/snow-tree-0.png.asset.json';
 import snowTree1 from '@/assets/snow/snow-tree-1.png.asset.json';
 import snowTree2 from '@/assets/snow/snow-tree-2.png.asset.json';
+import fir0 from '@/assets/aruun/fir-0.png.asset.json';
+import fir1 from '@/assets/aruun/fir-1.png.asset.json';
+import fir2 from '@/assets/aruun/fir-2.png.asset.json';
+import fir3 from '@/assets/aruun/fir-3.png.asset.json';
+import { firTree, aruunWaterAt, aruunRiverDist, ARUUN_RIVER_HALF, ARUUN_RIVERS, ARUUN_LAKES, LAKE_DEEP, lakeNorm, aruunLakeAt } from './aruun';
 import datePalm0 from '@/assets/desert/date-palm-0.png.asset.json';
 import datePalm1 from '@/assets/desert/date-palm-1.png.asset.json';
 import datePalm2 from '@/assets/desert/date-palm-2.png.asset.json';
@@ -1682,6 +1687,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       treeTex.forEach((asset, i) => this.load.image(`tree${i}`, asset.url));
       SNOW_TREES.forEach((asset, i) => this.load.image(`snow-tree-${i}`, asset.url));
       for (const [key, asset] of Object.entries(DESERT_PLANTS)) this.load.image(key, asset.url);
+      [fir0,fir1,fir2,fir3].forEach((a,i)=>this.load.image(`fir-${i}`,a.url));
       SNOW_ROCKS.forEach((asset, i) => this.load.image(`snow-rock-${i}`, asset.url));
       this.load.image('res-wood', resWood.url);
       this.load.image('res-stone', resStone.url);
@@ -1798,6 +1804,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // Shallow fords: lighter water with stepping stones.
         for(const fy of FORDS){if(fy<0||fy>WORLD)continue;const fx=riverX(fy);c.fillStyle='#7d9a92';c.fillRect(fx-62,fy-30,124,60);
           for(let sx=-56;sx<=56;sx+=14){const oy=Math.floor((rand()-.5)*16);rect(c,'#3e4a42',fx+sx-1,fy+oy-4,12,9);rect(c,'#9a9c90',fx+sx,fy+oy-5,10,7);rect(c,'#b8b9ad',fx+sx+2,fy+oy-5,5,2);}}
+        // Aruun fir forest east of the river: darker, mossy ground plus its fishing rivers and lakes.
+        for(let y=0;y<WORLD;y+=2){const x0=Math.floor(riverX(y)+76);c.fillStyle='rgba(16,26,24,0.42)';c.fillRect(x0,y,WORLD-x0,2);}
+        const aw=(col:string,width:number)=>{c.strokeStyle=col;c.lineWidth=width;c.lineJoin='round';c.lineCap='round';for(const r of ARUUN_RIVERS){c.beginPath();r.forEach(([x,y],i)=>i?c.lineTo(x,y):c.moveTo(x,y));c.stroke();}};
+        aw('#423e32',ARUUN_RIVER_HALF*2+10);aw('#3c5a5e',ARUUN_RIVER_HALF*2);aw('#2c4a52',ARUUN_RIVER_HALF*2-12);
+        for(const l of ARUUN_LAKES)for(const [s,col] of [[1.08,'#423e32'],[1,'#3e5e60'],[0.9,'#2e4e54'],[LAKE_DEEP,'#223a42']] as const){c.fillStyle=col;c.beginPath();c.ellipse(l.x,l.y,l.rx*s,l.ry*s,0,0,Math.PI*2);c.fill();}
         // Fade the start region's edges into the surrounding biome layer.
         c.globalCompositeOperation='destination-out';const F=260;
         for(const [x0,y0,x1,y1,rx,ry,rw,rh] of [[0,0,0,F,0,0,WORLD,F],[0,WORLD,0,WORLD-F,0,WORLD-F,WORLD,F],[0,0,F,0,0,0,F,WORLD],[WORLD,0,WORLD-F,0,WORLD-F,0,F,WORLD]] as const){const g=c.createLinearGradient(x0,y0,x1,y1);g.addColorStop(0,'rgba(0,0,0,1)');g.addColorStop(1,'rgba(0,0,0,0)');c.fillStyle=g;c.fillRect(rx,ry,rw,rh);}
@@ -1809,7 +1820,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         for(let j=0;j<bh;j++){const wy=MAP.y+j*BS;const rx=riverX(wy);const ford=isFord(wy);
           for(let i=0;i<bw;i++){const wx=MAP.x+i*BS;const d=Math.abs(wx-rx);let col:readonly [number,number,number];
             if(d<56)col=ford?[125,154,146]:d<32?[92,135,138]:[75,115,120];else if(d<72)col=[122,124,112];
-            else{const sd=wy<400?streamDist(wx,wy):Infinity;if(sd<STREAM_HALF)col=sd<STREAM_HALF-5?[88,132,140]:[110,140,138];else if(sd<STREAM_HALF+5)col=[128,124,110];else{const wh=WATERHOLES.find(h=>Math.hypot(wx-h.x,wy-h.y)<h.r+10),oc=OUTCROPS.find(o=>Math.hypot(wx-o.x,wy-o.y)<o.r*0.7);if(wh){const d=Math.hypot(wx-wh.x,wy-wh.y);col=d<wh.r-8?[70,118,138]:d<wh.r?[96,140,140]:[96,112,62];}else if(oc){col=nr()<.3?[150,96,62]:[176,116,72];}else if(oshkoraAt(wx,wy,8)&&oshkoraGround(wx,wy))col=oshkoraGround(wx,wy)!;else{const b=biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48);col=b==='dragon'&&(sd<90||nr()<.18)?[70,98,62]:b==='dragon'&&nr()<.12?[74,74,82]:BIOME_COLOR[b];}}}
+            else{const sd=wy<400?streamDist(wx,wy):Infinity;const ad=wx>1600&&wy>250&&wy<2350?aruunRiverDist(wx,wy):Infinity,al=ad<Infinity?aruunLakeAt(wx,wy,1.08):undefined,an=al?lakeNorm(al,wx,wy):9;if(sd<STREAM_HALF)col=sd<STREAM_HALF-5?[88,132,140]:[110,140,138];else if(sd<STREAM_HALF+5)col=[128,124,110];else if(an<1)col=an<LAKE_DEEP?[34,58,66]:an<0.9?[46,78,84]:[62,92,94];else if(ad<ARUUN_RIVER_HALF)col=ad<ARUUN_RIVER_HALF-6?[44,74,82]:[60,90,92];else if(an<1.08||ad<ARUUN_RIVER_HALF+5)col=[66,62,50];else{const wh=WATERHOLES.find(h=>Math.hypot(wx-h.x,wy-h.y)<h.r+10),oc=OUTCROPS.find(o=>Math.hypot(wx-o.x,wy-o.y)<o.r*0.7);if(wh){const d=Math.hypot(wx-wh.x,wy-wh.y);col=d<wh.r-8?[70,118,138]:d<wh.r?[96,140,140]:[96,112,62];}else if(oc){col=nr()<.3?[150,96,62]:[176,116,72];}else if(oshkoraAt(wx,wy,8)&&oshkoraGround(wx,wy))col=oshkoraGround(wx,wy)!;else{const b=biomeAt(wx+(nr()-.5)*48,wy+(nr()-.5)*48);col=b==='dragon'&&(sd<90||nr()<.18)?[70,98,62]:b==='dragon'&&nr()<.12?[74,74,82]:BIOME_COLOR[b];}}}
             const n=(nr()-.5)*16,o=(j*bw+i)*4;img.data[o]=col[0]+n;img.data[o+1]=col[1]+n;img.data[o+2]=col[2]+n;img.data[o+3]=255;}}
         ctx.putImageData(img,0,0);bt.refresh();}
       this.add.image(MAP.x,MAP.y,'biome').setOrigin(0).setScale(BS).setDepth(MAP.y-200);
@@ -1846,10 +1857,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         return obj;
       };
       const choppable=(x:number,y:number,dir:number)=>{
-        const b=biomeAt(x,y),snow=b==='nordics',dt=b==='dry'?desertTree(x,y):null;
-        const obj=obstacle(x,y,dt?dt.key:snow?`snow-tree-${dir%3}`:`tree${dir}`,dt?(dt.kind==='palm'?14:16):22,dt?8:10);if(!obj)return;
-        if(dt?.flip)obj.setFlipX(true);
-        const tint=snow||dt?0xffffff:BIOME_FLORA[b].tint;obj.setTint(tint);
+        const b=biomeAt(x,y),snow=b==='nordics',dt=b==='dry'?desertTree(x,y):null,ft=firTree(x,y);
+        const obj=obstacle(x,y,ft?ft.key:dt?dt.key:snow?`snow-tree-${dir%3}`:`tree${dir}`,ft?14:dt?(dt.kind==='palm'?14:16):22,ft?8:dt?8:10);if(!obj)return;
+        if(dt?.flip||ft?.flip)obj.setFlipX(true);
+        const tint=snow||dt||ft?0xffffff:BIOME_FLORA[b].tint;obj.setTint(tint);
         this.trees.push({x,y,dir,hp:TREE_HP,tint,sprite:obj,shade:dt?.kind});
       };
       this.plantTree=choppable;
@@ -1862,7 +1873,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let seed=419;const random=()=>{seed=seed*16807%2147483647;return seed/2147483647;};
       for(let i=0;i<460;i++) {
         const x=40+random()*(WORLD-80),y=40+random()*(WORLD-80);
-        if(y<mEdge(x)+40 || Math.abs(x-riverX(y))<130 || Math.hypot(x-CAMP.x,y-CAMP.y)<200)continue;
+        if(y<mEdge(x)+40 || Math.abs(x-riverX(y))<130 || Math.hypot(x-CAMP.x,y-CAMP.y)<200 || aruunWaterAt(x,y,22))continue;
         // Forest thins toward the camp so the start stays readable.
         if(Math.hypot(x-CAMP.x,y-CAMP.y)<380&&i%3!==0)continue;
         if(i%7===0)mineable(x,y); else choppable(x,y,i%8);
@@ -1877,7 +1888,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let os=7717;const orr=()=>{os=os*16807%2147483647;return os/2147483647;};
       for(let i=0;i<1800;i++){const x=MAP.x+40+orr()*(MAP.w-80),y=MAP.y+40+orr()*(MAP.h-80);
         if(x>-20&&x<WORLD+20&&y>-20&&y<WORLD+20)continue;if(Math.abs(x-riverX(y))<120)continue;
-        if(villageAt(x,y,40)||dragonGroundsAt(x,y,30)||oshkoraAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16)continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+        if(villageAt(x,y,40)||dragonGroundsAt(x,y,30)||oshkoraAt(x,y,40)||WATERHOLES.some(h=>Math.hypot(x-h.x,y-h.y)<h.r+30)||nearCliff(x,y)||streamDist(x,y)<STREAM_HALF+16||aruunWaterAt(x,y,22))continue;const f=BIOME_FLORA[biomeAt(x,y)],r=orr();if(r<f.rocks*0.4)mineable(x,y);else if(r<f.rocks*0.4+f.trees*0.6)choppable(x,y,i%8);}
+      // Aruun fir forest: extra density east of the great river (also inside the start region), lake cores block.
+      {let fs=5531;const fr=()=>{fs=fs*16807%2147483647;return fs/2147483647;};
+        for(let i=0;i<900;i++){const x=1650+fr()*1410,y=300+fr()*2000;if(biomeAt(x,y)!=='wenjaEast'||Math.abs(x-riverX(y))<130||aruunWaterAt(x,y,22)||dragonGroundsAt(x,y,30))continue;
+          if(this.trees.some(t=>Math.abs(t.x-x)<34&&Math.abs(t.y-y)<26))continue;choppable(x,y,i%8);}
+        for(const l of ARUUN_LAKES)for(let gy=-l.ry;gy<=l.ry;gy+=20)for(let gx=-l.rx;gx<=l.rx;gx+=20){if(lakeNorm(l,l.x+gx,l.y+gy)>=LAKE_DEEP)continue;const z=this.add.zone(l.x+gx,l.y+gy,20,20);this.physics.add.existing(z,true);this.obstacles.add(z);}
+        if(!this.textures.exists('aruun-reed')){const t=this.textures.createCanvas('aruun-reed',10,14);if(t){const c=t.context;c.fillStyle='#2e3d2c';c.fillRect(1,4,1,10);c.fillRect(4,1,1,13);c.fillRect(7,5,1,9);c.fillStyle='#4a3a26';c.fillRect(4,1,1,3);c.fillRect(7,5,1,2);c.fillStyle='#3f5238';c.fillRect(2,8,1,6);c.fillRect(8,9,1,5);t.refresh();}}
+        for(const l of ARUUN_LAKES)for(let k=0;k<26;k++){const a=fr()*Math.PI*2,n=1.02+fr()*0.12;if(fr()<.35)continue;const x=l.x+Math.cos(a)*l.rx*n,y=l.y+Math.sin(a)*l.ry*n;this.add.image(x,y,'aruun-reed').setOrigin(0.5,1).setDepth(y).setFlipX(fr()<.5);}}
       // Dry land: date-palm rings at the waterholes and low thornbushes in the open sand.
       for(const pt of oasisPalms())choppable(pt.x,pt.y-40,0);
       for(const tb of thornbushes()){const o=obstacle(tb.x,tb.y,`thornbush-${tb.variant}`,28,8);if(o&&tb.flip)o.setFlipX(true);}
@@ -3247,7 +3265,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       {const tint=playerTint(input.armor,this.health);if (time < this.hitFlash) p.setTint(0xff5050); else if (tint!==null) p.setTint(tint); else p.clearTint();}
     }
     report(time:number,p:Phaser.Physics.Arcade.Sprite){
-      if(time-this.lastReport>100){this.lastReport=time;onStatus({danger:!this.dead&&(!!this.campAlarm||this.allyFoes().some(f=>f.alive&&f.hostile&&Math.hypot(f.x-p.x,f.y-p.y)<240)),biome:biomeAt(p.x,p.y),guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':oshkoraAt(p.x,p.y)?'Oshkora':dragonPaddyAt(p.x,p.y)?'Reisterrassen der Drachenterrasse':dragonVillageAt(p.x,p.y)?'Drachenterrasse':p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
+      if(time-this.lastReport>100){this.lastReport=time;onStatus({danger:!this.dead&&(!!this.campAlarm||this.allyFoes().some(f=>f.alive&&f.hostile&&Math.hypot(f.x-p.x,f.y-p.y)<240)),biome:biomeAt(p.x,p.y),guards:this.campGuards(),canPostHere:canPostHere({x:p.x,y:p.y}),lore:this.lore,bleeding:isBleeding(this.bleedUntil,time),campAlarm:!this.inPocket()&&this.campAlarm,nearDrum:!this.inPocket()&&this.nearDrum,indoors:this.hut?{name:hutTitle(this.hut.house.owner,this.hut.house.name),x:this.hut.house.x,y:this.hut.house.y}:null,hornCooldown:Math.max(0,Math.ceil(this.hornReadyAt-this.clock)),caves:this.caves,cavePrompt:this.cavePrompt,nearPaint:!!this.caves.current&&Math.hypot(p.x-PAINT_WALL.x,p.y-PAINT_WALL.y)<44,x:Math.round(p.x),y:Math.round(p.y),stamina:Math.round(this.stamina),health:Math.round(this.health),berries:this.count,meat:this.meat,cooked:this.cooked,healPulse:this.healPulse,skull:this.stock.skull??0,wood:this.stock.wood,stone:this.stock.stone,flint:this.stock.flint,wolfPelt:this.stock.wolfPelt??0,sabrePelt:this.stock.sabrePelt??0,fiber:this.stock.fiber,xp:this.xp,level:levelFromXp(this.xp),owned:this.owned,hunger:Math.round(this.hunger),warmth:Math.round(this.warmth),thirst:Math.round(this.thirst),drinking:this.drinking,day:clockOf(this.clock).day,minutes:clockOf(this.clock).minutesOfDay,nearFire:this.hut?this.hutWarm(p):this.caves.current?this.caveWarm(p):Math.hypot(p.x-CAMP.x,p.y-CAMP.y-FIRE_DY)<70,hidden:this.hidden,weapon:this.held,sleeping:this.sleeping,nearBed:this.nearBed,crouching:this.crouching,dead:this.dead,area:this.hut?hutTitle(this.hut.house.owner,this.hut.house.name):this.caves.current?CAVES[this.caves.current].name:Math.hypot(p.x-CAMP.x,p.y-CAMP.y)<200?'Höhlenlager':oshkoraAt(p.x,p.y)?'Oshkora':dragonPaddyAt(p.x,p.y)?'Reisterrassen der Drachenterrasse':dragonVillageAt(p.x,p.y)?'Drachenterrasse':aruunLakeAt(p.x,p.y,1.3)?aruunLakeAt(p.x,p.y,1.3)!.name:p.x>=0&&p.x<=WORLD&&p.y>=0&&p.y<mEdge(p.x)+140?'Am Bergmassiv':isFord(p.y)&&Math.abs(p.x-riverX(p.y))<90?'Furt':Math.abs(p.x-riverX(p.y))<130?'Flussufer':BIOME_NAME[biomeAt(p.x,p.y)],message:time<this.messageUntil?this.message:'',talk:this.talk,companionCount:this.followingCount(),craftDiscount:this.party().craftDiscount,nearChest:this.nearChest,chest:{...this.chest},chestOpen:this.chestOpen,tutorial:{...this.tutorial},squad:this.squad(),jerky:this.jerky,build:this.building?{...this.building}:null,nearRack:this.nearRack?{hung:this.nearRack.meat.length,ready:dryCount(this.nearRack,this.clock)}:null,nearTrap:this.nearTrap?{meat:this.nearTrap.meat}:null,nearOwnBuild:!!this.ownBuildNear(p)||this.traps.some(t=>Math.hypot(t.x-p.x,t.y-p.y)<30),weather:this.weatherNow(p),boss:this.inPocket()?null:(this.duelBoss()??this.bossStatus(p)),duel:this.duelStatus(),shamed:this.inPocket()?null:this.shamedHere(p)});}
     }
   }
   const game=new Phaser.Game({type:Phaser.AUTO,parent,width:Math.max(1,parent.clientWidth),height:Math.max(1,parent.clientHeight),pixelArt:true,roundPixels:true,backgroundColor:'#56654c',scale:{mode:Phaser.Scale.RESIZE,autoCenter:Phaser.Scale.CENTER_BOTH},physics:{default:'arcade',arcade:{debug:false}},scene:Wilderness,audio:{noAudio:true},input:{activePointers:4}});const resizeObserver=new ResizeObserver(()=>{if(parent.clientWidth&&parent.clientHeight)game.scale.resize(parent.clientWidth,parent.clientHeight);});resizeObserver.observe(parent);game.events.once('destroy',()=>resizeObserver.disconnect());(window as unknown as {__game?:Phaser.Game}).__game=game;return game;
