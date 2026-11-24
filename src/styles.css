@@ -577,3 +577,12 @@ h1 {font-size:28px;font-family:'Barlow Condensed',sans-serif;font-weight:600;mar
 .camp-post{padding:6px 8px;font-size:12px;border:1px solid var(--border);border-radius:4px;background:transparent;color:var(--muted-foreground);}
 .camp-post.is-active{color:var(--foreground);background:var(--glass-soft);border-color:var(--foreground);}
 .camp-post:disabled{opacity:.4;}
+.main-menu {position:absolute;inset:0;z-index:80;background-size:cover;background-position:center;image-rendering:pixelated;display:flex;flex-direction:column;padding:4vh 5vw;gap:4vh;}
+.main-menu-veil {position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse at 70% 60%,transparent 35%,color-mix(in oklab,var(--background) 75%,transparent) 100%),linear-gradient(90deg,color-mix(in oklab,var(--background) 55%,transparent),transparent 55%);}
+.main-menu-logo {position:relative;width:min(440px,70vw);height:auto;image-rendering:pixelated;filter:drop-shadow(0 4px 8px var(--background));}
+.main-menu-notebook {position:absolute!important;top:4vh;right:5vw;}
+.main-menu-buttons {position:relative;display:flex;flex-direction:column;gap:12px;width:min(240px,70vw);}
+.main-menu-btn {font-family:'Barlow Condensed',sans-serif;font-size:18px;letter-spacing:.08em;text-transform:uppercase;height:46px;}
+.main-menu-options {display:flex;flex-direction:column;gap:12px;background:color-mix(in oklab,var(--background) 80%,transparent);padding:14px;border-radius:10px;}
+.main-menu-options label {display:grid;grid-template-columns:1fr auto;gap:4px;font-size:14px;}
+.main-menu-options input {grid-column:1/-1;}
