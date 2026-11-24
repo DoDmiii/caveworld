@@ -24,14 +24,14 @@ export function createMusicPlayer() {
   const el = (t: Track) => els[t] ??= Object.assign(new Audio(SRC[t]), { loop: true, preload: 'auto', volume: 0 });
   const target = (t: Track) => (muted || t !== current ? 0 : volume * dim);
   const live = () => Object.keys(els) as Track[];
-  let last = performance.now();
+  let last = performance.now(), switched = 0;
   const step = (now: number) => {
     const dt = now - last; last = now;
     for (const t of live()) {
       const a = els[t]!, goal = target(t), ms = t === 'battle' || current === 'battle' ? BATTLE_FADE_MS : FADE_IN_MS;
       const d = (dt / ms) * Math.max(volume, 0.05);
       a.volume = goal > a.volume ? Math.min(goal, a.volume + d) : Math.max(goal, a.volume - d);
-      if (a.volume === 0 && goal === 0 && !a.paused) a.pause();
+      if (goal === 0 && !a.paused && (a.volume === 0 || now - switched > ms + 300)) { a.volume = 0; a.pause(); }
     }
     raf = requestAnimationFrame(step);
   };
@@ -40,7 +40,7 @@ export function createMusicPlayer() {
   return {
     get state() { return { current, unlocked, muted, playing: live().filter(t => !els[t]!.paused) }; },
     unlock() { if (!unlocked) { unlocked = true; playCur(); } },
-    set(t: Track | null) { if (t === current) return; if (t && RESTART_TRACKS.includes(t) && els[t]) els[t].currentTime = 0; current = t; playCur(); },
+    set(t: Track | null) { if (t === current) return; if (t && RESTART_TRACKS.includes(t) && els[t]) els[t].currentTime = 0; current = t; switched = performance.now(); playCur(); },
     setDim(v: number) { dim = v; },
     setVolume(v: number) { volume = Math.min(1, Math.max(0, v)); },
     setMuted(m: boolean) { muted = m; playCur(); },
