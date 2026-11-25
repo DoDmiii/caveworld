@@ -92,7 +92,7 @@ import { SKINS, SKIN_ANIMS, skinFrame, ARMED_SKINS, ARMED_ANIMS, armedFrame, isA
 import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, skinFor, type SkinId, PELT_NAME, type ArmorId } from './appearance';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
-import { TIGER, GAZELLE, SNOW, WOLF_EAT, DEATH as ANIMAL_DEATH, deathStart, type SnowKind, type AnimalKind } from './wildlife';
+import { TIGER, GAZELLE, SNOW, WOLF_EAT, ACTIONS, restAction, SLEEP_SIGHT, SCAVENGERS, DEATH as ANIMAL_DEATH, deathStart, type SnowKind, type AnimalKind } from './wildlife';
 import { DRAGON_VILLAGE } from './biomes';
 const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut', dhole: 'Roter Bergwolf', buffalo: 'Wasserbüffel' };
 const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'buffalo' ? 44 : k === 'bear' ? 38 : 32;
@@ -191,6 +191,7 @@ type Creature = {
   alert?: number;
   feedOn?: string | undefined;
   feeding?: boolean;
+  rest?: 'sleep' | 'graze' | null;
 };
 const sprites = [east, southEast, south, southWest, west, northWest, north, northEast];
 const treeTex = [tree0,tree1,tree2,tree3,tree4,tree5,tree6,tree7];
@@ -659,7 +660,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if(!t||!isFresh(t,this.clock)){t=pickCarcass(c.sprite,all,this.clock,feeders);c.feedOn=t?.id;}
       if(!t)return false;
       const body=c.sprite.body as Phaser.Physics.Arcade.Body;const dx=t.x-c.sprite.x,dy=t.y-c.sprite.y,d=Math.hypot(dx,dy);
-      if(d>FEED_REACH){body.setVelocity(dx/d*SNOW.wolf.speed*0.6,dy/d*SNOW.wolf.speed*0.6);return true;}
+      if(d>FEED_REACH){const v=(c.kind==='tiger'?70:SNOW[c.kind as SnowKind].speed)*0.6;body.setVelocity(dx/d*v,dy/d*v);return true;}
       body.setVelocity(0,0);c.facing=(Math.round(Math.atan2(dy,dx)/(Math.PI/4))+8)%8;c.feeding=true;return true;
     }
     tickSkulls(){for(const f of this.folk){if(f.combat.phase!=='dead')continue;if(f.deathClock===undefined)f.deathClock=this.clock;if(!f.beheaded)continue;const h=f.headSprite;if(h?.active&&headStage(f.deathClock,this.clock,f.skullTaken)==='skull'&&h.texture.key!=='severed-skull'&&!this.tweens.isTweening(h))h.setTexture('severed-skull').setScale(1).setAngle(0);}}
@@ -1713,6 +1714,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
         this.load.spritesheet(`wolf-eat-${i}`, WOLF_EAT[i]!, { frameWidth: 52, frameHeight: 52 });
       }
+      for (const [k, as] of Object.entries(ACTIONS)) for (const [a, d] of Object.entries(as)) this.load.spritesheet(`${k}-${a}`, d.url, { frameWidth: d.cell, frameHeight: d.cell });
       for (const [k, d] of Object.entries(ANIMAL_DEATH)) this.load.spritesheet(`${k}-death`, d.url, { frameWidth: d.cell, frameHeight: d.cell });
     }
     create() {
@@ -1749,6 +1751,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (sp.attack) this.anims.create({ key: `anim-${k}-attack-${i}`, frames: this.anims.generateFrameNumbers(`${k}-attack-${i}`), frameRate: 13, repeat: 0 });
         }
         this.anims.create({ key: `anim-wolf-eat-${i}`, frames: this.anims.generateFrameNumbers(`wolf-eat-${i}`), frameRate: 8, repeat: -1 });
+        for (const [k, as] of Object.entries(ACTIONS)) for (const [a, d] of Object.entries(as)) {
+          const st = i * d.frames;
+          if (d.loopFrom > 0) this.anims.create({ key: `anim-${k}-${a}-in-${i}`, frames: this.anims.generateFrameNumbers(`${k}-${a}`, { start: st, end: st + d.loopFrom - 1 }), frameRate: d.rate, repeat: 0 });
+          this.anims.create({ key: `anim-${k}-${a}-${i}`, frames: this.anims.generateFrameNumbers(`${k}-${a}`, { start: st + d.loopFrom, end: st + d.frames - 1 }), frameRate: d.rate, repeat: -1 });
+        }
         for (const [k, d] of Object.entries(ANIMAL_DEATH)) { const st = deathStart(k as AnimalKind, i); this.anims.create({ key: `anim-${k}-death-${i}`, frames: this.anims.generateFrameNumbers(`${k}-death`, { start: st, end: st + d.frames - 1 }), frameRate: 9, repeat: 0 }); }
       }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
@@ -3166,16 +3173,17 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         // Sight range: hidden behind cover = invisible, crouching = much shorter range.
         const base = c.kind === 'tiger' ? 150 : c.kind === 'gazelle' ? 200 : SNOW[c.kind].sight;
         // Wolves busy on a corpse have tunnel vision: they only react when you come really close.
-        const busy = c.kind === 'wolf' && c.state === 'wander' && !!c.feedOn && (() => { const k = this.carcasses().find(q => q.id === c.feedOn); return !!k && Math.hypot(k.x - s.x, k.y - s.y) <= FEED_REACH + 4; })();
-        const range = busy ? feedingSight(this.crouching) : this.crouching ? base * 0.47 : base;
+        const busy = SCAVENGERS.includes(c.kind) && c.state === 'wander' && !!c.feedOn && (() => { const k = this.carcasses().find(q => q.id === c.feedOn); return !!k && Math.hypot(k.x - s.x, k.y - s.y) <= FEED_REACH + 4; })();
+        const range = (busy ? feedingSight(this.crouching) : this.crouching ? base * 0.47 : base) * (c.rest === 'sleep' && c.state === 'wander' ? SLEEP_SIGHT : 1);
         const sees = !this.hidden && dist < range;
         if (c.kind === 'gazelle') {
-          if (sees && c.state !== 'flee') { c.state = 'flee'; c.stateUntil = time + 2500; }
+          if (sees && c.state !== 'flee') { c.rest = null; c.state = 'flee'; c.stateUntil = time + 2500; }
           if (c.state === 'flee' && time > c.stateUntil && dist > 260) { c.state = 'wander'; c.nextDecision = time + 800; }
         } else {
           // Predators need a moment of clear sight before they notice you; mammoths never do (sight 0).
           const nm = NAME[c.kind];
           c.alert = Phaser.Math.Clamp((c.alert ?? 0) + (sees ? delta * (busy ? FEED_ALERT_RATE : 1) : -delta * 0.6), 0, 1600);
+          if (c.state === 'wander' && c.alert >= 1 && c.rest === 'sleep') c.rest = null;
           if (c.state === 'wander' && c.alert >= (c.kind === 'wolf' ? 900 : 1400)) { c.state = 'chase'; c.stateUntil = time + 5000; this.message = `${nm} hat dich entdeckt!`; this.messageUntil = time + 1800; }
           if (c.state === 'chase' && (this.hidden ? time > c.stateUntil - 3500 : (!sees && dist > 260 && time > c.stateUntil))) { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 800; if (this.hidden) { this.message = `${nm} verliert deine Spur`; this.messageUntil = time + 1800; } }
           if (c.state === 'chase' && !this.dead && dist < reachOf(c.kind) && time > c.nextAttack) {
@@ -3217,7 +3225,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           gx += sep.x * 50; gy += sep.y * 50;
           const gl = Math.max(1, Math.hypot(gx, gy));
           if (dist < reachOf(c.kind) - 6 && Math.hypot(sep.x, sep.y) < 0.05) body.setVelocity(0, 0); else body.setVelocity(gx / gl * sp, gy / gl * sp);
-        } else if (c.kind === 'wolf' && this.scavenge(c)) {
+        } else if (SCAVENGERS.includes(c.kind) && this.scavenge(c)) {
           // feeding on a corpse
         } else {
           // Wander: pick a nearby target now and then.
@@ -3225,6 +3233,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
             c.nextDecision = time + 1800 + Math.random() * 2200;
             c.wanderX = s.x + (Math.random() - 0.5) * 160;
             c.wanderY = s.y + (Math.random() - 0.5) * 160;
+            c.rest = restAction(c.kind, isNight(clockOf(this.clock).minutesOfDay), Math.random());
+            if (c.rest) { c.wanderX = s.x; c.wanderY = s.y; }
           }
           const wx = c.wanderX - s.x, wy = c.wanderY - s.y, wl = Math.hypot(wx, wy);
           if (wl > 8) body.setVelocity(wx / wl * 22, wy / wl * 22);
@@ -3239,16 +3249,22 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (c.state === 'chase' || c.state === 'attack') { c.state = 'wander'; c.alert = 0; c.nextDecision = time + 2500; }
         }
         // Animate based on velocity.
+        if (c.state !== 'wander') c.rest = null;
         if (c.feeding) {
-          const ek = `anim-wolf-eat-${c.facing}`;
+          const ek = c.kind === 'wolf' ? `anim-wolf-eat-${c.facing}` : `anim-${c.kind}-eat-${c.facing}`;
           if (s.anims.currentAnim?.key !== ek || !s.anims.isPlaying) s.play(ek);
+        } else if (c.rest && Math.hypot(body.velocity.x, body.velocity.y) < 4) {
+          const rk = `anim-${c.kind}-${c.rest}-${c.facing}`, ik = `anim-${c.kind}-${c.rest}-in-${c.facing}`;
+          const cur = s.anims.currentAnim?.key;
+          if (cur !== rk && !(cur === ik && s.anims.isPlaying)) { if (this.anims.exists(ik) && cur !== ik) s.play(ik).chain(rk); else if (cur !== ik) s.play(rk); }
         } else if (c.state !== 'attack') {
           const vx = body.velocity.x, vy = body.velocity.y, vlen = Math.hypot(vx, vy);
           if (vlen > 12) {
             // Only turn after a short hold so close-range contact doesn't flicker directions.
             const facing = (Math.round(Math.atan2(vy, vx) / (Math.PI / 4)) + 8) % 8;
             if (facing !== c.facing && time > (c.turnAt ?? 0)) { c.facing = facing; c.turnAt = time + 220; }
-            const key = c.kind === 'gazelle' && c.state === 'flee' ? `gazelle-run-${c.facing}` : `${c.kind}-walk-${c.facing}`;
+            const fast = c.state === 'flee' || c.state === 'chase';
+            const key = c.kind === 'gazelle' && fast ? `gazelle-run-${c.facing}` : fast && ACTIONS[c.kind]?.run ? `anim-${c.kind}-run-${c.facing}` : `${c.kind}-walk-${c.facing}`;
             if (s.anims.currentAnim?.key !== key || !s.anims.isPlaying) s.play(key);
           } else if (vlen < 4) {
             s.anims.stop();

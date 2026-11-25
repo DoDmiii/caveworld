@@ -49,3 +49,25 @@ export const DEATH: Record<AnimalKind, { url: string; cell: number; frames: numb
 };
 /** First atlas frame of a direction's death row. */
 export const deathStart = (kind: AnimalKind, facing: number) => (((facing % 8) + 8) % 8) * DEATH[kind].frames;
+
+/** Extra action atlases: 8 rows (E..NE), `frames` columns; looping starts at `loopFrom` (lead-in frames play once). */
+export type ActionAnim = { url: string; cell: number; frames: number; loopFrom: number; rate: number };
+export type ActionKind = 'eat' | 'graze' | 'run' | 'sleep';
+const act = (name: string, cell: number, frames: number, rate: number, loopFrom = 0): ActionAnim => ({ url: one(name), cell, frames, loopFrom, rate });
+export const ACTIONS: Partial<Record<AnimalKind, Partial<Record<ActionKind, ActionAnim>>>> = {
+  tiger: { eat: act('tiger-eat', 64, 7, 7) },
+  gazelle: { graze: act('gazelle-graze', 48, 11, 7, 6) },
+  buffalo: { graze: act('buffalo-graze', 96, 5, 5), run: act('buffalo-run', 84, 8, 12) },
+  bear: { run: act('bear-run', 64, 8, 12), sleep: act('bear-sleep', 48, 1, 1) },
+  dhole: { run: act('dhole-run', 68, 8, 13) },
+};
+export const hasAction = (kind: AnimalKind, a: ActionKind) => !!ACTIONS[kind]?.[a];
+/** Grazers stop to feed on roughly half their idle pauses. */
+export const GRAZE_CHANCE = 0.5;
+/** Sleeping animals notice you only this close (fraction of their normal sight). */
+export const SLEEP_SIGHT = 0.3;
+/** What a wandering animal does while standing still: bears sleep at night, grazers graze by chance. */
+export const restAction = (kind: AnimalKind, night: boolean, roll: number): 'sleep' | 'graze' | null =>
+  night && hasAction(kind, 'sleep') ? 'sleep' : hasAction(kind, 'graze') && roll < GRAZE_CHANCE ? 'graze' : null;
+/** Hunters that feed on fresh corpses. */
+export const SCAVENGERS: AnimalKind[] = ['wolf', 'tiger'];
