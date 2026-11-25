@@ -75,7 +75,7 @@ const GameSchema = z.object({
   guardPosts: z.record(z.string().max(40), z.object({ post: z.enum(['free', 'gate', 'fire', 'chest', 'captives', 'west', 'east', 'north', 'here']), x: z.number().optional(), y: z.number().optional() })).optional(),
   escape: z.object({ progress: z.record(z.string().max(40), z.number().min(0).max(100)), since: z.record(z.string().max(40), z.number().min(0)), rescueAt: z.record(z.string().max(40), z.number().min(0)) }).optional(),
   // Brennende und abgebrannte Hütten; optional, damit ältere Spielstände weiter laden.
-  fires: z.record(z.string().max(80), z.object({ litAt: z.number().min(0).max(10_000_000), owner: z.enum(['camp', 'nordic', 'dragon', 'desert']), village: z.number().int().min(0).max(20).optional() })).optional(),
+  fires: z.record(z.string().max(80), z.object({ litAt: z.number().min(0).max(10_000_000), owner: z.enum(['camp', 'nordic', 'dragon', 'desert', 'aruun']), village: z.number().int().min(0).max(20).optional() })).optional(),
   // Ehren-Zweikämpfe: Spott pro Dorf und Abklingzeiten pro Herausforderer; optional für ältere Spielstände.
   duels: z.object({ shame: z.record(z.string().max(40), z.number().min(0).max(10_000_000)), cooldown: z.record(z.string().max(40), z.number().min(0).max(10_000_000)) }).optional(),
   fighters: z.array(z.object({ id: z.string().max(40), hp: z.number().min(0).max(200), phase: z.enum(['ready', 'downed', 'dead']), x: coord, y: coord, facing: z.number().int().min(0).max(7), beheaded: z.boolean().optional(), headPosition: z.object({ x: coord, y: coord }).optional(), deathClock: z.number().min(0).max(10_000_000).optional(), skullTaken: z.boolean().optional() })).max(50).optional(),

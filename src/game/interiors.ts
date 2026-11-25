@@ -4,7 +4,7 @@
 import type { HouseOwner } from './arson';
 
 export type HutStyle = 'wenja' | 'nordic' | 'dragon' | 'desert';
-export const styleOf = (owner: HouseOwner): HutStyle => owner === 'camp' ? 'wenja' : owner;
+export const styleOf = (owner: HouseOwner): HutStyle => owner === 'camp' || owner === 'aruun' ? 'wenja' : owner;
 
 /** Pocket space the room is drawn into (outdoor objects are hidden meanwhile, like caves). */
 export const POCKET = { w: 480, h: 360 } as const;
@@ -185,7 +185,7 @@ export const nearestFurnishing = (items: Furnishing[], x: number, y: number, kin
   return best;
 };
 export function hutTitle(owner: HouseOwner, village: string) {
-  return owner === 'camp' ? 'Deine Hütte im Höhlenlager' : owner === 'nordic' ? `Langhütte in ${village}` : owner === 'desert' ? `Lehmhütte in ${village}` : `Schieferhütte auf der ${village}`;
+  return owner === 'camp' ? 'Deine Hütte im Höhlenlager' : owner === 'nordic' ? `Langhütte in ${village}` : owner === 'desert' ? `Lehmhütte in ${village}` : owner === 'aruun' ? `Kulthütte in ${village}` : `Schieferhütte auf der ${village}`;
 }
 
 /** Where the player lies on a bed (bed sprites stand on their bottom edge). */

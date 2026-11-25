@@ -5,6 +5,7 @@ import { DRAGON_HOUSES } from './dragon';
 import { VILLAGES, DRAGON_VILLAGE, OSHKORA, OSHKORA_HOME } from './biomes';
 import { OSHKORA_HOUSES, OSHKORA_RUINS } from './oshkora';
 import type { HouseOwner } from './arson';
+import { ARUUN_HOUSES, ARUUN_RUINS } from './aruun-villages';
 import flame from '@/assets/fire/house-flame.png.asset.json';
 import smoke from '@/assets/fire/smoke-column.png.asset.json';
 import c0 from '@/assets/fire/hut-0-ruin.png.asset.json';
@@ -30,6 +31,7 @@ export const RUIN_TEXTURES: Record<string, string> = {
   ...Object.fromEntries([n0, n1, n2, n3, n4, n5].map((a, i) => [`snow-hut-${i}-ruin`, a.url])),
   ...Object.fromEntries([d0, d1, d2, d3, d4, d5, d6].map((a, i) => [`dragon-hut-${i}-ruin`, a.url])),
   ...OSHKORA_RUINS,
+  ...ARUUN_RUINS,
 };
 export const ruinKey = (key: string) => `${key}-ruin`;
 
@@ -46,6 +48,7 @@ export const FLAMMABLE_HOUSES: FlammableHouse[] = [
   ...NORDIC_HOUSES.map(h => ({ id: h.id, key: h.key, x: h.x, y: h.y, owner: 'nordic' as const, village: VILLAGES.findIndex(v => v.name === h.village), name: h.village })),
   ...DRAGON_HOUSES.map(h => ({ id: h.id, key: h.key, x: h.x, y: h.y, owner: 'dragon' as const, village: VILLAGES.length, name: DRAGON_VILLAGE.name })),
   ...OSHKORA_HOUSES.map(h => ({ id: h.id, key: h.key, x: h.x, y: h.y, owner: 'desert' as const, village: OSHKORA_HOME, name: OSHKORA.name })),
+  ...ARUUN_HOUSES.map(h => ({ id: h.id, key: h.key, x: h.x, y: h.y, owner: 'aruun' as const, village: h.village, name: h.name })),
 ];
 /** Point in front of the door where the player stands to light the roof or rebuild. */
 export const doorPoint = (h: { x: number; y: number }) => ({ x: h.x, y: h.y + 28 });
