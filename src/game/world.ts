@@ -92,9 +92,10 @@ import { SKINS, SKIN_ANIMS, skinFrame, ARMED_SKINS, ARMED_ANIMS, armedFrame, isA
 import { armorSpeed, armorDamage, armorCold, peltFor, playerTint, skinFor, type SkinId, PELT_NAME, type ArmorId } from './appearance';
 import { XP, levelFromXp, RECIPES, craft, type ItemId, coldFactor, BANDAGE_HP_PER_SEC, BOLA_SLOW, BOLA_MS, pickupAmount } from './progress';
 import { IDLE, WALK, ATTACK, SLEEP, BED, ICON_SPEAR, ICON_AXE, DEATH, CROUCH, FINISHER, BEHEAD, type Weapon } from './gear';
-import { TIGER, GAZELLE, SNOW, WOLF_EAT, type SnowKind } from './wildlife';
-const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut' };
-const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'bear' ? 38 : 32;
+import { TIGER, GAZELLE, SNOW, WOLF_EAT, DEATH as ANIMAL_DEATH, deathStart, type SnowKind, type AnimalKind } from './wildlife';
+import { DRAGON_VILLAGE } from './biomes';
+const NAME: Record<string, string> = { tiger: 'Säbelzahntiger', gazelle: 'Gazelle', wolf: 'Schneewolf', bear: 'Höhlenbär', mammoth: 'Mammut', dhole: 'Roter Bergwolf', buffalo: 'Wasserbüffel' };
+const reachOf = (k: string) => k === 'mammoth' ? 48 : k === 'buffalo' ? 44 : k === 'bear' ? 38 : 32;
 import { tickTask, nextTask, taskLabel, type TaskState } from './tasks';
 import { preloadCampers, createCampers, tickCampers, type Camper } from './campers';
 import resWood from '@/assets/res-wood.png.asset.json';
@@ -1712,6 +1713,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
         this.load.spritesheet(`wolf-eat-${i}`, WOLF_EAT[i]!, { frameWidth: 52, frameHeight: 52 });
       }
+      for (const [k, d] of Object.entries(ANIMAL_DEATH)) this.load.spritesheet(`${k}-death`, d.url, { frameWidth: d.cell, frameHeight: d.cell });
     }
     create() {
       // One looping walk cycle per direction; timeScale adapts to sprint speed.
@@ -1747,6 +1749,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if (sp.attack) this.anims.create({ key: `anim-${k}-attack-${i}`, frames: this.anims.generateFrameNumbers(`${k}-attack-${i}`), frameRate: 13, repeat: 0 });
         }
         this.anims.create({ key: `anim-wolf-eat-${i}`, frames: this.anims.generateFrameNumbers(`wolf-eat-${i}`), frameRate: 8, repeat: -1 });
+        for (const [k, d] of Object.entries(ANIMAL_DEATH)) { const st = deathStart(k as AnimalKind, i); this.anims.create({ key: `anim-${k}-death-${i}`, frames: this.anims.generateFrameNumbers(`${k}-death`, { start: st, end: st + d.frames - 1 }), frameRate: 9, repeat: 0 }); }
       }
       // Hand-drawn integer-pixel textures, built once and rendered without filtering.
       const make = (key: string, w: number, h: number, draw: (c: CanvasRenderingContext2D) => void) => {
@@ -1998,11 +2001,21 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         }
         return null;
       };
+      // Dragon-mountain animals stay outside the village plateau.
+      const dragonSpot = () => {
+        for (let t = 0; t < 120; t++) {
+          const x = DRAGON_VILLAGE.x - 700 + wr() * 1400, y = DRAGON_VILLAGE.y - 700 + wr() * 1400;
+          if (biomeAt(x, y) !== 'dragon' || Math.hypot(x - DRAGON_VILLAGE.x, y - DRAGON_VILLAGE.y) < DRAGON_VILLAGE.r + 120) continue;
+          return { x, y };
+        }
+        return null;
+      };
       for (const k of Object.keys(SNOW) as SnowKind[]) {
-        if (k === 'wolf') {
-          // Two packs of three.
-          for (let p = 0; p < SNOW.wolf.count / 3; p++) { const s = snowSpot(); if (s) for (let j = 0; j < 3; j++) spawn('wolf', s.x + (j - 1) * 26, s.y + (j % 2) * 20); }
-        } else for (let i = 0; i < SNOW[k].count; i++) { const s = snowSpot(); if (s) spawn(k, s.x, s.y); }
+        const sp = SNOW[k], spot = sp.home === 'dragon' ? dragonSpot : snowSpot;
+        if (sp.pack) {
+          // Packs of three.
+          for (let p = 0; p < sp.count / 3; p++) { const s = spot(); if (s) for (let j = 0; j < 3; j++) spawn(k, s.x + (j - 1) * 26, s.y + (j % 2) * 20); }
+        } else for (let i = 0; i < sp.count; i++) { const s = spot(); if (s) spawn(k, s.x, s.y); }
       }
       this.campers = createCampers(this, this.player, this.obstacles);
       for (const camper of this.campers) {
@@ -3072,9 +3085,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const skorra = c.kind !== 'wolf' ? this.standingAllies().find(a => PROFILE_IDS[a.id] === 'skorra' && Math.hypot(a.x - c.sprite.x, a.y - c.sprite.y) < 160 && this.trustProgress[a.id]?.done.includes('meal') && !this.trustProgress[a.id]?.done.includes('hunt')) : undefined;
         c.state = 'dead';
         const mx = c.sprite.x, my = c.sprite.y;
+        // The animal collapses in its facing direction; the last frame stays as a corpse that fades later.
+        const corpse = this.add.sprite(mx, my, `${c.kind}-death`, deathStart(c.kind, c.facing)).setDepth(my - 1);
+        corpse.play(`anim-${c.kind}-death-${c.facing}`);
+        this.tweens.add({ targets: corpse, alpha: 0, delay: 90000, duration: 8000, onComplete: () => corpse.destroy() });
         c.sprite.destroy();
         if (this.target === c) this.target = undefined;
-        const meat = this.add.image(mx, my, 'meat').setDepth(my);
+        const meat = this.add.image(mx + 10, my + 8, 'meat').setDepth(my);
         this.meatPickups.push({ x: mx, y: my, sprite: meat, ...(skorra ? { skorra: skorra.id } : {}) });
         const pelt = peltFor(c.kind);
         if (pelt) { const r = dropPelt(this.groundPelts, pelt, mx, my, `pelt-${Date.now().toString(36)}-${this.peltSeq++}`); this.groundPelts = r.list; if (r.direct) this.stock = { ...this.stock, [pelt]: (this.stock[pelt] ?? 0) + 1 }; this.persist(); }
