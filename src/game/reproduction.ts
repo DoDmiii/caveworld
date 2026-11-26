@@ -17,13 +17,15 @@ export const DOUBT_SUSPICION = 70;
 export const NAMES: Record<string, string[]> = {
   nordic: ['Keno', 'Alva', 'Brann', 'Sigra', 'Torin', 'Yrsa', 'Haki', 'Runa'],
   dragon: ['Hu', 'Lin', 'Khao', 'Toma', 'Yuk', 'Hiko', 'Dorin', 'Neya'],
+  aruun: ['Tuu', 'Neli', 'Oru', 'Sela', 'Lunn', 'Mika'],
 };
-export const tribeOf = (id: string) => (id === PLAYER ? 'wenja' : id.startsWith('dragon') ? 'dragon' : 'nordic');
+export const tribeOf = (id: string) => (id === PLAYER ? 'wenja' : id.startsWith('aruun') ? 'aruun' : id.startsWith('dragon') ? 'dragon' : 'nordic');
 
 /** Nordics are strictly blond; Wenja fathers give dark curls, dragon folk black hair. */
 export function hairFor(mother: string, father: string): Hair {
   const f = tribeOf(father), m = tribeOf(mother);
   if (f === 'wenja' || m === 'wenja') return 'dunkel';
+  if (f === 'aruun' || m === 'aruun') return 'dunkel';
   if (f === 'dragon' || m === 'dragon') return 'schwarz';
   return 'blond';
 }
@@ -47,10 +49,15 @@ export function advanceDay(s: ReproState, day: number, couples: Record<string, s
   for (const [mother, preg] of Object.entries(next.pregnant)) {
     if (day - preg.day < GESTATION_DAYS) continue;
     delete pregnant[mother];
-    const tribe = tribeOf(mother) === 'dragon' ? 'dragon' : 'nordic', list = NAMES[tribe]!;
+    const motherTribe = tribeOf(mother);
+    const tribe = motherTribe === 'dragon' || motherTribe === 'aruun' ? motherTribe : 'nordic';
+    const list = NAMES[tribe];
+    if (!list?.length) continue;
     // Count same-day births too, so twins of a tribe never share a name or sex slot.
     const n = [...next.children, ...births.map(b => b.child)].filter(c => tribeOf(c.mother) === tribeOf(mother)).length;
-    const child: Child = { id: `child-${mother}-${day}`, name: list[n % list.length]!, mother, father: preg.father, social: preg.social, born: day, hair: hairFor(mother, preg.father), girl: n % list.length % 2 === 1 };
+    const name = list[n % list.length];
+    if (!name) continue;
+    const child: Child = { id: `child-${mother}-${day}`, name, mother, father: preg.father, social: preg.social, born: day, hair: hairFor(mother, preg.father), girl: n % list.length % 2 === 1 };
     births.push({ child, cuckoo: !!preg.social && preg.social !== preg.father, foreign: looksForeign(child) });
   }
   next = { ...next, pregnant, children: [...next.children, ...births.map(b => b.child)] };

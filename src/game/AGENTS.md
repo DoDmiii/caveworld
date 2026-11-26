@@ -8,3 +8,6 @@
 - Keep Aruun fir-forest geography (fishing rivers, lakes with wadeable rims and blocking deep cores, fir looks by position) engine-free in aruun.ts; world.ts only paints water, places firs/reeds and lake blockers.
 - Keep wildlife species tables (home region, pack spawning, stats), per-direction death and action atlases (eat, graze, run, sleep) and rest rules in wildlife.ts; world.ts plays the death row on kill and leaves the last frame as a fading corpse.
 - Keep Aruun village layouts (clearings, lodge/huts, altar, totems, palisades, fire pits) engine-free in aruun-villages.ts; huts burn as owner 'aruun' with village indices after Oshkora and use the wenja room style.
+- Keep Aruun identity, home and couple mappings in engine-free aruun-people.ts and shared uploaded atlases in aruun-folk.ts; repeated looks must never share saves, names or households.
+- Aruun atlases use one horizontal strip of existing 32px folk slots with sleep at 200 so HUD portraits share the same source; trim only transparent margins, never rescale visible pixels.
+- Keep Aruun birth identities in reproduction.ts; children.ts withholds unsupported child looks until matching uploaded sprites exist, rather than depicting another ethnicity.

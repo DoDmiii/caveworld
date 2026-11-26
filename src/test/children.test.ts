@@ -3,6 +3,10 @@ import { childLook, childAnchor, isGirl, FOLLOW_RADIUS, HOME_RADIUS } from '@/ga
 import { EMPTY_REPRO, conceive, advanceDay, PLAYER } from '@/game/reproduction';
 
 describe('children', () => {
+  it('does not give Aruun children sprites from another ethnicity', () => {
+    expect(childLook({ mother: 'aruun-w0', father: 'aruun-m0', hair: 'dunkel', name: 'Tuu' })).toBeUndefined();
+    expect(childLook({ mother: 'nordic-w0', father: 'aruun-m0', hair: 'dunkel', name: 'Keno' })).toBeUndefined();
+  });
   it('a Nordic couple gets a blond child, the player a dark-haired one', () => {
     expect(childLook({ hair: 'blond', name: 'Keno' })).toBe('nordic-boy');
     expect(childLook({ hair: 'dunkel', name: 'Alva' })).toBe('wenja-girl');

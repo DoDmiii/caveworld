@@ -4,7 +4,7 @@ import type { Weather } from './weather';
 import type { Furnishing } from './interiors';
 
 export type ResidentHut = { id: string; owner: 'camp' | 'nordic' | 'dragon' | 'desert' | 'aruun'; village?: number; x: number; y: number };
-export type Resident = { id: string; home: 'camp' | number };
+export type Resident = { id: string; home: 'camp' | number; hut?: string };
 
 /** Deterministic round-robin: residents sorted by ID fill their own village's huts in ID order. */
 export function assignResidents(huts: readonly ResidentHut[], people: readonly Resident[]): Record<string, string> {
@@ -14,7 +14,10 @@ export function assignResidents(huts: readonly ResidentHut[], people: readonly R
   for (const [k, list] of groups) {
     const own = huts.filter(h => (k === 'camp' ? h.owner === 'camp' : h.owner !== 'camp' && String(h.village) === k)).map(h => h.id).sort();
     if (!own.length) continue;
-    [...list].sort((a, b) => a.id.localeCompare(b.id)).forEach((p, i) => { out[p.id] = own[i % own.length]!; });
+    [...list].sort((a, b) => a.id.localeCompare(b.id)).forEach((p, i) => {
+      const chosen = p.hut && own.includes(p.hut) ? p.hut : own[i % own.length];
+      if (chosen) out[p.id] = chosen;
+    });
   }
   return out;
 }

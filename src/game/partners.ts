@@ -1,4 +1,5 @@
 /** Village couples, seduction, secret affairs and jealousy. Engine-free; no rewards or offspring yet. */
+import { ARUUN_COUPLES } from './aruun-people';
 export type CouplesState = {
   /** Woman id -> seduction progress toward the player (0-100). */
   lure: Record<string, number>;
@@ -22,6 +23,7 @@ export const COUPLES: Record<string, string> = {
   'dragon-w1': 'dragon-m1',     // Suli & Bao
   'desert-w0': 'desert-m0',     // Sahra & Khaz
   'desert-w1': 'desert-m2',     // Qamra & Zarun
+  ...ARUUN_COUPLES,
 };
 export const LURE_NEEDED = 40;
 export const GIFT_LURE = 20;

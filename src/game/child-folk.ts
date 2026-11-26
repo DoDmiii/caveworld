@@ -23,8 +23,10 @@ export function preloadChildren(scene: Phaser.Scene) {
   for (const [k, url] of Object.entries(URLS)) scene.load.spritesheet(`child-${k}`, url, { frameWidth: 16, frameHeight: 16 });
 }
 
-function makeKid(scene: Phaser.Scene, c: Child, x: number, y: number, i: number): Kid {
-  const look = childLook(c), tex = `child-${look}`;
+function makeKid(scene: Phaser.Scene, c: Child, x: number, y: number, i: number): Kid | undefined {
+  const look = childLook(c);
+  if (!look) return undefined;
+  const tex = `child-${look}`;
   if (CHILD_WALKS[look] && !scene.anims.exists(`${tex}-walk-0`)) for (let d = 0; d < 8; d++) {
     const s = 8 + d * CHILD_WALK_FRAMES;
     scene.anims.create({ key: `${tex}-walk-${d}`, frames: scene.anims.generateFrameNumbers(tex, { start: s, end: s + CHILD_WALK_FRAMES - 1 }), frameRate: 10, repeat: -1 });
@@ -48,7 +50,8 @@ export function syncChildren(scene: Phaser.Scene, kids: Kid[], children: readonl
     if (keep.some(k => k.c.id === c.id)) return;
     const m = motherOf(folk, c.mother), home = FOLK_HOMES[m?.f.t.village ?? 0];
     const a = childAnchor(m?.spot, home);
-    keep.push(makeKid(scene, c, a.x + ((i * 13) % 20) - 10, a.y + 12, i));
+    const kid = makeKid(scene, c, a.x + ((i * 13) % 20) - 10, a.y + 12, i);
+    if (kid) keep.push(kid);
   });
   return keep;
 }

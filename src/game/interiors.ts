@@ -113,7 +113,7 @@ export type FurnishOptions = { beds: number; cradle: boolean; stash: boolean; ba
 /** Furnishing defaults per hut: deterministic per ID. */
 export function hutOptions(id: string, owner: HouseOwner, stash: boolean): FurnishOptions {
   const r = rng(hashId(`opt:${id}`));
-  const beds = owner === 'camp' ? 2 + (r() < 0.4 ? 1 : 0) : owner === 'nordic' ? 1 + Math.floor(r() * 3) : 1 + Math.floor(r() * 2);
+  const beds = owner === 'aruun' ? 2 : owner === 'camp' ? 2 + (r() < 0.4 ? 1 : 0) : owner === 'nordic' ? 1 + Math.floor(r() * 3) : 1 + Math.floor(r() * 2);
   // Oshkora farmers store grain: more baskets and jars.
   const farm = owner === 'desert' ? 1 : 0;
   return { beds, cradle: r() < 0.4, stash, baskets: 1 + farm + Math.floor(r() * 3), pots: 2 + farm * 2 + Math.floor(r() * 4) };

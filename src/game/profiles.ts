@@ -1,4 +1,5 @@
 /** Stable biographies, separate from mutable saves and from Phaser. Bonuses are descriptive until step 2. */
+import { ARUUN_PEOPLE, aruunOrigin } from './aruun-people';
 export const SKILLS = ['hunt', 'tough', 'gather', 'watch', 'fire'] as const;
 export type Skill = typeof SKILLS[number];
 export type Skills = Record<Skill, number>;
@@ -115,6 +116,14 @@ const DESERT_BIOS: Record<string, DragonBio> = {
 export function getProfile(actorId: string): Profile | undefined {
   const detailed = PROFILES.find(p => p.id === PROFILE_IDS[actorId]);
   if (detailed) return detailed;
+  const aruun = ARUUN_PEOPLE.find(p => p.id === actorId);
+  if (aruun) {
+    const [hunt, tough, gather, watch, fire] = aruun.skills;
+    return { id: actorId, name: aruun.name, epithet: aruun.epithet, role: aruun.role, origin: aruunOrigin(aruun),
+      skills: skills(hunt, tough, gather, watch, fire), background: aruun.background,
+      strength: { label: 'Uferwissen', effect: aruun.strength }, quirk: { label: 'Eigenart', effect: aruun.weakness },
+      relations: aruun.partner ? [{ with: aruun.partner, note: `${aruun.female ? 'Gefährtin' : 'Gefährte'} von ${ARUUN_PEOPLE.find(p => p.id === aruun.partner)?.name ?? aruun.partner}.` }] : [] };
+  }
   const dragon = DRAGON_BIOS[actorId];
   if (dragon) return { id: actorId, ...dragon, origin: 'Drachenterrasse', strength: { label: 'Bergvolk', effect: 'Kennt die Pässe und Bäche der Drachenterrasse.' }, quirk: { label: 'Misstrauisch', effect: 'Begegnet Fremden aus dem Tal mit Vorsicht.' } };
   const desert = DESERT_BIOS[actorId];
@@ -128,4 +137,4 @@ export function profileState(profile: Profile, saved?: ProfileState): ProfileSta
   return saved ? { trust: saved.trust, skills: { ...saved.skills } } : { trust: profile.origin === 'Deine Sippe' ? 100 : 0, skills: { ...profile.skills } };
 }
 export function trustLabel(value: number): string { return value <= 20 ? 'Feindlich' : value <= 50 ? 'Misstrauisch' : value <= 75 ? 'Geduldet' : 'Treu'; }
-export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? DRAGON_BIOS[id]?.name ?? (id === 'tindra' ? 'Tindra' : id === 'couple' ? 'Partnerschaft' : id); }
+export function relationName(id: string): string { return PROFILES.find(p => p.id === id)?.name ?? ARUUN_PEOPLE.find(p => p.id === id)?.name ?? DRAGON_BIOS[id]?.name ?? (id === 'tindra' ? 'Tindra' : id === 'couple' ? 'Partnerschaft' : id); }

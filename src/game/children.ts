@@ -22,7 +22,9 @@ export function isGirl(c: Pick<Child, 'name' | 'girl'>): boolean {
 }
 
 /** The hair decides the people the child looks like – a dark-haired child in a blond village gives the cuckoo away. */
-export function childLook(c: Pick<Child, 'hair' | 'name' | 'girl'>): ChildLook {
+export function childLook(c: Pick<Child, 'hair' | 'name' | 'girl'> & Partial<Pick<Child, 'mother' | 'father'>>): ChildLook | undefined {
+  // Keep family records, but never borrow another ethnicity's sprites for Aruun children.
+  if (c.mother?.startsWith('aruun') || c.father?.startsWith('aruun')) return undefined;
   const tribe = c.hair === 'blond' ? 'nordic' : c.hair === 'dunkel' ? 'wenja' : 'dragon';
   return `${tribe}-${isGirl(c) ? 'girl' : 'boy'}`;
 }

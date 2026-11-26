@@ -16,7 +16,9 @@ import { type Biome, MAP, BIOME_COLOR, BIOME_FLORA, BIOME_NAME, biomeAt, riverX,
 import { DRAGON_TEXTURES, DRAGON_HOUSES, DRAGON_GATE, DRAGON_PROPS, DRAGON_FIRE, DRAGON_GROUND_BOX, dragonGroundsAt, dragonPaddyAt } from './dragon';
 import { paintDragonGround, DRAGON_PROP_ART } from './dragon-render';
 import { OSHKORA_TEXTURES, OSHKORA_HOUSES, OSHKORA_FENCES, oshkoraAt, oshkoraGround } from './oshkora';
-import { ARUUN_VILLAGE_TEXTURES, ARUUN_HOUSES, ARUUN_PROPS, ARUUN_FIRES, aruunVillageAt, aruunVillageGround } from './aruun-villages';
+import { ARUUN_HOME, ARUUN_VILLAGE_TEXTURES, ARUUN_HOUSES, ARUUN_PROPS, ARUUN_FIRES, aruunVillageAt, aruunVillageGround } from './aruun-villages';
+import { ARUUN_RESIDENT_HUTS } from './aruun-people';
+import { SLEEP_START } from './folk-animation';
 import { TERRACES, cliffPoints, heightAt, nearCliff, CLIFF_H } from './terrain';
 import { canRecruit, MAX_COMPANIONS, companionWeapon, ALLY_REACH, ALLY_STRIKE_MS, ALLY_DAMAGE, newAllyHealth, hitAlly, tickAllyHealth, allyDowned, pickVictim, type AllyHealth, type CompanionOrder, type Foe } from './companions';
 import { CompanionMovement, findCompanionPath, clearCompanionPoint, type CompanionActor, type Block } from './companion-movement';
@@ -317,7 +319,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         ...this.campers.map(c => ({ id: c.template.id, sprite: c.sprite, tex: c.template.id, home: 'camp' as const, warrior: false, ready: true })),
         ...this.folk.filter(f => (f.c.state === 'free' || f.c.state === 'camp') && f.combat.phase === 'ready').map(f => ({ id: f.c.id, sprite: f.sprite, tex: folkTex(f), home: f.c.state === 'camp' ? 'camp' as const : f.t.village, warrior: isWarrior(f.t), ready: true })),
       ];
-      if (time > this.residentsAt) { this.residentsAt = time + 1000; this.residentHomes = assignResidents(FLAMMABLE_HOUSES, people.map(r => ({ id: r.id, home: r.home }))); }
+      if (time > this.residentsAt) {
+        this.residentsAt = time + 1000;
+        this.residentHomes = assignResidents(FLAMMABLE_HOUSES, people.map(r => {
+          const hut = r.home !== 'camp' ? ARUUN_RESIDENT_HUTS[r.id] : undefined;
+          return { id: r.id, home: r.home, ...(hut ? { hut } : {}) };
+        }));
+      }
       const live = new Set(people.map(r => r.id));
       for (const id of [...this.indoors.keys()]) if (!live.has(id)) this.indoors.delete(id);
       const night = isNight(clockOf(this.clock).minutesOfDay);
@@ -356,7 +364,12 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const sp = spots[i]; if (!sp) return;
         const tex = this.campers.find(c => c.template.id === id)?.template.id ?? (() => { const f = this.folk.find(o => o.c.id === id); return f && (isWolfHunter(f.c.id) ? bareTex(folkTex(f)) : folkTex(f)); })(); if (!tex) return;
         const img = this.add.image(sp.x, sp.y, tex, 2).setOrigin(0.5, 0.9).setDepth(60000 + sp.y + 4);
-        if (sp.lying) img.setRotation(-Math.PI / 2); else img.setFrame(sp.x < (items.find(f => f.kind === 'hearth')?.x ?? sp.x) ? 0 : 4);
+        if (sp.lying) {
+          img.setData('lying', true);
+          const folk = this.folk.find(f => f.c.id === id);
+          if (folk && 'sleep' in folk.t) img.setFrame(SLEEP_START + 2);
+          else img.setRotation(-Math.PI / 2);
+        } else img.setFrame(sp.x < (items.find(f => f.kind === 'hearth')?.x ?? sp.x) ? 0 : 4);
         this.residentViews.push(img);
       });
       if (ids.length) { this.message = `${hutTitle(h.owner, h.name)} · ${ids.length === 1 ? 'Jemand ruht hier' : `${ids.length} Bewohner ruhen hier`}`; this.messageUntil = this.time.now + 2600; }
@@ -435,7 +448,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (near?.kind === 'cradle') { say('Eine Fellwiege aus Mammutrippen'); return; }
       say('Hier gibt es nichts zu tun', 1600);
     }
-    lyingResidents() { return this.residentViews.filter(v => v.rotation !== 0).map(v => ({ x: v.x, y: v.y })); }
+    lyingResidents() { return this.residentViews.filter(v => v.rotation !== 0 || v.getData('lying') === true).map(v => ({ x: v.x, y: v.y })); }
     /** Lies down in a hut bed: same rest as the camp bed, waking up beside it. */
     sleepInHut(bed: Furnishing) {
       const p = this.player, hut = this.hut; if (!p || !hut || this.sleeping) return;
@@ -2375,7 +2388,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       this.tickDuel(time, input.paused || this.sleeping); this.tickMockery(time, stop);
       const duelIds = this.duelIds();
-      const inside = !!villageAt(p.x, p.y);
+      const inside = FOLK_HOMES.some(v => Math.hypot(p.x - v.x, p.y - v.y) < v.r);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
       for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free'||f.c.id===this.duel?.id)continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
       const escorts = new Set<string>();
@@ -2391,7 +2404,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if (isCarrier(this.carriers, f.c.id)) { f.sprite.setDepth(f.sprite.y); continue; }
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
-        if (d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
+        if (f.t.village < ARUUN_HOME && d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
         if (d < bd) { bd = d; best = f; }
         if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
         let m = this.folkMood.get(f.c.id);
@@ -2678,6 +2691,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lore: LoreState = EMPTY_LORE;
     /** Vermerkt eine Begegnung im Notizbuch und meldet neue Seiten. */
     noteLore(village: number, event: LoreEvent) {
+      // Aruun have no notebook entry yet; never unlock Nordic lore for meeting them.
+      if (village >= ARUUN_HOME) return;
       const tribe = tribeOfVillage(village), r = recordLore(this.lore, tribe, event);
       this.lore = r.state;
       if (r.after > r.before) { this.message = `Notizbuch: neue Seite über ${LORE[tribe].name}`; this.messageUntil = this.time.now + 3200; this.persist(); }

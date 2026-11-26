@@ -1,6 +1,8 @@
 /** Fixed atlas slots shared by the inhabitants; death follows attack, never overlaps it. */
 export const ATTACK_START = 72;
 export const DEATH_START = 144;
+/** Extra Aruun sleeping poses, after all eight death rows. */
+export const SLEEP_START = 200;
 
 export function folkDeathDirection(facing: number, eightDirections: boolean): number {
   const direction = ((Math.round(facing) % 8) + 8) % 8;

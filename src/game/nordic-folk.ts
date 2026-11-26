@@ -23,6 +23,8 @@ import sm0 from '@/assets/desert-people/desert-m0.png.asset.json';
 import sm1 from '@/assets/desert-people/desert-m1.png.asset.json';
 import sm2 from '@/assets/desert-people/desert-m2.png.asset.json';
 import { VILLAGES, DRAGON_VILLAGE, OSHKORA } from './biomes';
+import { ARUUN_VILLAGES } from './aruun-villages';
+import { ARUUN_FOLK } from './aruun-folk';
 import { CAMP_YARD, inCampYard, isCampDestination } from './tribe';
 import { pickWander, type WanderHome } from './wander';
 import type { Captive } from './captives';
@@ -77,8 +79,8 @@ const T = [
   { id: 'desert-m2', url: sm2.url, walk: 6, captive: true, village: 4, dx: -70, dy: -50, warrior: true },
 ] as const;
 /** Home settlements of all folk: the Nordic villages, the dragon terrace, then Oshkora (= OSHKORA_HOME). */
-export const FOLK_HOMES = [...VILLAGES, DRAGON_VILLAGE, OSHKORA] as const;
-export const NORDIC_FOLK = T.map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: FOLK_HOMES[t.village].x + t.dx, y: FOLK_HOMES[t.village].y + t.dy }));
+export const FOLK_HOMES = [...VILLAGES, DRAGON_VILLAGE, OSHKORA, ...ARUUN_VILLAGES] as const;
+export const NORDIC_FOLK = [...T, ...ARUUN_FOLK].map(t => ({ ...t, tex: 'tex' in t ? t.tex : t.id, x: FOLK_HOMES[t.village].x + t.dx, y: FOLK_HOMES[t.village].y + t.dy }));
 export type FolkTemplate = typeof NORDIC_FOLK[number];
 export const isChampion = (t: FolkTemplate) => 'champion' in t;
 /** Men are warriors: armed, fight to the death. Women gather and panic when the village is attacked. */

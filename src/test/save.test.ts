@@ -14,6 +14,17 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('keeps reused Aruun identities and outcomes separate after reload', () => {
+    const profiles = {
+      'aruun-m0': { trust: 77, skills: { hunt: 1, tough: 3, gather: 2, watch: 4, fire: 5 } },
+      'aruun-m0-k': { trust: 12, skills: { hunt: 3, tough: 5, gather: 1, watch: 4, fire: 1 } },
+    };
+    const fighters = [{ id: 'aruun-m0-k', hp: 0, phase: 'dead' as const, x: 2137, y: 1590, facing: 2 }];
+    expect(saveGame({ game: { ...game, profiles, fighters, hut: 'Rabenhain:1' } })).toBe(true);
+    expect(loadSave()?.game?.profiles).toEqual(profiles);
+    expect(loadSave()?.game?.fighters).toEqual(fighters);
+    expect(loadSave()?.game?.hut).toBe('Rabenhain:1');
+  });
   it('retains a headless corpse and its own detached head after reload', () => {
     const fighters = [{ id: 'nordic-w0', hp: 0, phase: 'dead' as const, x: 1018, y: 610, facing: 2, beheaded: true, headPosition: { x: 1040, y: 616 } }];
     expect(saveGame({ game: { ...game, fighters } })).toBe(true);

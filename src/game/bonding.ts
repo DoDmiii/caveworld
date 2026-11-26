@@ -1,5 +1,6 @@
 /** Voluntary, non-explicit closeness. No engine, rewards or persistent relationship changes. */
 import { sightRange, type Blocker, type Observer } from './events';
+import { ARUUN_ADULT_WOMEN } from './aruun-people';
 
 export const CLOSENESS_MS = 3000;
 export const CLOSENESS_RANGE = 36;
@@ -10,6 +11,7 @@ export const ADULT_WOMEN = new Set([
   'nordic-w3-g', 'nordic-w1-e', 'nordic-w0-e',
   'dragon-w0', 'dragon-w1', 'dragon-w2', 'dragon-w3', 'dragon-w4',
   'desert-w0', 'desert-w1', 'desert-w2', 'desert-w3', 'desert-w4',
+  ...ARUUN_ADULT_WOMEN,
 ]);
 /** Beziehung, ab der eine fremde Frau freiwillig zustimmt. */
 export const WILLING_RELATIONSHIP = 55;

@@ -2,6 +2,15 @@ import { describe, it, expect } from 'vitest';
 import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, hairFor, PLAYER } from '@/game/reproduction';
 
 describe('reproduction', () => {
+  it('keeps Aruun births distinct from blond Nordic families', () => {
+    expect(hairFor('aruun-w0', 'aruun-m0')).toBe('dunkel');
+    const s = { ...conceive(EMPTY_REPRO, 'aruun-w0', 'aruun-m0', 'aruun-m0', 1, 0), day: 1 };
+    const birth = advanceDay(s, 4, {}, () => 1).births[0];
+    expect(birth?.child.name).toBe('Tuu');
+    expect(birth?.child.mother).toBe('aruun-w0');
+    expect(birth?.child.hair).toBe('dunkel');
+    expect(birth?.foreign).toBe(false);
+  });
   it('nordic children are blond, player children dark', () => {
     expect(hairFor('nordic-w1', 'nordic-m2')).toBe('blond');
     expect(hairFor('nordic-w1', PLAYER)).toBe('dunkel');
