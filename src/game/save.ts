@@ -84,6 +84,7 @@ const GameSchema = z.object({
     nordics: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
     dragon: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
     oshkora: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
+    aruun: z.object({ met: count, contact: count, champion: z.boolean().optional() }).optional(),
   }).optional(),
   fear: z.object({
     fear: z.record(z.string().max(40), z.number().min(0).max(100)),

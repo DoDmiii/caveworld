@@ -40,6 +40,11 @@ describe('save', () => {
     expect(saveGame({ game: { ...game, lore } })).toBe(true);
     expect(loadSave()?.game?.lore).toEqual(lore);
   });
+  it('speichert Aruun-Wissen unabhängig von den anderen Völkern', () => {
+    const lore = { aruun: { met: 2, contact: 4 }, nordics: { met: 1, contact: 0 }, oshkora: { met: 1, contact: 2 } };
+    expect(saveGame({ game: { ...game, lore } })).toBe(true);
+    expect(loadSave()?.game?.lore).toEqual(lore);
+  });
   it('retains horn, drum and manual alarm across reload', () => {
     const next = { ...game, owned: [...game.owned, 'horn' as const], structures: [{id:'drum',kind:'drum' as const,x:1000,y:750,dir:0,meat:[]}], signals: {manualAlarm:true,hornReadyAt:1600} };
     expect(saveGame({game:next})).toBe(true);

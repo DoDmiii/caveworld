@@ -6,7 +6,7 @@ import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Floc
 import { FOG_BANKS, FOREST_ART, fogDensity } from './forest-ambience';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
-import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent } from './lore';
+import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent, type TribeId } from './lore';
 import { EMPTY_FEAR, addFear, addFearAmount, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
 import { DRUM_ICON } from './signal-art';
 import { campWarrior, hornReady, recallOrders, alarmThreats, campResponse, campAlarmActive, CAMP_RESPONSE_RANGE, HORN_COOLDOWN_MINUTES, HORN_RECALL_MINUTES, DRUM_REACH } from './signals';
@@ -1598,7 +1598,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.fires = { ...(g.fires ?? {}) };
       for (const img of this.peltSprites.values()) img.destroy(); this.peltSprites.clear();
       this.groundPelts = (g.groundPelts ?? []).map(p => ({ ...p }));
-      this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}), ...(g.lore.oshkora ? { oshkora: { ...g.lore.oshkora } } : {}) } : EMPTY_LORE;
+      this.lore = g.lore ? { ...(g.lore.nordics ? { nordics: { ...g.lore.nordics } } : {}), ...(g.lore.dragon ? { dragon: { ...g.lore.dragon } } : {}), ...(g.lore.oshkora ? { oshkora: { ...g.lore.oshkora } } : {}), ...(g.lore.aruun ? { aruun: { ...g.lore.aruun } } : {}) } : EMPTY_LORE;
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
@@ -2161,6 +2161,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(this.owned.includes('bandage')&&this.hunger>30&&this.health<100)this.health=Math.min(100,this.health+BANDAGE_HP_PER_SEC*bonus.bandage*dt);
         {const run=!!(input.sprint||this.keys?.['SHIFT']?.isDown);const shaded=inOutcropShade(p.x,p.y)||this.inTreeShade(p.x,p.y)||this.structures.some(s=>s.kind==='shelter'&&Math.hypot(s.x-p.x,s.y-p.y)<SHELTER_RANGE);const heat=heatLevel({biome:biomeAt(p.x,p.y),minutesOfDay,weather:this.weatherNow(p),shaded});const vel=(p.body as Phaser.Physics.Arcade.Body).velocity;const drinking=canDrinkAt(p.x,p.y)&&Math.hypot(vel.x,vel.y)<5&&this.thirst<100;if(drinking&&!this.drinking){this.message='Du trinkst';this.messageUntil=time+1200;}this.drinking=drinking;this.thirst=tickThirst(this.thirst,{seconds:dt,heat,running:run,drinking});if(heat>0.3&&this.stamina<100)this.stamina=Math.max(0,this.stamina-13*(1-heatStaminaFactor(heat))*dt);this.health=Math.max(0,this.health-thirstDamage(this.thirst,dt));if(this.thirst<THIRST_WARN&&time>this.nextThirstWarn&&time>=this.messageUntil){this.nextThirstWarn=time+25000;this.message='Deine Kehle ist trocken – bleib an Wasser stehen, um zu trinken';this.messageUntil=time+2600;}}
         {const inO=!this.hut&&oshkoraAt(p.x,p.y);if(inO&&!this.inOshkora){this.message='Oshkora · der Kral der Ziegenhirten liegt still, alle sind draußen auf den Weiden und Feldern';this.messageUntil=time+3600;}this.inOshkora=inO;}
+        {const inA=!this.inPocket()&&!!aruunVillageAt(p.x,p.y,60);if(inA&&!this.inAruun)this.noteLoreTribe('aruun','met');this.inAruun=inA;}
         this.health=Math.max(0,this.health-survivalDamage(this.hunger,this.warmth,dt)-bleedDamage(this.bleedUntil,time,dt));if(isBleeding(this.bleedUntil,time)&&time>this.nextTrail){this.nextTrail=time+450;this.bleed(p.x,p.y+6,0,1,2);}
         if(time>=this.messageUntil){
           if(this.warmth<COLD_WARN&&time>this.nextColdWarn){this.nextColdWarn=time+25000;this.message='Dir ist kalt – such ein Feuer';this.messageUntil=time+2400;}
@@ -2426,7 +2427,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if (isCarrier(this.carriers, f.c.id)) { f.sprite.setDepth(f.sprite.y); continue; }
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
-        if (f.t.village < ARUUN_HOME && d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
+        if (!stop && d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
         if (d < bd) { bd = d; best = f; }
         if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
         let m = this.folkMood.get(f.c.id);
@@ -2641,6 +2642,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     igniting?: { house: FlammableHouse; until: number } | undefined;
     nextHeatWarn = 0;
     inOshkora = false;
+    inAruun = false;
     fireHouseNear(p: { x: number; y: number }) { return FLAMMABLE_HOUSES.find(h => { const d = doorPoint(h); return Math.hypot(p.x - d.x, p.y - d.y) < IGNITE_RANGE; }); }
     /** Swaps hut/ruin textures and spawns flames, smoke and glow whenever a hut changes phase. */
     syncFireFx(time: number) {
@@ -2716,10 +2718,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Notizbuch-Fortschritt pro fremdem Volk. */
     lore: LoreState = EMPTY_LORE;
     /** Vermerkt eine Begegnung im Notizbuch und meldet neue Seiten. */
-    noteLore(village: number, event: LoreEvent) {
-      // Aruun have no notebook entry yet; never unlock Nordic lore for meeting them.
-      if (village >= ARUUN_HOME) return;
-      const tribe = tribeOfVillage(village), r = recordLore(this.lore, tribe, event);
+    noteLore(village: number, event: LoreEvent) { this.noteLoreTribe(tribeOfVillage(village), event); }
+    /** Auch das Betreten einer Dorflichtung zählt als Sichtung, nie als Kontakt. */
+    noteLoreTribe(tribe: Exclude<TribeId, 'wenja'>, event: LoreEvent) {
+      const r = recordLore(this.lore, tribe, event);
       this.lore = r.state;
       if (r.after > r.before) { this.message = `Notizbuch: neue Seite über ${LORE[tribe].name}`; this.messageUntil = this.time.now + 3200; this.persist(); }
     }

@@ -1,7 +1,11 @@
 import { useState } from "react";
 import { BookOpen, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TRIBE_IDS, LORE, entryView, unlockHint, type LoreState, type TribeId } from "./lore";
+import { TRIBE_IDS, entryView, unlockHint, type LoreState, type TribeId } from "./lore";
+
+const TAB: Record<TribeId, string> = {
+  wenja: "Wenja", nordics: "Nordics", dragon: "Drachen", oshkora: "Oshkora", aruun: "Aruun",
+};
 
 const STAGE = ["Nur ein Gerücht", "Gesehen", "Kontakt gehabt", "Gut bekannt"] as const;
 
@@ -19,7 +23,8 @@ export function LoreBook({ lore, onClose }: { lore: LoreState; onClose: () => vo
         {TRIBE_IDS.map((id) => {
           const known = entryView(lore, id).knowledge;
           return (
-            <button
+            <Button
+              variant="ghost"
               key={id}
               role="tab"
               aria-selected={id === tribe}
@@ -27,8 +32,8 @@ export function LoreBook({ lore, onClose }: { lore: LoreState; onClose: () => vo
               onClick={() => setTribe(id)}
             >
               {known === 0 ? <Lock size={11} /> : null}{" "}
-              {known === 0 ? "???" : LORE[id].name.replace("Die ", "")}
-            </button>
+              {known === 0 ? "???" : TAB[id]}
+            </Button>
           );
         })}
       </div>

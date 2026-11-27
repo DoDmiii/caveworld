@@ -73,8 +73,8 @@ describe("Notizbuch", () => {
     for (const w of ["Speer", "kletter", "Wolfsfell", "Drachen", "Feste"])
       expect(all.toLowerCase()).toContain(w.toLowerCase());
   });
-  it("vier Völker, Oshkora fremd und zunächst unbekannt", () => {
-    expect(TRIBE_IDS).toEqual(["wenja", "nordics", "dragon", "oshkora"]);
+  it("fünf Völker, Oshkora fremd und zunächst unbekannt", () => {
+    expect(TRIBE_IDS).toEqual(["wenja", "nordics", "dragon", "oshkora", "aruun"]);
     expect(knowledgeOf(EMPTY_LORE, "oshkora")).toBe(0);
     expect(entryView(EMPTY_LORE, "oshkora").sections).toEqual([]);
   });
@@ -107,5 +107,39 @@ describe("Notizbuch", () => {
     ]) {
       expect(all).toContain(w);
     }
+  });
+});
+
+
+describe("Aruun-Wissen", () => {
+  it("alle drei Aruun-Dörfer sind getrennt von den übrigen Völkern", () => {
+    for (const village of [5, 6, 7]) expect(tribeOfVillage(village)).toBe("aruun");
+    expect(tribeOfVillage(2)).toBe("nordics");
+    expect(tribeOfVillage(3)).toBe("dragon");
+    expect(tribeOfVillage(4)).toBe("oshkora");
+  });
+  it("ungesehen bleibt das Wissen auf Stufe 0", () => {
+    expect(knowledgeOf(EMPTY_LORE, "aruun")).toBe(0);
+    expect(entryView(EMPTY_LORE, "aruun").sections).toEqual([]);
+  });
+  it("eine Sichtung ergibt Stufe 1, aber keinen Kontakt", () => {
+    const seen = recordLore(EMPTY_LORE, "aruun", "met");
+    expect(seen.after).toBe(1);
+    expect(seen.state.aruun?.contact).toBe(0);
+    expect(knowledgeOf(seen.state, "nordics")).toBe(0);
+  });
+  it("der erste echte Kontakt ergibt Stufe 2", () => {
+    const contact = recordLore(EMPTY_LORE, "aruun", "contact");
+    expect(contact.after).toBe(2);
+    expect(contact.state.aruun?.contact).toBe(1);
+  });
+  it("genau vier Kontakte ergeben Stufe 3", () => {
+    let state = EMPTY_LORE;
+    for (let i = 0; i < 3; i++) state = recordLore(state, "aruun", "contact").state;
+    expect(knowledgeOf(state, "aruun")).toBe(2);
+    state = recordLore(state, "aruun", "contact").state;
+    expect(knowledgeOf(state, "aruun")).toBe(3);
+    expect(entryView(state, "aruun").hidden).toBe(0);
+    expect(knowledgeOf(state, "nordics")).toBe(0);
   });
 });

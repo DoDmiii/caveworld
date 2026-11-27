@@ -1,8 +1,9 @@
 // Engine-freies Notizbuch: Hintergrundgeschichte der Stämme, die sich durch Spielen freischaltet.
 // Texte und Freischalt-Regeln stehen hier, damit sie ohne Phaser und React testbar bleiben.
+import { VILLAGES, OSHKORA_HOME } from "./biomes";
 
-export type TribeId = "wenja" | "nordics" | "dragon" | "oshkora";
-export const TRIBE_IDS: readonly TribeId[] = ["wenja", "nordics", "dragon", "oshkora"];
+export type TribeId = "wenja" | "nordics" | "dragon" | "oshkora" | "aruun";
+export const TRIBE_IDS: readonly TribeId[] = ["wenja", "nordics", "dragon", "oshkora", "aruun"];
 
 /** 0 = nur ein Gerücht, 1 = gesehen, 2 = Kontakt gehabt, 3 = gut bekannt. */
 export type Knowledge = 0 | 1 | 2 | 3;
@@ -160,6 +161,49 @@ export const LORE: Record<TribeId, LoreTribe> = {
       { level: 3, label: "Brauch", value: "Ahnenschädel mit Lehm" },
     ],
   },
+  aruun: {
+    id: "aruun",
+    name: "Die Aruun",
+    subtitle: "Das Volk der dunklen Wälder",
+    rumor:
+      "Östlich des großen Flusses, heißt es, verschwinden Jäger spurlos. Wer ihre Spuren findet, findet am Ufer nur Pfähle mit Schädeln.",
+    sections: [
+      {
+        level: 1,
+        title: "Das blaue Volk",
+        text: "Östlich des großen Flusses, tief in den dunklen Tannenwäldern, leben die Aruun. Das Blätterdach ist so dicht, dass selbst am Mittag kaum Licht den Boden erreicht. Ihre Haut ist dunkel und ihr Haar schwarz und gelockt, und alle haben dieselben Augen: leuchtend blau, ohne Ausnahme. Sie sind groß und kräftig, doch gegen einen Wenja aus dem grünen Tal oder einen Krieger der Tundra wirken sie nicht beeindruckend. Ihr Blut ist einzigartig: Seit unzähligen Generationen leben sie abgeschnitten von allen anderen Völkern.",
+      },
+      {
+        level: 2,
+        title: "Fisch und Fluss",
+        text: "Die Aruun leben von den Fischen ihrer Flüsse und Seen. Sie fischen mit Reusen, Harpunen und Netzen und essen fast nur, was das Wasser ihnen gibt. Ihre Dörfer liegen auf Lichtungen an den dunklen Seen: Rabenhain am Schwarzsee, Nebelwacht am Nebelsee und Knochenufer am Knochensee. Um jeden Dorfplatz stehen niedrige Hütten, Totems und Palisaden aus Schädeln. Fremde sind für sie keine Gäste, sondern Beute.",
+      },
+      {
+        level: 3,
+        title: "Der Schädelkult",
+        text: "Die Aruun entführen Menschen und opfern sie in blutigen Ritualen, regelmäßig und ohne Scheu. In jedem Dorf steht hinter dem Platz eine Kulthütte, davor der Altar, auf dem das Blut fließt. Die Schädel der Geopferten stecken auf Pfählen und Totems rund um das Dorf. Sie glauben, dass diese Schädel die Seen hüten und den Fischreichtum sichern. Wer ihr Land betritt, wird nicht zufällig gefangen: Die Aruun wählen ihre Opfer.",
+      },
+      {
+        level: 3,
+        title: "Blut und Treue",
+        text: "Gegenüber Außenstehenden sind die Aruun grausam und gewalttätig. Gnade kennen sie nur für ihresgleichen. Alle Aruun-Dörfer sind miteinander verwandt und halten zusammen: Sie teilen den Fang, flicken gemeinsam Netze und schnitzen die Totems ihrer Sippen. Jedes andere Volk, auch Stämme, die einander kennen, gilt ihnen als Fremde und damit als Beute.",
+      },
+    ],
+    facts: [
+      { level: 1, label: "Heimat", value: "Dunkle Tannenwälder östlich des großen Flusses" },
+      { level: 1, label: "Gestalt", value: "Groß und kräftig, aber nicht außergewöhnlich" },
+      {
+        level: 1,
+        label: "Aussehen",
+        value: "Dunkle Haut, schwarzes gelocktes Haar, immer leuchtend blaue Augen",
+      },
+      { level: 2, label: "Nahrung", value: "Fisch aus Flüssen und Seen" },
+      { level: 2, label: "Dörfer", value: "Rabenhain, Nebelwacht, Knochenufer" },
+      { level: 3, label: "Glaube", value: "Schädelkult mit Menschenopfern" },
+      { level: 3, label: "Haltung", value: "Grausam gegen Fremde, treu zu den Aruun-Dörfern" },
+      { level: 3, label: "Bündnisse", value: "Nur untereinander" },
+    ],
+  },
 };
 
 // ---------- Freischalten ----------
@@ -172,9 +216,18 @@ export type LoreEvent = "met" | "contact" | "champion";
 /** So viele Kontakte (Gespräche, Handel, Kämpfe) machen ein Volk gut bekannt. */
 export const CONTACTS_FOR_FULL = 4;
 
-/** Dorf-Index (FOLK_HOMES) -> Volk. 0 bis 2 sind Nordic-Dörfer, 3 die Drachenterrasse, 4 der Oshkora-Kral. */
+/**
+ * Dorf-Index (FOLK_HOMES) -> Volk: zuerst die Nordic-Dörfer, dann die Drachenterrasse, der Oshkora-Kral
+ * (OSHKORA_HOME) und danach alle Aruun-Dörfer. Die Grenzen kommen aus biomes.ts, nichts ist hart eingetragen.
+ */
 export const tribeOfVillage = (village: number): Exclude<TribeId, "wenja"> =>
-  village === 4 ? "oshkora" : village === 3 ? "dragon" : "nordics";
+  village > OSHKORA_HOME
+    ? "aruun"
+    : village === OSHKORA_HOME
+      ? "oshkora"
+      : village === VILLAGES.length
+        ? "dragon"
+        : "nordics";
 
 export function knowledgeOf(state: LoreState, tribe: TribeId): Knowledge {
   if (tribe === "wenja") return 3;
