@@ -15,6 +15,27 @@ export function createSfxPlayer() {
   const load = async (url: string) => { if (!ctx) throw new Error('no audio'); const r = await fetch(url); return ctx.decodeAudioData(await r.arrayBuffer()); };
   load(sprite.url).then(b => { buf = b; }).catch(() => {});
   const loops: Record<'river' | 'rain', Loop> = { river: { url: riverLoop.url, level: 0 }, rain: { url: rainLoop.url, level: 0 } };
+  let windGain: GainNode | undefined, waterGain: GainNode | undefined, forestWind = 0, forestWater = 0, forestOn = false;
+  const startForest = () => {
+    if (!ctx || !master || windGain) return;
+    // Filtered noise and slow gusts: no extra recording/download required.
+    const noise = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate), data = noise.getChannelData(0);
+    let brown = 0;
+    for (let i = 0; i < data.length; i++) { brown = (brown + (Math.random() * 2 - 1) * 0.035) / 1.02; data[i] = brown * 3; }
+    const source = ctx.createBufferSource(); source.buffer = noise; source.loop = true;
+    const filter = ctx.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.value = 620;
+    const gust = ctx.createGain(); gust.gain.value = 0.65;
+    const lfo = ctx.createOscillator(), depth = ctx.createGain(); lfo.frequency.value = 0.13; depth.gain.value = 0.25; lfo.connect(depth); depth.connect(gust.gain);
+    windGain = ctx.createGain(); windGain.gain.value = 0;
+    source.connect(filter); filter.connect(gust); gust.connect(windGain); windGain.connect(master); source.start(); lfo.start();
+    // Quiet bubbling beneath the existing river recording, with an irregular wet pulse.
+    waterGain = ctx.createGain(); waterGain.gain.value = 0;
+    const water = ctx.createOscillator(), bubble = ctx.createOscillator(), pitch = ctx.createGain();
+    water.frequency.value = 155; bubble.frequency.value = 3.7; pitch.gain.value = 95;
+    bubble.connect(pitch); pitch.connect(water.frequency);
+    const pulse = ctx.createGain(); pulse.gain.value = 0.035;
+    water.connect(pulse); pulse.connect(waterGain); waterGain.connect(master); water.start(); bubble.start();
+  };
   const startLoop = (l: Loop) => {
     if (!ctx || !master || !l.buf || l.gain) return;
     const g = ctx.createGain(); g.gain.value = 0; g.connect(master);
@@ -43,7 +64,14 @@ export function createSfxPlayer() {
     },
     /** Ambience levels 0..1 for the river and rain loops (already scaled by the master volume). */
     setAmbience(river: number, rain: number, on = true) { loops.river.level = river; loops.rain.level = rain; ambienceOn = on; applyLoops(); },
-    get state() { return { ready: !!buf, running: ctx?.state === 'running', volume, river: loops.river.level, rain: loops.rain.level, riverPlaying: !!loops.river.gain, rainPlaying: !!loops.rain.gain }; },
+    setForest(wind: number, water: number, on = true) {
+      forestWind = wind; forestWater = water; forestOn = on;
+      if (on && wind > 0) startForest();
+      if (!ctx) return;
+      windGain?.gain.setTargetAtTime(on ? wind * 0.23 : 0, ctx.currentTime, 1.2);
+      waterGain?.gain.setTargetAtTime(on ? water : 0, ctx.currentTime, 0.7);
+    },
+    get state() { return { ready: !!buf, running: ctx?.state === 'running', volume, river: loops.river.level, rain: loops.rain.level, riverPlaying: !!loops.river.gain, rainPlaying: !!loops.rain.gain, forestWind, forestWater, forestOn, forestPlaying: !!windGain }; },
     destroy() { ctx?.close().catch(() => {}); },
   };
 }

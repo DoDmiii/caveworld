@@ -1,9 +1,11 @@
 /** Engine-free ambient wildlife: mountain birds that flush and stream trout that dart away. */
 import { STREAMS, DRAGON_VILLAGE } from './biomes';
+import { ARUUN_RIVERS, ARUUN_LAKES, aruunWaterAt } from './aruun';
+import { ARUUN_VILLAGES, ARUUN_HOME } from './aruun-villages';
 
 export type Bird = { x: number; y: number; hx: number; hy: number; state: 'rest' | 'flee'; vx: number; vy: number; until: number };
-export type Flock = { id: number; x: number; y: number; birds: Bird[]; returnAt: number };
-export type Fish = { x: number; y: number; hx: number; hy: number; dx: number; dy: number; fleeUntil: number; phase: number };
+export type Flock = { id: number; x: number; y: number; birds: Bird[]; returnAt: number; village?: number; raven?: boolean };
+export type Fish = { x: number; y: number; hx: number; hy: number; dx: number; dy: number; fleeUntil: number; phase: number; forest?: boolean };
 export type Movement = { running: boolean; crouching: boolean; moving: boolean };
 
 export const FLUSH_RADIUS = { run: 110, walk: 70, crouch: 26 } as const;
@@ -28,18 +30,30 @@ export function createFlocks(seed = 7): Flock[] {
     for (let b = 0; b < n; b++) { const hx = x + (r() - 0.5) * 30, hy = y + (r() - 0.5) * 22; birds.push({ x: hx, y: hy, hx, hy, state: 'rest', vx: 0, vy: 0, until: 0 }); }
     out.push({ id: i, x, y, birds, returnAt: 0 });
   }
+  ARUUN_VILLAGES.forEach((v, vi) => {
+    for (const side of [-1, 1]) {
+      const x = v.x + side * 90, y = v.y + 150;
+      const birds = Array.from({ length: 4 }, (_, i) => { const hx = x + i * 7 - 10, hy = y + (i % 2) * 3; return { x: hx, y: hy, hx, hy, state: 'rest' as const, vx: 0, vy: 0, until: 0 }; });
+      out.push({ id: out.length, x, y, birds, returnAt: 0, village: ARUUN_HOME + vi, raven: true });
+    }
+  });
   return out;
 }
 
 export function createFish(seed = 11): Fish[] {
   const r = rand(seed), out: Fish[] = [];
-  for (const s of STREAMS) for (let i = 1; i < s.length; i++) {
-    const [ax, ay] = s[i - 1]!, [bx, by] = s[i]!, len = Math.hypot(bx - ax, by - ay);
+  for (const s of [...STREAMS, ...ARUUN_RIVERS]) for (let i = 1; i < s.length; i++) {
+    const a = s[i - 1], b = s[i]; if (!a || !b) continue;
+    const [ax, ay] = a, [bx, by] = b, len = Math.hypot(bx - ax, by - ay);
     const dx = (ax - bx) / (len || 1), dy = (ay - by) / (len || 1); // upstream direction
     for (let k = 0; k < Math.floor(len / 120); k++) {
       const t = r(), hx = ax + (bx - ax) * t + (r() - 0.5) * 8, hy = ay + (by - ay) * t + (r() - 0.5) * 8;
-      out.push({ x: hx, y: hy, hx, hy, dx, dy, fleeUntil: 0, phase: r() * 6 });
+      out.push({ x: hx, y: hy, hx, hy, dx, dy, fleeUntil: 0, phase: r() * 6, forest: ARUUN_RIVERS.includes(s) });
     }
+  }
+  for (const l of ARUUN_LAKES) for (let i = 0; i < 12; i++) {
+    const a = r() * Math.PI * 2, radius = 0.4 + r() * 0.55, hx = l.x + Math.cos(a) * l.rx * radius, hy = l.y + Math.sin(a) * l.ry * radius;
+    out.push({ x: hx, y: hy, hx, hy, dx: -Math.cos(a), dy: -Math.sin(a), fleeUntil: 0, phase: r() * 6, forest: true });
   }
   return out;
 }
@@ -67,11 +81,11 @@ export function tickFish(fish: Fish[], px: number, py: number, m: Movement, now:
   let any = false; const s = dt / 1000;
   for (const f of fish) {
     if (m.moving && !m.crouching && f.fleeUntil <= now && Math.hypot(px - f.x, py - f.y) < FISH_SCARE) { f.fleeUntil = now + 1400; any = true; }
-    if (f.fleeUntil > now) { f.x += f.dx * 120 * s; f.y += f.dy * 120 * s; }
+    if (f.fleeUntil > now) { const x = f.x + f.dx * 120 * s, y = f.y + f.dy * 120 * s; if (!f.forest || aruunWaterAt(x, y)) { f.x = x; f.y = y; } else f.fleeUntil = now; }
     else { f.x += (f.hx - f.x) * Math.min(1, s * 0.6); f.y += (f.hy - f.y) * Math.min(1, s * 0.6); f.phase += s * 2; }
   }
   return any;
 }
 
 /** Guards notice flushing birds near the dragon terrace. */
-export const guardsNotice = (f: Flock) => Math.hypot(f.x - DRAGON_VILLAGE.x, f.y - DRAGON_VILLAGE.y) < DRAGON_VILLAGE.r + GUARD_NOTICE;
+export const guardsNotice = (f: Flock) => f.village !== undefined || Math.hypot(f.x - DRAGON_VILLAGE.x, f.y - DRAGON_VILLAGE.y) < DRAGON_VILLAGE.r + GUARD_NOTICE;

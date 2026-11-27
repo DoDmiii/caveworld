@@ -60,3 +60,22 @@ export function separation(self: Pt, others: Pt[], min: number): Pt {
 export function lungeIndex(n: number, time: number, period = 1400): number {
   return n <= 0 ? -1 : Math.floor(time / period) % n;
 }
+
+export type FightingStyle = 'spear' | 'melee';
+export const SPEAR_REACH = 35, SPEAR_RETREAT = 20;
+/** Uploaded Aruun looks 1, 4 and 5 carry spears; identities may reuse a look. */
+export const fightingStyle = (look: string): FightingStyle => /^aruun-m[145]$/.test(look) ? 'spear' : 'melee';
+export const strikeReach = (style: FightingStyle) => style === 'spear' ? SPEAR_REACH : 19;
+/** Spearmen hold the outer ring and step away before thrusting; axes close in. */
+export function fightingGoal(style: FightingStyle, self: Pt, target: Pt, lunging: boolean, i: number, n: number, time: number, seed = 0): { goal: Pt; retreat: boolean; speed: number } {
+  const dx = self.x - target.x, dy = self.y - target.y, d = Math.hypot(dx, dy);
+  if (style === 'spear' && d < SPEAR_RETREAT) {
+    const a = d ? Math.atan2(dy, dx) : seed;
+    return { goal: { x: target.x + Math.cos(a) * 32, y: target.y + Math.sin(a) * 32 }, retreat: true, speed: 96 };
+  }
+  if (lunging && style === 'spear') {
+    const a = d ? Math.atan2(dy, dx) : seed;
+    return { goal: { x: target.x + Math.cos(a) * 30, y: target.y + Math.sin(a) * 30 }, retreat: false, speed: 72 };
+  }
+  return { goal: lunging ? target : flankSlot(i, n, target, style === 'spear' ? 52 : 34, time, seed), retreat: false, speed: lunging ? 72 : 52 };
+}

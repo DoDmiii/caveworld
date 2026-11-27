@@ -11,3 +11,5 @@
 - Keep Aruun identity, home and couple mappings in engine-free aruun-people.ts and shared uploaded atlases in aruun-folk.ts; repeated looks must never share saves, names or households.
 - Aruun atlases use one horizontal strip of existing 32px folk slots with sleep at 200 so HUD portraits share the same source; trim only transparent margins, never rescale visible pixels.
 - Keep Aruun birth identities in reproduction.ts; children.ts withholds unsupported child looks until matching uploaded sprites exist, rather than depicting another ethnicity.
+- Keep weapon spacing and reach in combat.ts, keyed by uploaded look, so repeated Aruun identities use the weapon actually drawn in their atlas.
+- Keep Aruun fog banks, day density and forest sound levels engine-free in forest-ambience.ts; ambient.ts owns ravens/fish, world.ts paints local mist, and sfx-player.ts synthesizes wind/water under the existing master volume without saved state.

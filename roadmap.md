@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Aruun: Speere 35px, Rückschritt unter 20px, äußere Formation; See-/Flussnebel morgens/abends dichter, sechs Rabenflocken, 67 Wald-Fische und synthetischer Wald-/Wasserklang. Kampf, Nebel auf Desktop/Handy und Klang-/Pausezustand live geprüft; 524 Tests grün.
 - [x] Aruun: neun vollständige Figurenatlanten, 15 benannte Bewohner auf drei Dörfer verteilt, Steckbriefe/Paare/Hüttenbetten verbunden; Bewegung, Steckbrief und Nachtruhe in besetzter Hütte live geprüft.
 - [ ] Aruun-Kinderbilder und eigener Notizbucheintrag (wartet auf passende Sprites und Text vom Nutzer); Familien bleiben gespeichert, ohne falsche fremde Kinderbilder.
 - [x] Drachenterrasse neu: Zaunring entfernt (Klippen sind die Mauer), Hütten gestaffelt um einen Schieferplatz mit Feuer, Tor mit Totems, geschwungene Reisterrassen auf zwei Ebenen mit Bewässerungskanälen, Trittsteine, Fischersteg, Reusen, Vogelscheuchen und Trockengestelle. Live angesehen, 431 Tests grün.

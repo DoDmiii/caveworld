@@ -59,6 +59,7 @@ import { STRUCTURES, STRUCTURE_KINDS, canAfford } from './building';
 import { TRAPS, TRAP_KINDS } from './traps';
 import { newMusicState, pickTrack, parseVolume } from './music';
 import { parseSfxVolume, riverLevel, rainLevel, type SoundEvent } from './sfx';
+import { forestSound } from './forest-ambience';
 const BUILD_ICON: Record<string, string>={drum:DRUM_ICON,rack:rackIcon.url,shelter:shelterIcon.url,barricade:barricadeIcon.url,snare:resFiber.url,pit:resStone.url,rattle:resWood.url,totem:totemIcon.url};
 const BUILD_DEFS: Record<string, { name: string; cost: Partial<Record<string, number>>; effect: string }>={...STRUCTURES,...TRAPS};
 const STORABLE_LABEL: Record<Storable, string> = { wood: 'Holz', stone: 'Stein', flint: 'Feuerstein', fiber: 'Fasern', berries: 'Beeren', meat: 'Rohes Fleisch', cooked: 'Gebratenes' };
@@ -125,7 +126,7 @@ export default function GameView(){
  const [ready,setReady]=useState(false);const [error,setError]=useState(false);
  const [paused,setPaused]=useState(false);const [menu,setMenu]=useState(true);const [hasSave,setHasSave]=useState(false);useEffect(()=>{setHasSave(!!loadSave());try{if(sessionStorage.getItem('caveworld:skipMenu')==='1'){sessionStorage.removeItem('caveworld:skipMenu');setMenu(false);}}catch{/* ignore */}},[]);const newGame=()=>{if(hasSave&&!window.confirm('Neues Spiel beginnen? Dein Spielstand wird gelöscht.'))return;blockSaving();clearSave();try{sessionStorage.setItem('caveworld:skipMenu','1');}catch{/* ignore */}window.location.reload();};const [panel,setPanel]=useState<'map'|'settings'|'gear'|'lore'|'camp'|null>(null);
  useEffect(()=>{const p=music.current;if(!p)return;p.set(pickTrack(musicState.current,performance.now(),{biome:status.biome,place:status.caves?.current?'cave':status.indoors?'hut':undefined,danger:!!status.danger||!!status.duel,night:isNight(status.minutes),paused:paused||menu,dead:status.dead}));p.setDim(1);},[status,paused,menu]);
- useEffect(()=>{const place=status.caves?.current?'cave':status.indoors?'hut':undefined;sfx.current?.setAmbience(riverLevel(status.x,status.y,place),rainLevel(status.weather,place),!paused&&!status.dead);},[status,paused]);
+ useEffect(()=>{const place=status.caves?.current?'cave':status.indoors?'hut':undefined;const forest=forestSound(status.x,status.y,!!place);sfx.current?.setAmbience(riverLevel(status.x,status.y,place),rainLevel(status.weather,place),!paused&&!menu&&!status.dead);sfx.current?.setForest(forest.wind,forest.water,!paused&&!menu&&!status.dead);},[status,paused,menu]);
  const [equipped,setEquipped]=useState<Record<Slot,string|null>>({hand:'fists',off:null,head:null,chest:null,feet:null});
  const [openSlot,setOpenSlot]=useState<Slot|null>(null);
  const [tab,setTab]=useState<'inv'|'craft'>('inv');

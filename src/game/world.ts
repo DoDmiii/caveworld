@@ -3,6 +3,7 @@ import { renderCave } from './cave-render';
 import { FIST_FINISHER } from './wedge';
 import { EMPTY_DUELS, DUEL_EFFECTS, DUEL_HP, RING_RADIUS, SPECTATOR_RANGE, CHALLENGE_REACH, APPROACH_SPEED, APPROACH_ESCAPE, GATHER_MS, FIST_FINISHER_IMPACT, MOCK_LINES, CHEER_LINES, rollRules, acceptChance, claimsWoman, opponentDamage, playerDuelDamage, hitDuelist, playerYields, leftRing, ringSlot, duelTribute, recordOutcome, isShamed, onCooldown, setCooldown, nextMockDelay, challengeLine, rulesText, newDuelAi, duelThink, staggerAi, isDodging, duelVelocity, type DuelBook, type DuelRules, type DuelCause, type DuelOutcome, type DuelAi } from './duel';
 import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
+import { FOG_BANKS, FOREST_ART, fogDensity } from './forest-ambience';
 import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
 import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent } from './lore';
@@ -27,7 +28,7 @@ import { EMPTY_REPRO, conceive, advanceDay, birthSuspicion, reproLabels, PLAYER,
 import { EMPTY_COUPLES, addLure, seductionRefusal, witnessReaction, discover, secretAffair, relationLabel, GIFT_LURE, GREET_LURE, COUPLES, womanOf, LURE_NEEDED, lureNeeded, lureGain, type CouplesState, type WitnessReaction } from './partners';
 import { ADULT_WOMEN, CLOSENESS_MS, closenessRefusal, isWillingByRelationship, closenessReluctance, closenessWitnesses, blocksSight, type ClosenessContext } from './bonding';
 import { surfaceAt, STEP_SOUND, stepAdvance, hitSound, finisherSound, distanceGain, type SoundEvent, type SoundId } from './sfx';
-import { FINISHER_REACH, flankSlot, separation, lungeIndex, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon, FIGHTER_HP } from './combat';
+import { FINISHER_REACH, flankSlot, separation, lungeIndex, fightingStyle, fightingGoal, strikeReach, hitFighter, recoverFighter, canFinish, canFinishWith, finisherStyle, finisherImpactFrame, finishFighter, KNOCKDOWN_MS, newFighter, hitWarrior, isLethalWeapon, FIGHTER_HP } from './combat';
 import north from '@/assets/north.png.asset.json';
 import { corpseParts } from './corpse-art';
 import northEast from '@/assets/north-east.png.asset.json';
@@ -820,21 +821,28 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     lootedHouses: string[] = [];
     folk: Folk[] = [];
     flocks: Flock[] = createFlocks(); fish: Fish[] = createFish(); birdGfx?: Phaser.GameObjects.Graphics; fishGfx?: Phaser.GameObjects.Graphics; nextBirdMsg = 0;
+    fogGfx?: Phaser.GameObjects.Graphics; ambientClock = 0;
     tickAmbient(time: number, delta: number, p: Phaser.Physics.Arcade.Sprite, m: Movement) {
+      if (input.paused) return;
+      this.ambientClock += Math.min(delta, 100);
+      time = this.ambientClock;
       const dt = Math.min(delta, 100), cam = this.cameras.main.worldView;
       const view = (x: number, y: number) => x > cam.x - 40 && x < cam.right + 40 && y > cam.y - 40 && y < cam.bottom + 40;
       const flushed = tickFlocks(this.flocks, p.x, p.y, m, time, dt);
       tickFish(this.fish, p.x, p.y, m, time, dt);
       for (const f of flushed) if (guardsNotice(f) && time > this.nextBirdMsg) {
-        this.nextBirdMsg = time + 8000; this.message = 'Vögel flattern auf · die Drachenwachen horchen auf!'; this.messageUntil = time + 2200;
-        for (const g of this.folk) if (g.combat.phase === 'ready' && g.c.state === 'free' && isWarrior(g.t) && Math.hypot(g.sprite.x - f.x, g.sprite.y - f.y) < 260) g.sprite.setFlipX(f.x < g.sprite.x);
+        this.nextBirdMsg = time + 8000; this.message = f.raven ? 'Raben flattern auf · die Aruun-Wachen horchen auf!' : 'Vögel flattern auf · die Drachenwachen horchen auf!'; this.messageUntil = this.time.now + 2200;
+        for (const g of this.folk) if (g.combat.phase === 'ready' && g.c.state === 'free' && isWarrior(g.t) && (f.village === undefined ? g.t.village === 3 : g.t.village === f.village) && Math.hypot(g.sprite.x - f.x, g.sprite.y - f.y) < 260) {
+          g.facing = (Math.round(Math.atan2(f.y - g.sprite.y, f.x - g.sprite.x) / (Math.PI / 4)) + 8) % 8;
+          if (f.raven) this.bark(g.c.id, g.sprite, 'warn', this.time.now, false, 'Was bewegt sich an den Palisaden?');
+        }
       }
       const bg = this.birdGfx ??= this.add.graphics().setDepth(95000), fg = this.fishGfx ??= this.add.graphics().setDepth(4);
       bg.clear(); fg.clear();
       for (const fl of this.flocks) for (const b of fl.birds) {
         if (!view(b.x, b.y)) continue;
-        if (b.state === 'rest') { const hop = Math.sin(time / 300 + b.hx) > 0.9 ? 1 : 0; bg.fillStyle(0x3b2f2a, 1).fillRect(b.x - 2, b.y - 2 - hop, 4, 3); bg.fillStyle(0xd9a441, 1).fillRect(b.x + 2, b.y - 1 - hop, 1, 1); }
-        else { const up = Math.floor(time / 90) % 2 === 0; bg.fillStyle(0x2a2220, 1).fillRect(b.x - 1, b.y - 1, 3, 2); bg.fillRect(b.x - 4, b.y - (up ? 3 : 0), 3, 1); bg.fillRect(b.x + 2, b.y - (up ? 3 : 0), 3, 1); }
+        if (b.state === 'rest') { const hop = Math.sin(time / 300 + b.hx) > 0.9 ? 1 : 0; bg.fillStyle(fl.raven ? FOREST_ART.raven : 0x3b2f2a, 1).fillRect(b.x - 2, b.y - 2 - hop, 4, 3); bg.fillStyle(fl.raven ? FOREST_ART.beak : 0xd9a441, 1).fillRect(b.x + 2, b.y - 1 - hop, 1, 1); }
+        else { const up = Math.floor(time / 90) % 2 === 0; bg.fillStyle(fl.raven ? FOREST_ART.raven : 0x2a2220, 1).fillRect(b.x - 1, b.y - 1, 3, 2); bg.fillRect(b.x - 4, b.y - (up ? 3 : 0), 3, 1); bg.fillRect(b.x + 2, b.y - (up ? 3 : 0), 3, 1); }
       }
       for (const f of this.fish) {
         if (!view(f.x, f.y)) continue;
@@ -842,6 +850,19 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         fg.fillStyle(0x5d6f6a, 0.85).fillRect(f.x - 3, f.y - 1 + wig * 0.5, 6, 2); fg.fillStyle(0xc77a8a, 0.8).fillRect(f.x - 1, f.y, 3, 1);
         if (fleeing) fg.fillStyle(0xe8f4ff, 0.7).fillRect(f.x - f.dx * 6 - 1, f.y - f.dy * 6 - 1, 2, 2);
       }
+      const fog = this.fogGfx ??= this.add.graphics().setDepth(94000);
+      fog.clear();
+      const density = fogDensity(clockOf(this.clock).minutesOfDay);
+      FOG_BANKS.forEach((b, i) => {
+        const x = b.x + Math.sin(time / 11000 + i * 1.7) * 30, y = b.y + Math.sin(time / 17000 + i) * 8;
+        if (!view(x, y) && !view(x - b.w, y) && !view(x + b.w, y)) return;
+        if (biomeAt(x, y) !== 'wenjaEast') return;
+        // Feathered low strips, not opaque clouds: people and shores stay readable.
+        for (let row = 0; row < 7; row++) {
+          const w = b.w * (1 - Math.abs(row - 3) * 0.09), offset = Math.sin(i + row + time / 13000) * 12;
+          fog.fillStyle(FOREST_ART.mist, density * (1 - Math.abs(row - 3) * 0.22)).fillRect(Math.round(x - w / 2 + offset), Math.round(y + row * b.h / 7), w, b.h / 7 + 1);
+        }
+      });
     }
     barks = new Map<string, { text: Phaser.GameObjects.Text; until: number; next: number; sprite: Phaser.GameObjects.Components.Transform }>();
     patrolStep = new Map<string, number>();
@@ -2074,6 +2095,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     override update(time:number, delta:number) {
       const p=this.player;if(!p)return;
       this.tickSteps(p);
+      this.fogGfx?.setVisible(!this.inPocket()); this.birdGfx?.setVisible(!this.inPocket()); this.fishGfx?.setVisible(!this.inPocket());
       if (this.caves.current) { this.updateCave(time, delta); return; }
       if (this.hut) { this.updateHut(time, delta); return; }
       { const door = this.carried || (input.torch === 'main' && this.owned.includes('torch')) ? undefined : this.openHutAt(p.x, p.y);
@@ -2441,18 +2463,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           // Non-lunging fighters hold a ring slot and circle; the lunger closes in to strike.
           const near = this.standingAllies().filter(a => Math.hypot(a.x - s2.x, a.y - s2.y) < d - 10).sort((a, b) => Math.hypot(a.x - s2.x, a.y - s2.y) - Math.hypot(b.x - s2.x, b.y - s2.y))[0];
           const anchor = near ?? {x:p.x,y:p.y};
-          const goal = lunging ? anchor : flankSlot(idx, n, anchor, 34, time, f.seed);
+          const style = fightingStyle(f.t.tex);
+          const tactic = fightingGoal(style, s2, anchor, lunging, idx, n, time, f.seed);
+          const goal = tactic.goal;
           const sep = separation(s2, armedFolk.filter(o => o !== f).map(o => o.sprite), 26);
           let gx = goal.x - s2.x + sep.x * 40, gy = goal.y - s2.y + sep.y * 40;
           const gl = Math.hypot(gx, gy);
           const attackingNow = time < ((m as { swingUntil?: number }).swingUntil ?? 0) && isWarrior(f.t);
           f.facing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
-          if (gl > 4 && inRange && !(lunging && (near ? Math.hypot(near.x - s2.x, near.y - s2.y) : d) <= 15)) {
-            const spd = lunging ? 72 : 52; gx /= gl; gy /= gl;
+          if (gl > 4 && inRange && (tactic.retreat || !(lunging && (near ? Math.hypot(near.x - s2.x, near.y - s2.y) : d) <= (style === 'spear' ? 30 : 15)))) {
+            const spd = tactic.speed; gx /= gl; gy /= gl;
             s2.setVelocity(gx * spd, gy * spd); if (!attackingNow) s2.play(`${folkTex(f)}-walk-${f.facing}`, true);
           } else { s2.setVelocity(0, 0); if (!attackingNow) { s2.anims.stop(); s2.setFrame(f.facing); } }
           const left = dx < 0, swing = (m as { swingUntil?: number }).swingUntil ?? 0;
-          const vic = lunging ? pickVictim(s2, p, this.standingAllies(), 19) : undefined;
+          const vic = lunging && !tactic.retreat && !attackingNow ? pickVictim(s2, p, this.standingAllies(), strikeReach(style)) : undefined;
           if (vic && vic !== 'player' && time > ((m as { allyHitAt?: number }).allyHitAt ?? 0)) {
             (m as { allyHitAt?: number }).allyHitAt = time + 1000; (m as { swingUntil?: number }).swingUntil = time + 500; if (isWarrior(f.t)) s2.play(`${folkTex(f)}-attack-${f.facing}`);
             this.hitCompanion(vic, isChampion(f.t) ? CHAMPION_ALLY_DAMAGE : f.t.captive ? 8 : 11, -dx / Math.max(1, d), -dy / Math.max(1, d), time);
@@ -2516,6 +2540,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           s.setDepth(s.y); continue;
         }
         if (dec.shouldAttack && !f.t.captive) {
+          // Aruun alarm encounters use the same weapon tactics as witnessed attacks.
+          if (f.t.village >= ARUUN_HOME && isWarrior(f.t)) { m.armedUntil = time + 25000; s.setVelocity(0, 0); continue; }
           // Guards close in and strike; they never leave their village.
           if (d > 16 && home) { s.setVelocity(dx / len * 55, dy / len * 55); face(dx, dy); }
           else { s.setVelocity(0, 0); if (d <= 18 && time > this.lastDamage + 1100) { this.hurtPlayer(6, time); this.hitFlash = time + 200; this.lastDamage = time; this.message = 'Eine Wache schlägt zu!'; this.messageUntil = time + 1400; } }
