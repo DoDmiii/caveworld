@@ -1,4 +1,5 @@
 # Roadmap
+- [x] Hütten: lebendige Bewohner, Gespräche und Begleiter-Befehle innen; Bewegung, Pause, Morgenaufbruch und Gruß live geprüft. Unbeobachteter Mord blieb nach Neuladen unbekannt, bis die Mitbewohnerin das Haus betrat und die Leiche fand; kein bekanntgewordener Täter, kein Tätergerücht. 538 Tests grün.
 - [x] Aruun: Speere 35px, Rückschritt unter 20px, äußere Formation; See-/Flussnebel morgens/abends dichter, sechs Rabenflocken, 67 Wald-Fische und synthetischer Wald-/Wasserklang. Kampf, Nebel auf Desktop/Handy und Klang-/Pausezustand live geprüft; 524 Tests grün.
 - [x] Aruun: neun vollständige Figurenatlanten, 15 benannte Bewohner auf drei Dörfer verteilt, Steckbriefe/Paare/Hüttenbetten verbunden; Bewegung, Steckbrief und Nachtruhe in besetzter Hütte live geprüft.
 - [x] Aruun-Notizbuch: gelieferte Texte, Stufen 0–3, Dorf-/Bewohner-Sichtungen, getrennte Speicherung und fünf Handy-Reiter; Sichtung in Rabenhain, echter Gruß, Stufe 2 nach Neuladen sowie volle Seite auf Handy/Desktop geprüft; 530 Tests grün.

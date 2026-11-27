@@ -13,3 +13,5 @@
 - Keep Aruun birth identities in reproduction.ts; children.ts withholds unsupported child looks until matching uploaded sprites exist, rather than depicting another ethnicity.
 - Keep weapon spacing and reach in combat.ts, keyed by uploaded look, so repeated Aruun identities use the weapon actually drawn in their atlas.
 - Keep Aruun fog banks, day density and forest sound levels engine-free in forest-ambience.ts; ambient.ts owns ravens/fish, world.ts paints local mist, and sfx-player.ts synthesizes wind/water under the existing master volume without saved state.
+- Keep indoor wandering engine-free in indoor-life.ts; reuse the real inhabitant sprites and identities with transient return positions, so social and combat validation use room coordinates without saving living residency.
+- Keep corpse discovery engine-free in body-discovery.ts; save hut-local body evidence separately from fighter outcomes, isolate all witnesses by room, and use events.ts's unidentified discovery outcome exactly once so finding evidence never magically identifies its killer.

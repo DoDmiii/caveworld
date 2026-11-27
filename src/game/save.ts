@@ -71,6 +71,7 @@ const GameSchema = z.object({
   raid: z.record(z.string().max(4), z.number().min(0).max(10_000_000)).optional(),
   // Liegende Felle erlegter Wölfe/Säbelzahntiger; optional, damit ältere Spielstände weiter laden.
   hut: z.string().max(40).nullable().optional(),
+  hiddenBodies: z.array(z.object({ id: z.string().max(40), hut: z.string().max(80), x: coord, y: coord, found: z.boolean() })).max(100).optional(),
   groundPelts: z.array(z.object({ id: z.string().max(40), kind: z.enum(['wolfPelt', 'sabrePelt']), x: coord, y: coord })).max(40).optional(),
   guardPosts: z.record(z.string().max(40), z.object({ post: z.enum(['free', 'gate', 'fire', 'chest', 'captives', 'west', 'east', 'north', 'here']), x: z.number().optional(), y: z.number().optional() })).optional(),
   escape: z.object({ progress: z.record(z.string().max(40), z.number().min(0).max(100)), since: z.record(z.string().max(40), z.number().min(0)), rescueAt: z.record(z.string().max(40), z.number().min(0)) }).optional(),

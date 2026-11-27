@@ -4,7 +4,9 @@ import { FIST_FINISHER } from './wedge';
 import { EMPTY_DUELS, DUEL_EFFECTS, DUEL_HP, RING_RADIUS, SPECTATOR_RANGE, CHALLENGE_REACH, APPROACH_SPEED, APPROACH_ESCAPE, GATHER_MS, FIST_FINISHER_IMPACT, MOCK_LINES, CHEER_LINES, rollRules, acceptChance, claimsWoman, opponentDamage, playerDuelDamage, hitDuelist, playerYields, leftRing, ringSlot, duelTribute, recordOutcome, isShamed, onCooldown, setCooldown, nextMockDelay, challengeLine, rulesText, newDuelAi, duelThink, staggerAi, isDodging, duelVelocity, type DuelBook, type DuelRules, type DuelCause, type DuelOutcome, type DuelAi } from './duel';
 import { createFlocks, createFish, tickFlocks, tickFish, guardsNotice, type Flock, type Fish, type Movement } from './ambient';
 import { FOG_BANKS, FOREST_ART, fogDensity } from './forest-ambience';
-import { witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
+import { discoverBodies, type HiddenBody } from './body-discovery';
+import { indoorGoal } from './indoor-life';
+import { bodyFoundOutcome, witnessesOf, resolveDeed, startRumor, spreadRumors, EMPTY_RUMORS, type RumorState, type DeedKind, type Observer } from './events';
 import { EMPTY_CARRIERS, startCarriers, stepCarriers, isCarrier, pruneCarriers, type CarrierState, type CarrierView } from './chase';
 import { EMPTY_LORE, recordLore, tribeOfVillage, LORE, type LoreState, type LoreEvent, type TribeId } from './lore';
 import { EMPTY_FEAR, addFear, addFearAmount, decayFear, fearOf, moraleBreaks, canDemandTribute, demandTribute, fearTier, TRIBUTE_REL_COST, type FearState, type FearEvent } from './fear';
@@ -312,7 +314,28 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     hutCollider?: Phaser.Physics.Arcade.Collider | undefined;
     inPocket() { return !!this.caves.current || !!this.hut; }
     /** Residents currently inside a hut (id → hut id) and those walking to their door (id → start ms). */
-    indoors = new Map<string, string>(); headingIn = new Map<string, number>(); residentViews: Phaser.GameObjects.Image[] = [];
+    indoors = new Map<string, string>(); headingIn = new Map<string, number>(); residentViews: Phaser.Physics.Arcade.Sprite[] = [];
+    residentReturns = new Map<string, { x: number; y: number }>();
+    hutCompanions = new Set<string>();
+    hiddenBodies: HiddenBody[] = [];
+    inCurrentSpace(id: string) { return this.hut ? this.residentReturns.has(id) || this.hutCompanions.has(id) : !this.indoors.has(id) && !this.hiddenBodies.some(b => b.id === id); }
+    discoverHutBodies(extra: Observer[] = []) {
+      const observers = this.folk.filter(f => f.combat.phase === 'ready' && this.residentReturns.has(f.c.id)).map(f => ({ id: f.c.id, hut: this.hut?.house.id ?? null, x: f.sprite.x, y: f.sprite.y, alive: true, awake: !f.sprite.getData('lying'), free: f.c.state === 'free' }));
+      if (this.hut) for (const a of this.companionActors().filter(a => this.inCurrentSpace(a.id) && !allyDowned(this.allyHealth(a.id)))) {
+        observers.push({ id: a.id, hut: this.hut.house.id, x: a.sprite.x, y: a.sprite.y, alive: true, awake: !a.sprite.getData('lying'), free: true });
+      }
+      for (const o of extra) { const hut = this.indoors.get(o.id); if (hut) observers.push({ id: o.id, hut, x: o.x, y: o.y, alive: true, awake: true, free: true }); }
+      const result = discoverBodies(this.hiddenBodies, observers); this.hiddenBodies = result.state;
+      for (const body of result.found) {
+        const f = this.folk.find(f => f.c.id === body.id); if (!f) continue;
+        const village = FOLK_HOMES[f.t.village]; if (!village) continue;
+        const out = bodyFoundOutcome(villageKey(village.name));
+        this.rel = raiseAlarm(this.rel, out.village, Date.now());
+        this.rel = changeVillageRelationship(this.rel, out.village, out.relationship);
+        this.message = `In ${village.name} wurde eine Leiche gefunden · der Täter ist unbekannt`; this.messageUntil = this.time.now + 4500;
+      }
+      if (result.found.length) this.persist();
+    }
     residentHomes: Record<string, string> = {}; residentsAt = 0;
     /** Walks residents to their hut at night / in storms and lets them out again at dawn or on alarm. */
     tickResidents(time: number, controlled: Set<string>, stopped: boolean) {
@@ -351,29 +374,137 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const dx = door.x - r.sprite.x, dy = door.y - r.sprite.y, d = Math.hypot(dx, dy);
         if (d < DOOR_REACH || time - since > DOOR_PATIENCE) {
           this.headingIn.delete(r.id); this.indoors.set(r.id, hut.id);
+          const rest = restSpots(furnishHut(hut.id, styleOf(hut.owner), hutOptions(hut.id, hut.owner, hut.owner === 'nordic')), 1, false)[0];
+          if (rest) this.discoverHutBodies([{ id: r.id, x: rest.x, y: rest.y, village: '', role: 'villager' }]);
           r.sprite.setVelocity(0, 0).setPosition(door.x, door.y).setVisible(false); r.sprite.anims.stop(); if (b) b.enable = false; continue;
         }
         const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
         r.sprite.setVelocity(dx / d * 30, dy / d * 30); if (this.anims.exists(`${r.tex}-walk-${dir}`)) r.sprite.play(`${r.tex}-walk-${dir}`, true); r.sprite.setDepth(r.sprite.y);
       }
     }
-    /** Shows the hut's residents resting on beds or around the hearth. */
+    /** Real actors enter the pocket; their outdoor return positions remain transient. */
     showResidents(h: FlammableHouse, items: Furnishing[]) {
       const ids = [...this.indoors].filter(([, hid]) => hid === h.id).map(([id]) => id);
       const spots = restSpots(items, ids.length, isNight(clockOf(this.clock).minutesOfDay));
       ids.forEach((id, i) => {
-        const sp = spots[i]; if (!sp) return;
-        const tex = this.campers.find(c => c.template.id === id)?.template.id ?? (() => { const f = this.folk.find(o => o.c.id === id); return f && (isWolfHunter(f.c.id) ? bareTex(folkTex(f)) : folkTex(f)); })(); if (!tex) return;
-        const img = this.add.image(sp.x, sp.y, tex, 2).setOrigin(0.5, 0.9).setDepth(60000 + sp.y + 4);
-        if (sp.lying) {
-          img.setData('lying', true);
-          const folk = this.folk.find(f => f.c.id === id);
-          if (folk && 'sleep' in folk.t) img.setFrame(SLEEP_START + 2);
-          else img.setRotation(-Math.PI / 2);
-        } else img.setFrame(sp.x < (items.find(f => f.kind === 'hearth')?.x ?? sp.x) ? 0 : 4);
-        this.residentViews.push(img);
+        const sp = spots[i] ?? { ...ROOM_CENTER, lying: false };
+        const camper = this.campers.find(c => c.template.id === id), folk = this.folk.find(f => f.c.id === id);
+        const sprite = camper?.sprite ?? folk?.sprite; if (!sprite) return;
+        this.residentReturns.set(id, { x: sprite.x, y: sprite.y });
+        sprite.setPosition(sp.x, sp.y).setVisible(true).setVelocity(0, 0).setDepth(60000 + sp.y);
+        if (folk && isWolfHunter(id)) { folk.tex = bareTex(folk.t.tex); sprite.setTexture(folk.tex); }
+        sprite.setData({ residentId: id, lying: sp.lying, restSpot: sp, awakeUntil: 0, nextIndoor: this.time.now + 1800 + i * 700, indoorGoal: sp });
+        const body = sprite.body as Phaser.Physics.Arcade.Body | null; if (body) body.enable = !sp.lying;
+        if (sp.lying) { sprite.anims.stop(); if (folk && 'sleep' in folk.t) sprite.setFrame(SLEEP_START + 2); else sprite.setFrame(2).setAngle(90); }
+        else sprite.setFrame(sp.x < ROOM_CENTER.x ? 0 : 4);
+        this.residentViews.push(sprite);
       });
-      if (ids.length) { this.message = `${hutTitle(h.owner, h.name)} · ${ids.length === 1 ? 'Jemand ruht hier' : `${ids.length} Bewohner ruhen hier`}`; this.messageUntil = this.time.now + 2600; }
+      for (const body of this.hiddenBodies.filter(b => b.hut === h.id)) {
+        const f = this.folk.find(f => f.c.id === body.id && f.combat.phase === 'dead'); if (!f) continue;
+        this.residentReturns.set(f.c.id, { x: f.sprite.x, y: f.sprite.y });
+        f.sprite.setPosition(body.x, body.y); poseFolk(f); f.sprite.setDepth(60000 + body.y - 4);
+        f.headSprite?.setVisible(true).setDepth(60000 + (f.headPosition?.y ?? body.y));
+        this.residentViews.push(f.sprite);
+      }
+      this.discoverHutBodies();
+    }
+    wakeResident(id: string, time: number) {
+      const s = this.residentViews.find(s => s.getData('residentId') === id); if (!s) return;
+      if (s.getData('lying')) {
+        s.setData('lying', false).setAngle(0).setFrame(2);
+        const hut = this.hut;
+        if (hut) {
+          const bed = hut.items.find(i => i.kind === 'bed' && Math.hypot(i.x - s.x, i.y - s.y) < 20);
+          if (bed) {
+            const wake = [{ x: bed.x, y: bed.y + 16 }, { x: bed.x + bed.w / 2 + 12, y: bed.y }, { x: bed.x - bed.w / 2 - 12, y: bed.y }].find(o => roomWalkable(hut.style, o.x, o.y));
+            if (wake) s.setPosition(wake.x, wake.y).setData('indoorGoal', wake);
+          }
+        }
+        const b = s.body as Phaser.Physics.Arcade.Body | null; if (b) b.enable = true;
+        this.message = `${this.personName(id)} wacht auf`; this.messageUntil = time + 2200;
+      }
+      s.setData('awakeUntil', time + 15000);
+    }
+    tickIndoorResidents(time: number) {
+      const hut = this.hut, p = this.player; if (!hut || !p) return;
+      const night = isNight(clockOf(this.clock).minutesOfDay);
+      for (const s of this.residentViews) {
+        const id = s.getData('residentId') as string | undefined;
+        const f = this.folk.find(f => f.sprite === s), c = this.campers.find(c => c.sprite === s);
+        if (!id || f?.combat.phase === 'dead') { s.setDepth(60000 + s.y - 4); continue; }
+        s.setDepth(60000 + s.y);
+        if (input.paused || this.sleeping || this.dead) { s.setVelocity(0, 0); s.anims.pause(); continue; }
+        s.anims.resume();
+        if (f && f.combat.phase !== 'ready') { s.setVelocity(0, 0); continue; }
+        const awake = (s.getData('awakeUntil') as number) > time;
+        const village = f ? FOLK_HOMES[f.t.village] : undefined;
+        const alarm = hut.house.owner === 'camp' ? this.campAlarm : !!village && isAlarmActive(this.rel, villageKey(village.name), Date.now());
+        const want = wantsIndoors({ night, weather: weatherAt(regionOf(biomeAt(hut.house.x, hut.house.y)), this.clock), alarm, warrior: !!f && isWarrior(f.t), burning: !!this.fires[hut.house.id] });
+        if (!want && this.closeness?.id !== id && this.companionOrders.get(id)?.mode !== 'follow') {
+          if (s.getData('lying')) this.wakeResident(id, time);
+          const door = hutExit(hut.style), goal = { x: door.x, y: door.y - 14 }, d = Math.hypot(goal.x - s.x, goal.y - s.y);
+          if (d < 8) {
+            const out = outsideSpot(hut.house);
+            s.setPosition(out.x, out.y).setVelocity(0, 0).setVisible(false).setData('residentId', null);
+            this.indoors.delete(id); this.residentReturns.delete(id); this.residentViews = this.residentViews.filter(v => v !== s);
+            this.caveHidden.set(s, true);
+            const b = s.body as Phaser.Physics.Arcade.Body | null; if (b) { b.enable = false; if (!this.caveDisabled.includes(b)) this.caveDisabled.push(b); }
+          } else {
+            let path = s.getData('exitPath') as { x: number; y: number }[] | undefined;
+            if (!path?.length) {
+              const blocks = (this.hutView?.walls.getChildren() ?? []).flatMap(o => { const b = (o as Phaser.Physics.Arcade.Sprite).body; return b ? [{ x: b.x, y: b.y, width: b.width, height: b.height }] : []; });
+              path = findCompanionPath(s, goal, blocks); s.setData('exitPath', path);
+            }
+            while (path?.[0] && Math.hypot(path[0].x - s.x, path[0].y - s.y) < 5) path.shift();
+            const waypoint = path?.[0] ?? goal, dx = waypoint.x - s.x, dy = waypoint.y - s.y, len = Math.max(1, Math.hypot(dx, dy));
+            const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+            s.setVelocity(dx / len * 20, dy / len * 20); const tex = f ? folkTex(f) : id;
+            if (this.anims.exists(`${tex}-walk-${dir}`)) s.play(`${tex}-walk-${dir}`, true);
+          }
+          continue;
+        }
+        if (s.getData('lying')) { if (night && !awake) continue; this.wakeResident(id, time); }
+        if (this.closeness?.id === id) { s.setVelocity(0, 0); continue; }
+        if (this.companionOrders.get(id)?.mode === 'follow') { s.setVelocity(0, 0); continue; }
+        let goal = s.getData('indoorGoal') as { x: number; y: number };
+        if (time > (s.getData('nextIndoor') as number)) {
+          goal = indoorGoal(hut.style, hut.items, s, Math.random);
+          s.setData('indoorGoal', goal).setData('nextIndoor', time + 4500 + Math.random() * 3500);
+        }
+        let dx = goal.x - s.x, dy = goal.y - s.y, d = Math.hypot(dx, dy);
+        const near = Math.hypot(p.x - s.x, p.y - s.y) <= INTERACTION_RANGE;
+        const armed = f && (this.folkMood.get(id)?.armedUntil ?? 0) > time;
+        const rest = s.getData('restSpot') as { x: number; y: number; lying: boolean } | undefined;
+        if (night && !awake && !near && !armed && rest?.lying) {
+          const bed = hut.items.find(i => i.kind === 'bed' && Math.hypot(i.x - rest.x, i.y - rest.y) < 20);
+          if (bed) {
+            dx = bed.x - s.x; dy = bed.y + 16 - s.y; d = Math.hypot(dx, dy);
+            if (d < 8) {
+              s.setPosition(rest.x, rest.y).setVelocity(0, 0).setData('lying', true); s.anims.stop();
+              const b = s.body as Phaser.Physics.Arcade.Body | null; if (b) b.enable = false;
+              if (f && 'sleep' in f.t) s.setFrame(SLEEP_START + 2); else s.setFrame(2).setAngle(90);
+              continue;
+            }
+          }
+        }
+        if (near || armed) { dx = p.x - s.x; dy = p.y - s.y; d = Math.hypot(dx, dy); }
+        const dir = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8;
+        if (f) f.facing = dir; if (c) c.facing = dir;
+        const tex = f ? folkTex(f) : id;
+        if (armed && f && isWarrior(f.t)) {
+          const reach = strikeReach(fightingStyle(f.t.tex));
+          s.setVelocity(d > reach ? dx / Math.max(1, d) * 28 : 0, d > reach ? dy / Math.max(1, d) * 28 : 0);
+          if (d <= reach && time > this.lastDamage + 1100) { this.hurtPlayer(6, time); this.lastDamage = time; s.play(`${tex}-attack-${dir}`, true); }
+          else if (d > reach) s.play(`${tex}-walk-${dir}`, true);
+        } else if (!near && d > 4) { s.setVelocity(dx / d * 16, dy / d * 16); if (this.anims.exists(`${tex}-walk-${dir}`)) s.play(`${tex}-walk-${dir}`, true); }
+        else { s.setVelocity(0, 0); s.anims.stop(); s.setFrame(dir); }
+      }
+      for (const [id, bark] of this.barks) {
+        const on = this.inCurrentSpace(id) && time < bark.until;
+        bark.text.setVisible(on);
+        if (on) bark.text.setPosition(bark.sprite.x, bark.sprite.y - 24).setDepth(63000 + bark.sprite.y);
+      }
+      this.discoverHutBodies();
     }
     /** Huts the player can walk into right now (burning or ruined huts stay closed). */
     openHutAt(x: number, y: number) { return hutDoorAt(FLAMMABLE_HOUSES.filter(h => !this.fires[h.id]), x, y); }
@@ -389,9 +520,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const style = styleOf(h.owner), items = furnishHut(h.id, style, hutOptions(h.id, h.owner, h.owner === 'nordic'));
       this.hut = { house: h, style, items };
+      this.hutCompanions = new Set(followers.map(a => a.id));
       this.hutView = renderHut(this, h.id, style, items, this.lootedHouses.includes(h.id));
       this.showResidents(h, items);
-      this.hutCollider = this.physics.add.collider([p, ...followers.map(a => a.sprite)], this.hutView.walls);
+      this.hutCollider = this.physics.add.collider([p, ...followers.map(a => a.sprite), ...this.residentViews], this.hutView.walls);
       this.physics.world.setBounds(0, 0, POCKET.w, POCKET.h);
       this.cameras.main.setBounds(-POCKET.w, -POCKET.h, POCKET.w * 3, POCKET.h * 3);  // padded: the black void lets tall phone screens centre the room
       const s = hutSpawn(style);
@@ -405,13 +537,31 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     exitHut() {
       const p = this.player, hut = this.hut; if (!p || !hut) return;
-      this.hutCollider?.destroy(); this.hutView?.destroy(); for (const v of this.residentViews) v.destroy(); this.residentViews = []; this.hutView = undefined; this.hutCollider = undefined;
+      if (this.closeness) this.endCloseness('Der Moment endet', this.time.now);
+      this.hutCollider?.destroy(); this.hutView?.destroy();
+      for (const [id, pos] of this.residentReturns) {
+        const f = this.folk.find(f => f.c.id === id), c = this.campers.find(c => c.template.id === id), s = f?.sprite ?? c?.sprite; if (!s) continue;
+        const evidence = this.hiddenBodies.find(b => b.id === id);
+        if (evidence) { evidence.x = s.x; evidence.y = s.y; }
+        s.setPosition(pos.x, pos.y).setAngle(0).setVelocity(0, 0).setData('lying', false).setVisible(false);
+        f?.headSprite?.setVisible(false);
+        if (f && f.combat.phase !== 'dead') poseFolk(f);
+        if (this.companionOrders.get(id)?.mode === 'follow') this.indoors.delete(id);
+      }
+      this.residentReturns.clear(); this.residentViews = []; this.hutView = undefined; this.hutCollider = undefined;
       for (const [o, visible] of this.caveHidden) if (o.active && 'setVisible' in o) (o as Phaser.GameObjects.Image).setVisible(visible);
       for (const b of this.caveDisabled) b.enable = true;
-      this.caveHidden.clear(); this.caveDisabled = []; this.hut = null; this.cavePrompt = null;
+      this.caveHidden.clear(); this.caveDisabled = []; this.hut = null; this.cavePrompt = null; this.talk = null;
+      for (const id of this.indoors.keys()) { const s = this.folk.find(f => f.c.id === id)?.sprite ?? this.campers.find(c => c.template.id === id)?.sprite; if (s) { s.setVisible(false); const b = s.body as Phaser.Physics.Arcade.Body | null; if (b) b.enable = false; } }
+      for (const body of this.hiddenBodies) { const f = this.folk.find(f => f.c.id === body.id); if (f) { f.sprite.setVisible(false); f.headSprite?.setVisible(false); const b = f.sprite.body as Phaser.Physics.Arcade.Body | null; if (b) b.enable = false; } }
       this.physics.world.setBounds(MAP.x, MAP.y, MAP.w, MAP.h); this.cameras.main.setBounds(MAP.x, MAP.y, MAP.w, MAP.h);
       const o = outsideSpot(hut.house); p.setPosition(o.x, o.y).setVelocity(0, 0); this.lastFacing = 2;
-      this.caveFollowers().forEach((a, i) => { a.sprite.setPosition(o.x - 20 + (i % 3) * 20, o.y + 18 + Math.floor(i / 3) * 14); this.companionMovement.reset(a.id); });
+      this.companionActors().filter(a => this.hutCompanions.has(a.id)).forEach((a, i) => {
+        a.sprite.setPosition(o.x - 20 + (i % 3) * 20, o.y + 18 + Math.floor(i / 3) * 14).setVisible(true);
+        const order = this.companionOrders.get(a.id); if (order) this.companionOrders.set(a.id, { ...order, x: a.sprite.x, y: a.sprite.y });
+        this.companionMovement.reset(a.id);
+      });
+      this.hutCompanions.clear();
       this.cameras.main.centerOn(p.x, p.y); this.tutLast = { x: p.x, y: p.y }; this.persist();
     }
     hutWarm(p: { x: number; y: number }) { const f = this.hut?.items.find(i => i.kind === 'hearth'); return !!f && Math.hypot(f.x - p.x, f.y - 8 - p.y) < HEARTH_WARM_RANGE; }
@@ -427,6 +577,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player, hut = this.hut; if (!p || !hut) return;
       const say = (m: string, ms = 2400) => { this.message = m; this.messageUntil = time + ms; };
       const ex = hutExit(hut.style); if (Math.hypot(p.x - ex.x, p.y - ex.y) < 34) { this.exitHut(); return; }
+      const down = this.folk.find(f => this.inCurrentSpace(f.c.id) && f.combat.phase === 'downed' && Math.hypot(f.sprite.x - p.x, f.sprite.y - p.y) <= FINISHER_REACH);
+      if (down && this.startFinisher(down)) return;
       const near = nearestFurnishing(hut.items, p.x, p.y, undefined, 34);
       if (near?.kind === 'basket' && near.stash && !this.lootedHouses.includes(hut.house.id)) {
         const next = lootHouse({ stock: this.stock, berries: this.count, meat: this.meat, cooked: this.cooked, owned: this.owned, lootedHouses: this.lootedHouses }, hut.house.id);
@@ -493,6 +645,10 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       let dx = input.x, dy = input.y;
       if (k?.['A']?.isDown || k?.['LEFT']?.isDown) dx = -1; if (k?.['D']?.isDown || k?.['RIGHT']?.isDown) dx = 1;
       if (k?.['W']?.isDown || k?.['UP']?.isDown) dy = -1; if (k?.['S']?.isDown || k?.['DOWN']?.isDown) dy = 1;
+      this.tickIndoorResidents(time);
+      this.tribal(time); this.tickCampChat(time);
+      if (this.tickCloseness(time, delta, dx, dy)) { this.cavePrompt = null; this.report(time, p); return; }
+      if (this.finisher) { p.setVelocity(0, 0); if (input.paused) p.anims.pause(); else p.anims.resume(); this.report(time, p); return; }
       if (input.paused || this.attacking) { dx = 0; dy = 0; }
       const moving = Math.hypot(dx, dy) > 0.12, running = !!(moving && (input.sprint || k?.['SHIFT']?.isDown) && canSprint(this.exhausted, this.stamina));
       const len = Math.max(1, Math.hypot(dx, dy)); p.setVelocity(dx / len * (running ? 95 : 60), dy / len * (running ? 95 : 60));
@@ -508,19 +664,20 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (input.craft) { const r = RECIPES.find(r => r.id === input.craft); const next = r && craft(r, this.stock, levelFromXp(this.xp), this.owned); if (r && next) { this.stock = next; this.owned.push(r.id); this.addXp(XP.craft); this.message = `${r.name} hergestellt`; this.messageUntil = time + 2000; } input.craft = null; }
       if (input.weapon !== this.weapon) this.weapon = input.weapon === 'none' || this.owned.includes(input.weapon) ? input.weapon : 'none';
       const attackKey = k?.['Q']; const attackNow = this.clickAttack || (attackKey && Phaser.Input.Keyboard.JustDown(attackKey)); this.clickAttack = false;
-      if (!input.paused && !this.attacking && (input.attack !== this.lastAttack || attackNow)) { this.lastAttack = input.attack; this.attacking = true; p.setVelocity(0, 0); this.playAttack(p, this.held); }
+      if (!input.paused && !this.attacking && (input.attack !== this.lastAttack || attackNow)) { this.lastAttack = input.attack; this.attacking = true; this.attackPending = true; p.setVelocity(0, 0); this.playAttack(p, this.held); }
       else this.lastAttack = input.attack;
+      if (!input.paused) this.tickWildlife(time, delta, p);
       if (!this.attacking) { if (moving) { this.lastFacing = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) + 8) % 8; this.playWalk(p, this.held, running); } else this.setIdle(p, this.held); }
       p.setDepth(60000 + p.y);
       if (!input.paused && moving && dy > 0.3 && leavesHut(hut.style, p.x, p.y)) { this.exitHut(); this.report(time, p); return; }
       const e = k?.['E'], sp = k?.['SPACE']; const actionNow = (e && Phaser.Input.Keyboard.JustDown(e)) || (sp && Phaser.Input.Keyboard.JustDown(sp));
       if (!input.paused && !this.attacking && (input.action !== this.lastAction || actionNow)) { this.lastAction = input.action; this.hutAction(time); if (!this.hut) { this.report(time, p); return; } } else this.lastAction = input.action;
       const food = input.eat; input.eat = null; if (food) { const r = eat(this.pantry(), food); if (r) { this.setPantry(r); this.healPulse++; } }
-      const actors = this.caveFollowers(); const blocks = (this.hutView?.walls.getChildren() ?? []).flatMap(o => { const b = (o as Phaser.Physics.Arcade.Sprite).body; return b ? [{ x: b.x, y: b.y, width: b.width, height: b.height }] : []; });
+      const actors = this.companionActors().filter(a => this.hutCompanions.has(a.id) && a.id !== this.closeness?.id); const blocks = (this.hutView?.walls.getChildren() ?? []).flatMap(o => { const b = (o as Phaser.Physics.Arcade.Sprite).body; return b ? [{ x: b.x, y: b.y, width: b.width, height: b.height }] : []; });
       this.companionMovement.tick(actors, this.companionOrders, p, this.lastFacing, time, input.paused || this.dead, running, false, blocks);
       for (const a of actors) { a.sprite.setDepth(60000 + a.sprite.y); if (!input.paused) this.allyHp.set(a.id, tickAllyHealth(this.allyHealth(a.id), time, delta, this.hutWarm(a.sprite), this.allyMaxHp(a.id))); }
       this.cavePrompt = this.hutPrompt(p);
-      this.hidden = false; this.nearBed = false; this.nearChest = false; this.nearRack = null; this.talk = null; this.report(time, p);
+      this.hidden = false; this.nearBed = false; this.nearChest = false; this.nearRack = null; this.report(time, p);
     }
     player?: Phaser.Physics.Arcade.Sprite;
     keys?: Record<string, Phaser.Input.Keyboard.Key>;
@@ -1131,7 +1288,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     personalChoice(id: string, choice: string, time: number) {
       const actor = this.companionActors().find(a => a.id === id), p = this.player, pid = PROFILE_IDS[id];
-      if (!actor || !p || !pid || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return;
+      if (!actor || !p || !pid || !this.inCurrentSpace(id) || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return;
       if (!this.personalTopics(id).some(d => d.choices.some(c => c.id === choice))) return;
       this.message = 'Deine Taten zählen mehr als Versprechen.'; this.messageUntil = time + 3000;
       if (choice === 'listen') this.message = trustSteps(pid, this.trustProgress[id]).filter(s => !s.done).map(s => s.label).join(' · ') || 'Du hast mein Vertrauen.';
@@ -1376,11 +1533,11 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     }
     nextCampChat = 0;
     campPeople() {
-      return this.companionActors().filter(a => Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y - FIRE_DY) < 220 && !allyDowned(this.allyHealth(a.id)));
+      return this.companionActors().filter(a => (this.hut?.house.owner === 'camp' ? this.inCurrentSpace(a.id) : !this.hut && Math.hypot(a.sprite.x - CAMP.x, a.sprite.y - CAMP.y - FIRE_DY) < 220) && !allyDowned(this.allyHealth(a.id)));
     }
     campTopics(id: string) {
       const p = this.player;
-      if (!p || Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) > 220) return [];
+      if (!p || (this.hut ? this.hut.house.owner !== 'camp' : Math.hypot(p.x - CAMP.x, p.y - CAMP.y - FIRE_DY) > 220)) return [];
       return availableCampDialogues(this.campSocial, PROFILE_IDS[id] ?? id, this.campPeople().map(a => PROFILE_IDS[a.id] ?? a.id), clockOf(this.clock).day);
     }
     tickCampChat(time: number) {
@@ -1518,7 +1675,8 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         lore: this.lore,
         groundPelts: this.groundPelts.map(p => ({ ...p })),
         rumors: this.savedRumors(),
-        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(f.sprite.x), y: Math.round(f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
+        hiddenBodies: this.hiddenBodies.map(b => { const f = this.hut?.house.id === b.hut ? this.folk.find(f => f.c.id === b.id) : undefined; return { ...b, x: f?.sprite.x ?? b.x, y: f?.sprite.y ?? b.y }; }),
+        fighters: this.folk.filter(f => f.combat.hp !== (f.combat.max ?? 60) || f.combat.phase !== 'ready').map(f => ({ id: f.c.id, hp: f.combat.hp, phase: f.combat.phase, x: Math.round(this.residentReturns.get(f.c.id)?.x ?? f.sprite.x), y: Math.round(this.residentReturns.get(f.c.id)?.y ?? f.sprite.y), facing: f.facing, ...(f.deathClock !== undefined && f.combat.phase === 'dead' ? { deathClock: Math.floor(f.deathClock) } : {}), ...(f.beheaded ? { beheaded: true, headPosition: f.headPosition, ...(f.skullTaken ? { skullTaken: true } : {}) } : {}) })),
         companions: this.companionActors().flatMap(a => { const order = this.companionOrders.get(a.id); return order ? [{ id: a.id, mode: order.mode, x: Math.round(a.sprite.x), y: Math.round(a.sprite.y) }] : []; }),
         allies: [...this.allyHp].filter(([, h]) => h.hp < 50 || h.downUntil > 0).map(([id, h]) => ({ id, hp: Math.round(h.hp), downMs: h.downUntil > 0 ? Math.max(0, Math.min(60000, Math.round(h.downUntil - this.time.now))) : 0 })),
         relationships: { village: { ...dv.rel.village }, personal: { ...dv.rel.personal }, alarmUntil: { ...dv.rel.alarmUntil } },
@@ -1602,6 +1760,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       this.fear = g.fear ? { fear: { ...g.fear.fear }, tributeDay: { ...g.fear.tributeDay }, grudge: { ...g.fear.grudge }, day: g.fear.day } : EMPTY_FEAR;
       this.rumors = g.rumors ? { rumors: g.rumors.rumors.map(r => ({ ...r, reached: [...r.reached] })) } : EMPTY_RUMORS;
       this.carriers = EMPTY_CARRIERS;
+      this.hiddenBodies = (g.hiddenBodies ?? []).filter(b => (g.fighters ?? []).some(f => f.id === b.id && f.phase === 'dead')).map(b => ({ ...b }));
       this.duels = g.duels ? { shame: { ...g.duels.shame }, cooldown: { ...g.duels.cooldown } } : EMPTY_DUELS; this.duel = null;
       this.warband = g.warband ? { pending: { ...g.warband.pending }, cooldown: { ...g.warband.cooldown }, fury: { ...(g.warband.fury ?? {}) }, squads: { ...(g.warband.squads ?? {}) }, active: g.warband.active ? { ...g.warband.active } : undefined } : EMPTY_WARBANDS; this.raidRoster.clear(); this.clearRaidFx();
       for (const saved of g.fighters ?? []) { const f = this.folk.find(o => o.c.id === saved.id); if (!f) continue; f.combat = { hp: saved.hp, phase: saved.phase, downUntil: saved.phase === 'downed' ? this.time.now + KNOCKDOWN_MS : 0, max: isChampion(f.t) ? CHAMPION_HP : 60 }; f.beheaded = saved.beheaded; f.headPosition = saved.headPosition; f.deathClock = saved.deathClock ?? (saved.phase === 'dead' ? this.clock : undefined); f.skullTaken = saved.skullTaken; f.facing = saved.facing; f.sprite.setPosition(saved.x, saved.y); poseFolk(f); }
@@ -1612,6 +1771,15 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.companionOrders.set(order.id, { ...order });
       }
       for (const a of g.allies ?? []) this.allyHp.set(a.id, a.downMs > 0 ? { hp: 0, downUntil: this.time.now + Math.max(1, a.downMs) } : { hp: a.hp, downUntil: 0 });
+      for (const body of this.hiddenBodies) { const f = this.folk.find(f => f.c.id === body.id); f?.sprite.setVisible(false); f?.headSprite?.setVisible(false); }
+      this.residentsAt = -1;
+      this.tickResidents(this.time.now, new Set(this.companionOrders.keys()), true);
+      if (g.hut) for (const [id, hid] of Object.entries(this.residentHomes)) {
+        if (hid !== g.hut || this.companionOrders.has(id) || this.hiddenBodies.some(b => b.hut === hid && !b.found)) continue;
+        const h = FLAMMABLE_HOUSES.find(h => h.id === hid); if (!h) continue;
+        const f = this.folk.find(f => f.c.id === id); if (f && f.combat.phase !== 'ready') continue;
+        if (wantsIndoors({ night: isNight(clockOf(this.clock).minutesOfDay), weather: weatherAt(regionOf(biomeAt(h.x, h.y)), this.clock), alarm: false, warrior: !!f && isWarrior(f.t), burning: !!this.fires[hid] })) this.indoors.set(id, hid);
+      }
       p.setPosition(Phaser.Math.Clamp(g.x, MAP.x, MAP.x + MAP.w), Phaser.Math.Clamp(g.y, MAP.y, MAP.y + MAP.h));
       if (this.caves.current) this.enterCave(this.caves.current, true);
       else if (g.hut) { const h = FLAMMABLE_HOUSES.find(h => h.id === g.hut); if (h && !this.fires[h.id]) this.enterHut(h, true); }
@@ -2407,13 +2575,14 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       const p = this.player; if (!p) return;
       const now = Date.now();
       const req = input.interaction; input.interaction = null;
-      if (req) { if (!this.applyAllyInteraction(req.target, req.id, time)) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); } }
+      if (req && this.inCurrentSpace(req.target)) this.wakeResident(req.target, time);
+      if (req && this.inCurrentSpace(req.target)) { if (!this.applyAllyInteraction(req.target, req.id, time)) { const f = this.folk.find(o => o.c.id === req.target); if (f) this.applyInteraction(f, req.id, time); } }
       const stop = input.paused || this.dead || this.sleeping || this.health <= 0;
       this.tickDuel(time, input.paused || this.sleeping); this.tickMockery(time, stop);
       const duelIds = this.duelIds();
-      const inside = FOLK_HOMES.some(v => Math.hypot(p.x - v.x, p.y - v.y) < v.r);
+      const inside = !this.hut && FOLK_HOMES.some(v => Math.hypot(p.x - v.x, p.y - v.y) < v.r);
       let best: Folk | undefined, bd = INTERACTION_RANGE;
-      for(const f of this.folk){if(f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free'||f.c.id===this.duel?.id)continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
+      for(const f of this.folk){if(!this.inCurrentSpace(f.c.id)||f===this.finisher||f.combat.phase!=='downed'||f.c.state!=='free'||f.c.id===this.duel?.id)continue;if(stop){f.combat.downUntil+=Math.min(this.game.loop.delta,100);continue;}const recovered=recoverFighter(f.combat,time);if(recovered!==f.combat){f.combat=recovered;poseFolk(f);this.armFolk(f,time);}}
       const escorts = new Set<string>();
       if (inside && !stop) for (let vi = 0; vi < FOLK_HOMES.length; vi++) {
         const e = pickEscort(this.folk.filter(o => o.t.village === vi && o.c.state === 'free' && o.combat.phase === 'ready' && isWarrior(o.t) && !this.roaming.has(o.c.id) && Math.hypot(o.sprite.x - p.x, o.sprite.y - p.y) < 220).map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y })), p);
@@ -2421,7 +2590,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       }
       const armedFolk = this.folk.filter(o => o.combat.phase === 'ready' && o.c.state === 'free' && (this.folkMood.get(o.c.id)?.armedUntil ?? 0) > time);
       for (const f of this.folk) {
-        if (this.indoors.has(f.c.id)) { this.folkMood.get(f.c.id)?.icon.setVisible(false); this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
+        if (!this.inCurrentSpace(f.c.id)) { this.folkMood.get(f.c.id)?.icon.setVisible(false); this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
         if (duelIds.has(f.c.id) && f.combat.phase !== 'dead') { if (f.combat.phase !== 'downed') this.folkMood.get(f.c.id)?.weapon?.setVisible(false); continue; }
         if (f.c.state === 'carried' || f.combat.phase === 'dead') {this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
         if(f.combat.phase==='downed'){this.folkMood.get(f.c.id)?.icon.setVisible(false);this.folkMood.get(f.c.id)?.weapon?.setVisible(false);continue;}
@@ -2429,6 +2598,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         const s = f.sprite, d = Math.hypot(p.x - s.x, p.y - s.y);
         if (!stop && d < 150 && !this.lore[tribeOfVillage(f.t.village)]?.met) this.noteLore(f.t.village, 'met');
         if (d < bd) { bd = d; best = f; }
+        if (this.hut) continue;
         if (f.c.id === this.closeness?.id) { this.folkMood.get(f.c.id)?.icon.setVisible(false); continue; }
         let m = this.folkMood.get(f.c.id);
         if (!m) { m = { icon: this.add.text(0, 0, '', { fontFamily: 'monospace', fontSize: '11px', color: '#ffe08a', stroke: '#1c1712', strokeThickness: 3 }).setOrigin(0.5, 1).setResolution(3), next: 0 }; this.folkMood.set(f.c.id, m); }
@@ -2562,7 +2732,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           fear: this.villageFear(f.t.village), tributePaid: !canDemandTribute(this.fear, vk, clockOf(this.clock).day) && fearOf(this.fear, vk) >= 50,
         };
       } else this.talk = null;
-      const ally = this.companionActors().filter(a => !this.indoors.has(a.id) && Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
+      const ally = this.companionActors().filter(a => this.inCurrentSpace(a.id) && Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) <= INTERACTION_RANGE)
         .sort((a, b) => Math.hypot(a.sprite.x - p.x, a.sprite.y - p.y) - Math.hypot(b.sprite.x - p.x, b.sprite.y - p.y))[0];
       if (!this.carried && ally && (!best || Math.hypot(ally.sprite.x - p.x, ally.sprite.y - p.y) <= bd)) this.talk = this.allyContext(ally);
     }
@@ -2737,9 +2907,13 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     witnessDeed(victim: { t: { village: number }; c: { id: string }; sprite: { x: number; y: number } }, kind: DeedKind, fearEv?: FearEvent) {
       const victimVk = villageKey(FOLK_HOMES[victim.t.village]!.name);
       this.noteLore(victim.t.village, kind === 'champion' ? 'champion' : 'contact');
-      const observers: Observer[] = this.folk.filter(o => o !== (victim as unknown) && o.combat.phase !== 'dead').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village]!.name), role: isWarrior(o.t) ? 'guard' as const : 'villager' as const, bound: o.c.state !== 'free' }));
+      const observers: Observer[] = this.folk.filter(o => o !== (victim as unknown) && o.combat.phase !== 'dead' && this.inCurrentSpace(o.c.id)).map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village]!.name), role: isWarrior(o.t) ? 'guard' as const : 'villager' as const, asleep: !!o.sprite.getData('lying'), bound: o.c.state !== 'free' }));
       const deed = { kind, actorId: 'player', victimVillage: victimVk, x: victim.sprite.x, y: victim.sprite.y, clock: this.clock, night: isNight(clockOf(this.clock).minutesOfDay), crouching: this.crouching };
       const out = resolveDeed(deed, witnessesOf(deed, observers));
+      if (this.hut && ['kill', 'finisher', 'execution', 'champion'].includes(kind) && !this.hiddenBodies.some(b => b.id === victim.c.id)) {
+        this.hiddenBodies.push({ id: victim.c.id, hut: this.hut.house.id, x: victim.sprite.x, y: victim.sprite.y, found: out.villages.length > 0 });
+        const f = this.folk.find(f => f.c.id === victim.c.id); if (f) f.deathClock = this.clock;
+      }
       const now = Date.now();
       for (const r of out.villages) {
         if (r.alarm) this.rel = raiseAlarm(this.rel, r.village, now);
@@ -2843,7 +3017,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     applyAllyInteraction(target: string, id: InteractionId, time: number): boolean {
       const actor = this.companionActors().find(a => a.id === target); if (!actor) return false;
       const p = this.player;
-      if (!p || this.dead || this.health <= 0 || this.sleeping || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return true;
+      if (!p || !this.inCurrentSpace(target) || this.dead || this.health <= 0 || this.sleeping || Math.hypot(actor.sprite.x - p.x, actor.sprite.y - p.y) > INTERACTION_RANGE) return true;
       const option = getAvailableInteractions(this.allyContext(actor)).find(o => o.id === id);
       if (!option || option.disabled) return true;
       if (id === 'bond') { this.startCloseness(target, time); return true; }
@@ -2851,6 +3025,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         if (id === 'follow' && !canRecruit(true, this.followingCount(), this.companionOrders.get(target)?.mode === 'follow')) return true;
         { const no = id === 'follow' ? followRefusal(PROFILE_IDS[target] ?? target, this.profiles[target]?.trust ?? 0) : null; if (no) { this.message = no; this.messageUntil = time + 2600; return true; } }
         this.companionOrders.set(target, { id: target, mode: id, x: actor.sprite.x, y: actor.sprite.y });
+        if (this.hut) this.hutCompanions.add(target);
         actor.sprite.setVelocity(0, 0); this.companionMovement.reset(target);
         if (id === 'follow') this.tut({ kind: 'recruit' }, time);
         this.message = id === 'follow' ? `Begleitet dich · Jagdtrupp ${this.followingCount()}/${MAX_COMPANIONS}` : id === 'wait' ? 'Wartet hier auf dich' : 'Kehrt zum Höhlenlager zurück';
@@ -2875,6 +3050,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     /** Every free villager of f's village who can see f draws a weapon (f itself only if it is still free). */
     /** The victim cries for help: the village raises the alarm and every warrior within reach charges. */
     kinAlarm(f: Folk, time: number) {
+      if (this.hut) { this.witnessDeed(f, 'capture'); this.armFolk(f, time); return; }
       const vk = villageKey(FOLK_HOMES[f.t.village].name);
       this.rel = raiseAlarm(this.rel, vk, Date.now());
       this.bark(f.c.id, f.sprite, 'flee', time, true, 'Hilfe! Sie holen mich!');
@@ -2912,7 +3088,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     armFolk(f: Folk, time: number, radius = 200) {
       for (const ally of this.folk.filter(a => a.c.state === 'camp')) this.trustEvent(ally.c.id, 'violence');
       for (const o of this.folk) {
-        if (o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
+        if (!this.inCurrentSpace(o.c.id) || o.combat.phase !== 'ready' || o.c.state !== 'free' || o.t.village !== f.t.village) continue;
         if (o !== f && Math.hypot(o.sprite.x - f.sprite.x, o.sprite.y - f.sprite.y) > radius) continue;
         const m = this.folkMood.get(o.c.id);
         // Morale: frightened warriors (worse at night) break and run instead of fighting; champions never break.
@@ -2977,7 +3153,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       if (interrupted || Math.hypot(s.x - p.x, s.y - p.y) > INTERACTION_RANGE) { this.endCloseness('Du beendest den gemeinsamen Moment', time); return false; }
       if (f && f.c.state === 'free') {
         const village = villageKey(FOLK_HOMES[f.t.village].name);
-        const observers: Observer[] = this.folk.filter(o => o.combat.phase === 'ready').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village].name), role: isWarrior(o.t) ? 'guard' : 'villager', bound: o.c.state !== 'free' }));
+        const observers: Observer[] = this.folk.filter(o => this.inCurrentSpace(o.c.id) && !o.sprite.getData('lying') && o.combat.phase === 'ready').map(o => ({ id: o.c.id, x: o.sprite.x, y: o.sprite.y, village: villageKey(FOLK_HOMES[o.t.village].name), role: isWarrior(o.t) ? 'guard' : 'villager', bound: o.c.state !== 'free' }));
         const witnesses = closenessWitnesses({ id: bond.id, village, x: s.x, y: s.y, ownTribe: false }, observers, isNight(clockOf(this.clock).minutesOfDay), (ax, ay, bx, by) => (this.obstacles?.getChildren() ?? []).some(o => {
           const body = (o as Phaser.Physics.Arcade.Sprite).body;
           return !!body && blocksSight(ax, ay + 10, bx, by + 10, body);
@@ -2998,7 +3174,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       p.setVelocity(0, 0); s.setVelocity(0, 0); p.anims.stop(); s.anims.stop();
       this.lastFacing = (Math.round(Math.atan2(s.y - p.y, s.x - p.x) / (Math.PI / 4)) + 8) % 8;
       const facing = (this.lastFacing + 4) % 8; if (f) f.facing = facing; if (c) c.facing = facing;
-      p.setTexture(`none-idle-${this.lastFacing}`).setDepth(p.y); s.setFrame(facing).setDepth(s.y);
+      p.setTexture(`none-idle-${this.lastFacing}`).setDepth((this.hut ? 60000 : 0) + p.y); s.setFrame(facing).setDepth((this.hut ? 60000 : 0) + s.y);
       bond.bubble.setPosition((p.x + s.x) / 2, Math.min(p.y, s.y) - 23 - Math.sin(time / 200) * 2);
       bond.elapsed += Math.min(delta, 100);
       if (bond.elapsed >= CLOSENESS_MS) {
@@ -3015,7 +3191,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
       return true;
     }
     applyInteraction(f: Folk, id: InteractionId, time: number) {
-      const p=this.player;if(!p||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
+      const p=this.player;if(!p||!this.inCurrentSpace(f.c.id)||this.dead||this.sleeping||Math.hypot(p.x-f.sprite.x,p.y-f.sprite.y)>INTERACTION_RANGE||f.combat.phase!=='ready')return;
       this.noteLore(f.t.village, 'contact');
       if (id === 'bond') { this.startCloseness(f.c.id, time); return; }
       if (id === 'challenge') {
@@ -3177,7 +3353,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
     tickWildlife(time:number, delta:number, p:Phaser.Physics.Arcade.Sprite){
       // Stealth: hidden when crouched behind any cover within 36 px.
       this.hidden = this.covers.some(c => Math.hypot(c.x - p.x, c.y - p.y) < 36);
-      this.tickGroundPelts(time, p);
+      if (!this.hut) this.tickGroundPelts(time, p);
       p.setAlpha(this.hidden ? 0.6 : this.crouching ? 0.85 : 1);
       // Player attack hit: resolve on the first tick after attack starts.
       const hw = this.held;
@@ -3188,7 +3364,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
         this.attackPending = false;
         let struck = false;
         for (const c of this.creatures) {
-          if (c.state === 'dead') continue;
+          if (this.hut || c.state === 'dead') continue;
           const ddx = c.sprite.x - p.x, ddy = c.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach) continue;
           if ((ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
@@ -3196,7 +3372,7 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           this.hurt(c, (hw === 'wedge' ? 24 : hw === 'spear' ? 22 : hw === 'axe' ? 18 : this.clubNow() ? 16 : 10)*caveDamageFactor(this.caves,this.clubNow()?'club':hw)*armorDamage(this.armorNow()), fx, fy, time);
         }
         for (const f of this.folk) {
-          if (f.c.state !== 'free') continue;
+          if (!this.inCurrentSpace(f.c.id) || f.c.state !== 'free') continue;
           const ddx = f.sprite.x - p.x, ddy = f.sprite.y - p.y, d = Math.hypot(ddx, ddy);
           if (d > reach || (ddx * fx + ddy * fy) / Math.max(0.1, d) < 0.3) continue;
           if(f.combat.phase!=='ready')continue;
@@ -3212,8 +3388,9 @@ export function createWorld(parent: HTMLElement, input: GameInput, onStatus: (s:
           if(f.combat.phase!=='dead')this.witnessDeed(f,'attack');
         }
         if (struck) this.sfx(hitSound(hw, this.clubNow()));
-        this.chop(time, fx, fy);
+        if (!this.hut) this.chop(time, fx, fy);
       }
+      if (this.hut) return;
       // Creature AI.
       for (const c of this.creatures) {
         if (c.state === 'dead') continue;

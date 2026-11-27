@@ -14,6 +14,11 @@ const game: GameSave = {
 beforeEach(() => localStorage.clear());
 
 describe('save', () => {
+  it('bewahrt unbekannte und bereits gefundene Hüttenleichen nach dem Neuladen', () => {
+    const hiddenBodies = [{ id: 'aruun-m0', hut: 'Rabenhain:1', x: 240, y: 172, found: false }, { id: 'aruun-m0-k', hut: 'Knochenufer:1', x: 210, y: 170, found: true }];
+    expect(saveGame({ game: { ...game, hiddenBodies } })).toBe(true);
+    expect(loadSave()?.game?.hiddenBodies).toEqual(hiddenBodies);
+  });
   it('keeps reused Aruun identities and outcomes separate after reload', () => {
     const profiles = {
       'aruun-m0': { trust: 77, skills: { hunt: 1, tough: 3, gather: 2, watch: 4, fire: 5 } },
